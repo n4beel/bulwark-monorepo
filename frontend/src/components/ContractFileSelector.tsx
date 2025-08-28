@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { CheckSquare, Square, FileText, ArrowLeft, ArrowRight, Search } from 'lucide-react';
-import { GitHubRepository } from '@/types/api';
+import { GitHubRepository, GitHubRepositoryContent } from '@/types/api';
 import { githubApi } from '@/services/api';
 
 interface ContractFile {
@@ -35,7 +35,7 @@ export default function ContractFileSelector({
         loadContractFiles();
     }, [repository, accessToken]);
 
-    const loadContractFiles = async () => {
+    const loadContractFiles = useCallback(async () => {
         try {
             setIsLoading(true);
             setError('');
@@ -48,13 +48,13 @@ export default function ContractFileSelector({
 
             // Auto-select all files by default
             setSelectedFiles(new Set(allContractFiles.map(file => file.path)));
-        } catch (err: any) {
+        } catch (err: unknown) {
             setError('Failed to load contract files. Please try again.');
             console.error('Error loading contract files:', err);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [repository, accessToken]);
 
     const recursivelyFindContractFiles = async (
         owner: string,

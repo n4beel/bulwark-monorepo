@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { PreAuditReport, GitHubRepository, GenerateReportRequest } from '@/types/api';
+import { PreAuditReport, GitHubRepository, GitHubRepositoryContent, GenerateReportRequest } from '@/types/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -32,7 +32,7 @@ export const authApi = {
     },
 
     // Validate GitHub token
-    validateToken: async (token: string): Promise<{ valid: boolean; user?: any; error?: string }> => {
+    validateToken: async (token: string): Promise<{ valid: boolean; user?: unknown; error?: string }> => {
         const response = await api.get(`/auth/validate?token=${encodeURIComponent(token)}`);
         return response.data;
     },
@@ -66,7 +66,7 @@ export const githubApi = {
     },
 
     // Get repository contents
-    getRepositoryContents: async (owner: string, repo: string, accessToken: string, path: string = ''): Promise<any[]> => {
+    getRepositoryContents: async (owner: string, repo: string, accessToken: string, path: string = ''): Promise<GitHubRepositoryContent[]> => {
         const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,

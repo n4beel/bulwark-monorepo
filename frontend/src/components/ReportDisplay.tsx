@@ -7,7 +7,6 @@ import {
     Users,
     Code,
     GitBranch,
-    Shield,
     TrendingUp,
     FileText,
     Brain,
@@ -88,7 +87,7 @@ export default function ReportDisplay({ report, onBack, onNewAnalysis }: ReportD
                             return (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as any)}
+                                    onClick={() => setActiveTab(tab.id as 'overview' | 'analysis' | 'ai-insights')}
                                     className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === tab.id
                                         ? 'border-blue-500 text-blue-600'
                                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'

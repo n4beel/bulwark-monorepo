@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Shield, Github, LogOut } from 'lucide-react';
+import { Shield, LogOut } from 'lucide-react';
 import GitHubAuth from '@/components/GitHubAuth';
 import RepositorySelector from '@/components/RepositorySelector';
 import ContractFileSelector from '@/components/ContractFileSelector';
@@ -39,7 +39,7 @@ export default function Home() {
         setAccessToken(token);
         setUser(user);
         setCurrentState('select');
-      } catch (err) {
+      } catch {
         // Invalid user data, clear storage
         localStorage.removeItem('github_token');
         localStorage.removeItem('github_user');
@@ -56,16 +56,16 @@ export default function Home() {
       try {
         const user = JSON.parse(userData);
         setUser(user);
-      } catch (err) {
+      } catch {
         // Fallback: validate token and get user info
         try {
           const validation = await authApi.validateToken(token);
           if (validation.valid && validation.user) {
-            setUser(validation.user);
+            setUser(validation.user as GitHubUser);
             localStorage.setItem('github_user', JSON.stringify(validation.user));
           }
-        } catch (err) {
-          console.error('Failed to validate token:', err);
+        } catch (validationErr) {
+          console.error('Failed to validate token:', validationErr);
         }
       }
     }
@@ -94,8 +94,9 @@ export default function Home() {
 
       setReport(reportData);
       setCurrentState('report');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to generate report. Please try again.');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to generate report. Please try again.';
+      setError(errorMessage);
       setCurrentState('fileSelect');
     }
   };
@@ -129,12 +130,7 @@ export default function Home() {
     setError('');
   };
 
-  const handleBackToFileSelect = () => {
-    setCurrentState('fileSelect');
-    setSelectedFiles([]);
-    setReport(null);
-    setError('');
-  };
+
 
   const handleNewAnalysis = () => {
     setCurrentState('select');
@@ -162,6 +158,8 @@ export default function Home() {
                       src={user.avatar_url}
                       alt={user.name || user.login}
                       className="w-8 h-8 rounded-full"
+                      width={32}
+                      height={32}
                     />
                     <span className="text-sm font-medium text-gray-900">
                       {user.name || user.login}
@@ -194,7 +192,7 @@ export default function Home() {
                 for your smart contract projects.
               </p>
             </div>
-            <GitHubAuth onAuth={handleAuth} />
+            <GitHubAuth />
           </div>
         )}
 

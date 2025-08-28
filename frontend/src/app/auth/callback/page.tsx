@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
-export default function AuthCallback() {
+function AuthCallbackContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
@@ -42,7 +42,7 @@ export default function AuthCallback() {
             setTimeout(() => {
                 router.push('/');
             }, 2000);
-        } catch (err) {
+        } catch {
             setError('Failed to process authentication response');
             setStatus('error');
         }
@@ -87,5 +87,24 @@ export default function AuthCallback() {
                 <p className="text-sm text-gray-500">Redirecting to the main page...</p>
             </div>
         </div>
+    );
+}
+
+function LoadingFallback() {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+                <p className="text-gray-600">Loading...</p>
+            </div>
+        </div>
+    );
+}
+
+export default function AuthCallback() {
+    return (
+        <Suspense fallback={<LoadingFallback />}>
+            <AuthCallbackContent />
+        </Suspense>
     );
 }

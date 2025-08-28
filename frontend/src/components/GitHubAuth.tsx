@@ -5,11 +5,10 @@ import { Github, ArrowRight } from 'lucide-react';
 import { authApi } from '@/services/api';
 
 interface GitHubAuthProps {
-    onAuth: (token: string) => void;
     isLoading?: boolean;
 }
 
-export default function GitHubAuth({ onAuth, isLoading = false }: GitHubAuthProps) {
+export default function GitHubAuth({ isLoading = false }: GitHubAuthProps) {
     const [isConnecting, setIsConnecting] = useState(false);
     const [error, setError] = useState('');
 

@@ -59,6 +59,20 @@ export interface GitHubRepository {
     html_url: string;
 }
 
+export interface GitHubRepositoryContent {
+    name: string;
+    path: string;
+    sha: string;
+    size: number;
+    url: string;
+    html_url: string;
+    git_url: string;
+    download_url: string | null;
+    type: 'file' | 'dir';
+    content?: string;
+    encoding?: string;
+}
+
 export interface GenerateReportRequest {
     owner: string;
     repo: string;

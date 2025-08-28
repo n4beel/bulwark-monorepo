@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, GitBranch, Lock, Globe, Calendar } from 'lucide-react';
 import { GitHubRepository } from '@/types/api';
 import { githubApi } from '@/services/api';
@@ -30,7 +30,7 @@ export default function RepositorySelector({ accessToken, onSelect, onBack }: Re
         setFilteredRepos(filtered);
     }, [searchTerm, repositories]);
 
-    const loadRepositories = async () => {
+    const loadRepositories = useCallback(async () => {
         try {
             setIsLoading(true);
             setError('');
@@ -43,7 +43,7 @@ export default function RepositorySelector({ accessToken, onSelect, onBack }: Re
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [accessToken]);
 
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString();
