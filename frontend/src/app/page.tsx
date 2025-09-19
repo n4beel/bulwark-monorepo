@@ -9,7 +9,7 @@ import ContractFileSelector from '@/components/ContractFileSelector';
 import ReportDisplay from '@/components/ReportDisplay';
 import StaticAnalysisReportDisplay from '@/components/StaticAnalysisReportDisplay';
 import { GitHubRepository, PreAuditReport, StaticAnalysisReport } from '@/types/api';
-import { scopingApi, authApi, staticAnalysisApi } from '@/services/api';
+import { scopingApi, staticAnalysisApi } from '@/services/api';
 
 type AppState = 'auth' | 'select' | 'fileSelect' | 'loading' | 'report' | 'staticReport';
 type AnalysisType = 'ai' | 'static';

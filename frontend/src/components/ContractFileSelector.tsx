@@ -94,7 +94,7 @@ export default function ContractFileSelector({
             console.warn(`Failed to load contents for path ${path}:`, error);
             return [];
         }
-    }, [accessToken]);
+    }, []);
 
     const loadContractFiles = useCallback(async () => {
         try {
