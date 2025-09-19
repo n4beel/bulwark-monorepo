@@ -130,6 +130,7 @@ export interface AnalysisFactors {
     functionVisibility: {
         public: number;
         private: number;
+        internal: number;
     };
     viewFunctions: number;
     pureFunctions: number;
@@ -139,6 +140,10 @@ export interface AnalysisFactors {
     unsafeCodeBlocks: number;
     panicUsage: number;
     unwrapUsage: number;
+    expectUsage: number;
+    matchWithoutDefault: number;
+    arrayBoundsChecks: number;
+    memorySafetyIssues: number;
     externalProgramCalls: number;
     uniqueExternalCalls: number;
     knownProtocolInteractions: string[];
@@ -149,11 +154,26 @@ export interface AnalysisFactors {
         roleBased: number;
         custom: number;
     };
+    cpiUsage: number;
+    crossProgramInvocation: string[];
     tokenTransfers: number;
     complexMathOperations: number;
     timeDependentLogic: number;
     defiPatterns: DeFiPattern[];
     economicRiskFactors: EconomicRiskFactor[];
+    anchorSpecificFeatures: {
+        accountValidation: number;
+        constraintUsage: number;
+        instructionHandlers: number;
+        programDerives: string[];
+        accountTypes: number;
+        seedsUsage: number;
+        bumpUsage: number;
+        signerChecks: number;
+        ownerChecks: number;
+        spaceAllocation: number;
+        rentExemption: number;
+    };
 }
 
 export interface StructuralScore {

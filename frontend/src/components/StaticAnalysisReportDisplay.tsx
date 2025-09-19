@@ -25,7 +25,7 @@ interface StaticAnalysisReportDisplayProps {
 }
 
 export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnalysis }: StaticAnalysisReportDisplayProps) {
-    const [activeTab, setActiveTab] = useState<'overview' | 'scores' | 'factors' | 'risks'>('scores');
+    const [activeTab, setActiveTab] = useState<'overview' | 'scores' | 'factors' | 'risks' | 'anchor'>('scores');
 
     const getScoreColor = (score: number) => {
         if (score <= 20) return 'text-green-600 bg-green-100';
@@ -57,6 +57,7 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
         { id: 'overview', label: 'Overview', icon: TrendingUp },
         { id: 'factors', label: 'Analysis Factors', icon: Code2 },
         { id: 'risks', label: 'Risk Assessment', icon: AlertTriangle },
+        { id: 'anchor', label: 'Anchor Features', icon: Layers },
     ];
 
     return (
@@ -99,7 +100,7 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                             return (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as 'overview' | 'scores' | 'factors' | 'risks')}
+                                    onClick={() => setActiveTab(tab.id as 'overview' | 'scores' | 'factors' | 'risks' | 'anchor')}
                                     className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${activeTab === tab.id
                                         ? 'border-blue-500 text-blue-600'
                                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -432,12 +433,58 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                         <div className="text-sm text-gray-600">Private Functions</div>
                                     </div>
                                     <div className="text-center">
-                                        <div className="text-2xl font-bold text-green-600">{report.analysisFactors.viewFunctions}</div>
-                                        <div className="text-sm text-gray-600">View Functions</div>
+                                        <div className="text-2xl font-bold text-green-600">{report.analysisFactors.functionVisibility.internal || 0}</div>
+                                        <div className="text-sm text-gray-600">Internal Functions</div>
                                     </div>
                                     <div className="text-center">
                                         <div className="text-2xl font-bold text-green-600">{report.analysisFactors.pureFunctions}</div>
                                         <div className="text-sm text-gray-600">Pure Functions</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Rust-Specific Analysis */}
+                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                                <h3 className="text-lg font-semibold text-orange-900 mb-4">Rust-Specific Analysis</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-orange-600">{report.analysisFactors.unwrapUsage}</div>
+                                        <div className="text-sm text-gray-600">Unwrap Usage</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-orange-600">{report.analysisFactors.expectUsage || 0}</div>
+                                        <div className="text-sm text-gray-600">Expect Usage</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-orange-600">{report.analysisFactors.panicUsage}</div>
+                                        <div className="text-sm text-gray-600">Panic Usage</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-orange-600">{report.analysisFactors.matchWithoutDefault || 0}</div>
+                                        <div className="text-sm text-gray-600">Match w/o Default</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Memory Safety */}
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                                <h3 className="text-lg font-semibold text-red-900 mb-4">Memory Safety & Bounds Checking</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-red-600">{report.analysisFactors.arrayBoundsChecks || 0}</div>
+                                        <div className="text-sm text-gray-600">Array Bounds Checks</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-red-600">{report.analysisFactors.memorySafetyIssues || 0}</div>
+                                        <div className="text-sm text-gray-600">Memory Safety Issues</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-red-600">{report.analysisFactors.unsafeCodeBlocks}</div>
+                                        <div className="text-sm text-gray-600">Unsafe Code Blocks</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-red-600">{report.analysisFactors.integerOverflowRisks}</div>
+                                        <div className="text-sm text-gray-600">Overflow Risks</div>
                                     </div>
                                 </div>
                             </div>
@@ -549,6 +596,109 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                                     {pattern.riskLevel.toUpperCase()}
                                                 </span>
                                             </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'anchor' && (
+                        <div className="space-y-6">
+                            {/* Anchor Account Management */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                                <h3 className="text-lg font-semibold text-blue-900 mb-4">Account Management</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-blue-600">{report.analysisFactors.anchorSpecificFeatures.accountValidation}</div>
+                                        <div className="text-sm text-gray-600">Account Validations</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-blue-600">{report.analysisFactors.anchorSpecificFeatures.accountTypes}</div>
+                                        <div className="text-sm text-gray-600">Account Types</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-blue-600">{report.analysisFactors.anchorSpecificFeatures.instructionHandlers}</div>
+                                        <div className="text-sm text-gray-600">Instruction Handlers</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-blue-600">{report.analysisFactors.anchorSpecificFeatures.constraintUsage || 0}</div>
+                                        <div className="text-sm text-gray-600">Constraints</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Anchor Security Features */}
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                                <h3 className="text-lg font-semibold text-green-900 mb-4">Security Features</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-green-600">{report.analysisFactors.anchorSpecificFeatures.signerChecks}</div>
+                                        <div className="text-sm text-gray-600">Signer Checks</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-green-600">{report.analysisFactors.anchorSpecificFeatures.ownerChecks || 0}</div>
+                                        <div className="text-sm text-gray-600">Owner Checks</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-green-600">{report.analysisFactors.anchorSpecificFeatures.seedsUsage}</div>
+                                        <div className="text-sm text-gray-600">Seeds Usage</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-green-600">{report.analysisFactors.anchorSpecificFeatures.bumpUsage || 0}</div>
+                                        <div className="text-sm text-gray-600">Bump Usage</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Anchor Program Structure */}
+                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                                <h3 className="text-lg font-semibold text-purple-900 mb-4">Program Structure</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-purple-600">{report.analysisFactors.anchorSpecificFeatures.spaceAllocation}</div>
+                                        <div className="text-sm text-gray-600">Space Allocations</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-purple-600">{report.analysisFactors.anchorSpecificFeatures.rentExemption}</div>
+                                        <div className="text-sm text-gray-600">Rent Exemptions</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-2xl font-bold text-purple-600">{report.analysisFactors.cpiUsage || 0}</div>
+                                        <div className="text-sm text-gray-600">CPI Usage</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Program Derives */}
+                            {report.analysisFactors.anchorSpecificFeatures.programDerives.length > 0 && (
+                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                                    <h3 className="text-lg font-semibold text-yellow-900 mb-4">Program Derives</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {report.analysisFactors.anchorSpecificFeatures.programDerives.map((derive, index) => (
+                                            <span
+                                                key={index}
+                                                className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm"
+                                            >
+                                                {derive}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Cross Program Invocations */}
+                            {report.analysisFactors.crossProgramInvocation.length > 0 && (
+                                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6">
+                                    <h3 className="text-lg font-semibold text-indigo-900 mb-4">Cross Program Invocations</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {report.analysisFactors.crossProgramInvocation.map((cpi, index) => (
+                                            <span
+                                                key={index}
+                                                className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm"
+                                            >
+                                                {cpi}
+                                            </span>
                                         ))}
                                     </div>
                                 </div>
