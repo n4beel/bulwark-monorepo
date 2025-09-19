@@ -1,15 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     FileText,
     Calendar,
     Code2,
-    TrendingUp,
     ArrowLeft,
     Search,
-    Filter,
     Clock,
     Shield,
     Database,
@@ -38,7 +36,7 @@ export default function ReportsPage() {
 
     useEffect(() => {
         filterAndSortReports();
-    }, [reports, searchTerm, sortBy, sortOrder]);
+    }, [reports, searchTerm, sortBy, sortOrder, filterAndSortReports]);
 
     const loadReports = async () => {
         try {
@@ -54,8 +52,8 @@ export default function ReportsPage() {
         }
     };
 
-    const filterAndSortReports = () => {
-        let filtered = reports.filter(report =>
+    const filterAndSortReports = useCallback(() => {
+        const filtered = reports.filter(report =>
             report.repository.toLowerCase().includes(searchTerm.toLowerCase()) ||
             report.language.toLowerCase().includes(searchTerm.toLowerCase()) ||
             report.framework.toLowerCase().includes(searchTerm.toLowerCase())
@@ -63,7 +61,7 @@ export default function ReportsPage() {
 
         // Sort reports
         filtered.sort((a, b) => {
-            let aValue: any, bValue: any;
+            let aValue: string | number | Date, bValue: string | number | Date;
 
             switch (sortBy) {
                 case 'date':
@@ -90,7 +88,7 @@ export default function ReportsPage() {
         });
 
         setFilteredReports(filtered);
-    };
+    }, [reports, searchTerm, sortBy, sortOrder]);
 
     const getScoreColor = (score: number) => {
         if (score <= 20) return 'text-green-600 bg-green-100';

@@ -20,7 +20,7 @@ export default function RepositorySelector({ accessToken, onSelect, onBack }: Re
 
     useEffect(() => {
         loadRepositories();
-    }, [accessToken]);
+    }, [accessToken, loadRepositories]);
 
     useEffect(() => {
         const filtered = repositories.filter(repo =>

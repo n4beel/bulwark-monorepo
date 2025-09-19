@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Shield, LogOut, FileText } from 'lucide-react';
 import GitHubAuth from '@/components/GitHubAuth';
 import RepositorySelector from '@/components/RepositorySelector';
@@ -51,31 +52,7 @@ export default function Home() {
     }
   }, []);
 
-  const handleAuth = async (token: string) => {
-    setAccessToken(token);
-
-    // Get user info from localStorage or validate token
-    const userData = localStorage.getItem('github_user');
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        setUser(user);
-      } catch {
-        // Fallback: validate token and get user info
-        try {
-          const validation = await authApi.validateToken(token);
-          if (validation.valid && validation.user) {
-            setUser(validation.user as GitHubUser);
-            localStorage.setItem('github_user', JSON.stringify(validation.user));
-          }
-        } catch (validationErr) {
-          console.error('Failed to validate token:', validationErr);
-        }
-      }
-    }
-
-    setCurrentState('select');
-  };
+  // Removed unused handleAuth function
 
   const handleRepoSelect = async (repo: GitHubRepository) => {
     setSelectedRepo(repo);
@@ -188,7 +165,7 @@ export default function Home() {
                     <span>Reports</span>
                   </button>
                   <div className="flex items-center space-x-2">
-                    <img
+                    <Image
                       src={user.avatar_url}
                       alt={user.name || user.login}
                       className="w-8 h-8 rounded-full"

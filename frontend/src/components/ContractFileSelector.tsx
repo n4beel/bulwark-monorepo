@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { CheckSquare, Square, FileText, ArrowLeft, ArrowRight, Search, Brain, Code2 } from 'lucide-react';
-import { GitHubRepository, GitHubRepositoryContent } from '@/types/api';
+import { GitHubRepository } from '@/types/api';
 import { githubApi } from '@/services/api';
 
 interface ContractFile {
@@ -34,32 +34,7 @@ export default function ContractFileSelector({
     const [searchTerm, setSearchTerm] = useState('');
     const [analysisType, setAnalysisType] = useState<AnalysisType>('ai');
 
-    useEffect(() => {
-        loadContractFiles();
-    }, [repository, accessToken]);
-
-    const loadContractFiles = useCallback(async () => {
-        try {
-            setIsLoading(true);
-            setError('');
-
-            // Get repository contents to find contract files
-            const [owner, repoName] = repository.full_name.split('/');
-            const allContractFiles = await recursivelyFindContractFiles(owner, repoName, accessToken, '');
-
-            setContractFiles(allContractFiles);
-
-            // Auto-select all files by default
-            setSelectedFiles(new Set(allContractFiles.map(file => file.path)));
-        } catch (err: unknown) {
-            setError('Failed to load contract files. Please try again.');
-            console.error('Error loading contract files:', err);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [repository, accessToken]);
-
-    const recursivelyFindContractFiles = async (
+    const recursivelyFindContractFiles = useCallback(async (
         owner: string,
         repoName: string,
         accessToken: string,
@@ -119,7 +94,32 @@ export default function ContractFileSelector({
             console.warn(`Failed to load contents for path ${path}:`, error);
             return [];
         }
-    };
+    }, [accessToken]);
+
+    const loadContractFiles = useCallback(async () => {
+        try {
+            setIsLoading(true);
+            setError('');
+
+            // Get repository contents to find contract files
+            const [owner, repoName] = repository.full_name.split('/');
+            const allContractFiles = await recursivelyFindContractFiles(owner, repoName, accessToken, '');
+
+            setContractFiles(allContractFiles);
+
+            // Auto-select all files by default
+            setSelectedFiles(new Set(allContractFiles.map(file => file.path)));
+        } catch (err: unknown) {
+            setError('Failed to load contract files. Please try again.');
+            console.error('Error loading contract files:', err);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [repository, accessToken, recursivelyFindContractFiles]);
+
+    useEffect(() => {
+        loadContractFiles();
+    }, [loadContractFiles]);
 
     const getLanguageFromExtension = (filename: string): string => {
         if (filename.endsWith('.sol')) return 'Solidity (EVM)';
@@ -226,8 +226,8 @@ export default function ContractFileSelector({
                         <button
                             onClick={() => setAnalysisType('ai')}
                             className={`p-4 border-2 rounded-lg transition-all ${analysisType === 'ai'
-                                    ? 'border-blue-500 bg-blue-50'
-                                    : 'border-gray-300 hover:border-gray-400'
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-300 hover:border-gray-400'
                                 }`}
                         >
                             <div className="flex items-center space-x-3">
@@ -241,8 +241,8 @@ export default function ContractFileSelector({
                         <button
                             onClick={() => setAnalysisType('static')}
                             className={`p-4 border-2 rounded-lg transition-all ${analysisType === 'static'
-                                    ? 'border-blue-500 bg-blue-50'
-                                    : 'border-gray-300 hover:border-gray-400'
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-300 hover:border-gray-400'
                                 }`}
                         >
                             <div className="flex items-center space-x-3">

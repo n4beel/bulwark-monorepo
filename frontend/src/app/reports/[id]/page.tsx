@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+// Removed unused imports
 import { StaticAnalysisReport } from '@/types/api';
 import { staticAnalysisApi } from '@/services/api';
 import StaticAnalysisReportDisplay from '@/components/StaticAnalysisReportDisplay';
