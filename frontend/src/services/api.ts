@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { PreAuditReport, GitHubRepository, GitHubRepositoryContent, GenerateReportRequest } from '@/types/api';
+import { PreAuditReport, GitHubRepository, GitHubRepositoryContent, GenerateReportRequest, StaticAnalysisReport, StaticAnalysisDto } from '@/types/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -20,6 +20,20 @@ export const scopingApi = {
     // Generate pre-audit report
     generateReport: async (request: GenerateReportRequest): Promise<PreAuditReport> => {
         const response = await api.post('/scoping/generate-report', request);
+        return response.data;
+    },
+};
+
+export const staticAnalysisApi = {
+    // Analyze Rust contract
+    analyzeRustContract: async (request: StaticAnalysisDto): Promise<StaticAnalysisReport> => {
+        const response = await api.post('/static-analysis/analyze-rust-contract', request);
+        return response.data;
+    },
+
+    // Get all reports
+    getAllReports: async (): Promise<StaticAnalysisReport[]> => {
+        const response = await api.post('/static-analysis/reports');
         return response.data;
     },
 };

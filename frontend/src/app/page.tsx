@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Shield, LogOut } from 'lucide-react';
+import { Shield, LogOut, FileText } from 'lucide-react';
 import GitHubAuth from '@/components/GitHubAuth';
 import RepositorySelector from '@/components/RepositorySelector';
 import ContractFileSelector from '@/components/ContractFileSelector';
 import ReportDisplay from '@/components/ReportDisplay';
-import { GitHubRepository, PreAuditReport } from '@/types/api';
-import { scopingApi, authApi } from '@/services/api';
+import StaticAnalysisReportDisplay from '@/components/StaticAnalysisReportDisplay';
+import { GitHubRepository, PreAuditReport, StaticAnalysisReport } from '@/types/api';
+import { scopingApi, authApi, staticAnalysisApi } from '@/services/api';
 
-type AppState = 'auth' | 'select' | 'fileSelect' | 'loading' | 'report';
+type AppState = 'auth' | 'select' | 'fileSelect' | 'loading' | 'report' | 'staticReport';
+type AnalysisType = 'ai' | 'static';
 
 interface GitHubUser {
   id: number;
@@ -26,6 +28,8 @@ export default function Home() {
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepository | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [report, setReport] = useState<PreAuditReport | null>(null);
+  const [staticReport, setStaticReport] = useState<StaticAnalysisReport | null>(null);
+  const [currentAnalysisType, setCurrentAnalysisType] = useState<AnalysisType>('ai');
   const [error, setError] = useState('');
 
   // Check for existing authentication on component mount
@@ -78,22 +82,41 @@ export default function Home() {
     setCurrentState('fileSelect');
   };
 
-  const handleFileSelection = async (files: string[]) => {
+  const handleFileSelection = async (files: string[], analysisType: AnalysisType) => {
     setSelectedFiles(files);
+    setCurrentAnalysisType(analysisType);
     setCurrentState('loading');
     setError('');
 
     try {
       const [owner, repoName] = selectedRepo!.full_name.split('/');
-      const reportData = await scopingApi.generateReport({
-        owner,
-        repo: repoName,
-        accessToken: accessToken,
-        selectedFiles: files,
-      });
 
-      setReport(reportData);
-      setCurrentState('report');
+      if (analysisType === 'ai') {
+        const reportData = await scopingApi.generateReport({
+          owner,
+          repo: repoName,
+          accessToken: accessToken,
+          selectedFiles: files,
+        });
+
+        setReport(reportData);
+        setCurrentState('report');
+      } else {
+        const staticReportData = await staticAnalysisApi.analyzeRustContract({
+          owner,
+          repo: repoName,
+          accessToken: accessToken,
+          selectedFiles: files,
+          analysisOptions: {
+            includeTests: false,
+            includeDependencies: true,
+            depth: 'deep'
+          }
+        });
+
+        setStaticReport(staticReportData);
+        setCurrentState('staticReport');
+      }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to generate report. Please try again.';
       setError(errorMessage);
@@ -109,6 +132,7 @@ export default function Home() {
     setUser(null);
     setSelectedRepo(null);
     setReport(null);
+    setStaticReport(null);
     setError('');
   };
 
@@ -119,6 +143,7 @@ export default function Home() {
     setSelectedRepo(null);
     setSelectedFiles([]);
     setReport(null);
+    setStaticReport(null);
     setError('');
   };
 
@@ -127,6 +152,7 @@ export default function Home() {
     setSelectedRepo(null);
     setSelectedFiles([]);
     setReport(null);
+    setStaticReport(null);
     setError('');
   };
 
@@ -137,6 +163,7 @@ export default function Home() {
     setSelectedRepo(null);
     setSelectedFiles([]);
     setReport(null);
+    setStaticReport(null);
     setError('');
   };
 
@@ -153,6 +180,13 @@ export default function Home() {
             <div className="flex items-center space-x-4">
               {user && (
                 <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => window.location.href = '/reports'}
+                    className="flex items-center space-x-1 text-gray-600 hover:text-gray-800 text-sm px-3 py-2 rounded-md hover:bg-gray-100"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Reports</span>
+                  </button>
                   <div className="flex items-center space-x-2">
                     <img
                       src={user.avatar_url}
@@ -218,7 +252,7 @@ export default function Home() {
             <div className="bg-white rounded-lg shadow-lg p-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Analyzing Repository
+                {currentAnalysisType === 'ai' ? 'Running AI Analysis' : 'Running Static Analysis'}
               </h3>
               <p className="text-gray-600">
                 {selectedRepo?.full_name} • {selectedFiles.length} files selected • This may take a few moments...
@@ -230,11 +264,21 @@ export default function Home() {
                 </div>
                 <div className="flex items-center justify-center space-x-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-gray-500">Analyzing selected contract files</span>
+                  <span className="text-sm text-gray-500">
+                    {currentAnalysisType === 'ai'
+                      ? 'Analyzing selected contract files'
+                      : 'Performing static code analysis'
+                    }
+                  </span>
                 </div>
                 <div className="flex items-center justify-center space-x-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-gray-500">Generating audit estimates</span>
+                  <span className="text-sm text-gray-500">
+                    {currentAnalysisType === 'ai'
+                      ? 'Generating audit estimates'
+                      : 'Calculating complexity metrics'
+                    }
+                  </span>
                 </div>
               </div>
             </div>
@@ -244,6 +288,14 @@ export default function Home() {
         {currentState === 'report' && report && (
           <ReportDisplay
             report={report}
+            onBack={handleBackToSelect}
+            onNewAnalysis={handleNewAnalysis}
+          />
+        )}
+
+        {currentState === 'staticReport' && staticReport && (
+          <StaticAnalysisReportDisplay
+            report={staticReport}
             onBack={handleBackToSelect}
             onNewAnalysis={handleNewAnalysis}
           />

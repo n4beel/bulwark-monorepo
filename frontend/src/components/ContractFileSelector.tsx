@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { CheckSquare, Square, FileText, ArrowLeft, ArrowRight, Search } from 'lucide-react';
+import { CheckSquare, Square, FileText, ArrowLeft, ArrowRight, Search, Brain, Code2 } from 'lucide-react';
 import { GitHubRepository, GitHubRepositoryContent } from '@/types/api';
 import { githubApi } from '@/services/api';
 
@@ -12,11 +12,13 @@ interface ContractFile {
     language: string;
 }
 
+type AnalysisType = 'ai' | 'static';
+
 interface ContractFileSelectorProps {
     repository: GitHubRepository;
     accessToken: string;
     onBack: () => void;
-    onProceed: (selectedFiles: string[]) => void;
+    onProceed: (selectedFiles: string[], analysisType: AnalysisType) => void;
 }
 
 export default function ContractFileSelector({
@@ -30,6 +32,7 @@ export default function ContractFileSelector({
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [analysisType, setAnalysisType] = useState<AnalysisType>('ai');
 
     useEffect(() => {
         loadContractFiles();
@@ -148,7 +151,7 @@ export default function ContractFileSelector({
             setError('Please select at least one contract file to audit.');
             return;
         }
-        onProceed(Array.from(selectedFiles));
+        onProceed(Array.from(selectedFiles), analysisType);
     };
 
     const filteredFiles = contractFiles.filter(file =>
@@ -215,6 +218,43 @@ export default function ContractFileSelector({
                         {error}
                     </div>
                 )}
+
+                {/* Analysis Type Selection */}
+                <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Choose Analysis Type</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <button
+                            onClick={() => setAnalysisType('ai')}
+                            className={`p-4 border-2 rounded-lg transition-all ${analysisType === 'ai'
+                                    ? 'border-blue-500 bg-blue-50'
+                                    : 'border-gray-300 hover:border-gray-400'
+                                }`}
+                        >
+                            <div className="flex items-center space-x-3">
+                                <Brain className={`w-6 h-6 ${analysisType === 'ai' ? 'text-blue-600' : 'text-gray-500'}`} />
+                                <div className="text-left">
+                                    <h4 className="font-semibold text-gray-900">AI Analysis</h4>
+                                    <p className="text-sm text-gray-600">Comprehensive audit estimates with AI insights</p>
+                                </div>
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => setAnalysisType('static')}
+                            className={`p-4 border-2 rounded-lg transition-all ${analysisType === 'static'
+                                    ? 'border-blue-500 bg-blue-50'
+                                    : 'border-gray-300 hover:border-gray-400'
+                                }`}
+                        >
+                            <div className="flex items-center space-x-3">
+                                <Code2 className={`w-6 h-6 ${analysisType === 'static' ? 'text-blue-600' : 'text-gray-500'}`} />
+                                <div className="text-left">
+                                    <h4 className="font-semibold text-gray-900">Static Analysis</h4>
+                                    <p className="text-sm text-gray-600">Code complexity and security metrics</p>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
 
                 {/* Search and Selection Controls */}
                 <div className="mb-6 space-y-4">
@@ -319,7 +359,7 @@ export default function ContractFileSelector({
                             disabled={selectedFiles.size === 0}
                             className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                         >
-                            <span>Analyze Selected Files</span>
+                            <span>{analysisType === 'ai' ? 'Run AI Analysis' : 'Run Static Analysis'}</span>
                             <ArrowRight className="w-4 h-4 ml-2" />
                         </button>
                     </div>
