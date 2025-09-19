@@ -30,14 +30,6 @@ export default function ReportsPage() {
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [selectedReport, setSelectedReport] = useState<StaticAnalysisReport | null>(null);
 
-    useEffect(() => {
-        loadReports();
-    }, []);
-
-    useEffect(() => {
-        filterAndSortReports();
-    }, [reports, searchTerm, sortBy, sortOrder, filterAndSortReports]);
-
     const loadReports = async () => {
         try {
             setIsLoading(true);
@@ -89,6 +81,14 @@ export default function ReportsPage() {
 
         setFilteredReports(filtered);
     }, [reports, searchTerm, sortBy, sortOrder]);
+
+    useEffect(() => {
+        loadReports();
+    }, []);
+
+    useEffect(() => {
+        filterAndSortReports();
+    }, [filterAndSortReports]);
 
     const getScoreColor = (score: number) => {
         if (score <= 20) return 'text-green-600 bg-green-100';

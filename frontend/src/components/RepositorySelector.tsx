@@ -18,18 +18,6 @@ export default function RepositorySelector({ accessToken, onSelect, onBack }: Re
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
 
-    useEffect(() => {
-        loadRepositories();
-    }, [accessToken, loadRepositories]);
-
-    useEffect(() => {
-        const filtered = repositories.filter(repo =>
-            repo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            repo.description?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        setFilteredRepos(filtered);
-    }, [searchTerm, repositories]);
-
     const loadRepositories = useCallback(async () => {
         try {
             setIsLoading(true);
@@ -44,6 +32,18 @@ export default function RepositorySelector({ accessToken, onSelect, onBack }: Re
             setIsLoading(false);
         }
     }, [accessToken]);
+
+    useEffect(() => {
+        loadRepositories();
+    }, [loadRepositories]);
+
+    useEffect(() => {
+        const filtered = repositories.filter(repo =>
+            repo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            repo.description?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+        setFilteredRepos(filtered);
+    }, [searchTerm, repositories]);
 
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString();
