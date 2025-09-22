@@ -59,6 +59,14 @@ interface ContractFile {
     language: string;
 }
 
+interface ContentItem {
+    name: string;
+    path: string;
+    type: 'file' | 'dir';
+    size: number;
+    contents?: ContentItem[];
+}
+
 export const uploadApi = {
     // Step 1: Upload and discover files (like GitHub file discovery)
     discoverFiles: async (file: File): Promise<{ extractedPath: string; contractFiles: ContractFile[] }> => {
@@ -86,7 +94,7 @@ export const uploadApi = {
 
             // Find file size from contents if available
             let size = 0;
-            const findFileInContents = (contents: any[], targetPath: string): any => {
+            const findFileInContents = (contents: ContentItem[], targetPath: string): ContentItem | null => {
                 for (const item of contents) {
                     if (item.path === targetPath && item.type === 'file') {
                         return item;
@@ -119,7 +127,7 @@ export const uploadApi = {
     },
 
     // Step 2: Analyze selected uploaded contracts (like GitHub static analysis)
-    analyzeUploadedContracts: async (extractedPath: string, selectedFiles: string[]): Promise<any> => {
+    analyzeUploadedContracts: async (extractedPath: string, selectedFiles: string[]): Promise<StaticAnalysisReport> => {
         const response = await api.post('/static-analysis/analyze-uploaded-contract', {
             extractedPath,
             selectedFiles,

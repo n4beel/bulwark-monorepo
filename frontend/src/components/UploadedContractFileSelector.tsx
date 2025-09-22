@@ -21,7 +21,7 @@ interface UploadedContractFileSelectorProps {
 
 export default function UploadedContractFileSelector({
     contractFiles,
-    extractedPath,
+    extractedPath: _extractedPath,
     onBack,
     onProceed
 }: UploadedContractFileSelectorProps) {

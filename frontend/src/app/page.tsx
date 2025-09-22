@@ -13,6 +13,13 @@ import StaticAnalysisReportDisplay from '@/components/StaticAnalysisReportDispla
 import { GitHubRepository, PreAuditReport, StaticAnalysisReport } from '@/types/api';
 import { scopingApi, staticAnalysisApi, uploadApi } from '@/services/api';
 
+interface ContractFile {
+  path: string;
+  name: string;
+  size: number;
+  language: string;
+}
+
 type AppState = 'auth' | 'select' | 'fileSelect' | 'upload' | 'uploadFileSelect' | 'loading' | 'report' | 'staticReport';
 type AnalysisType = 'ai' | 'static';
 
@@ -35,7 +42,7 @@ export default function Home() {
   const [currentAnalysisType, setCurrentAnalysisType] = useState<AnalysisType>('ai');
   const [error, setError] = useState('');
   const [extractedPath, setExtractedPath] = useState<string | null>(null);
-  const [uploadedContractFiles, setUploadedContractFiles] = useState<any[]>([]);
+  const [uploadedContractFiles, setUploadedContractFiles] = useState<ContractFile[]>([]);
 
   // Check for existing authentication on component mount
   useEffect(() => {
@@ -105,7 +112,7 @@ export default function Home() {
     }
   };
 
-  const handleUploadSuccess = (extractedPath: string, contractFiles: any[]) => {
+  const handleUploadSuccess = (extractedPath: string, contractFiles: ContractFile[]) => {
     setExtractedPath(extractedPath);
     setUploadedContractFiles(contractFiles);
     setCurrentState('uploadFileSelect');
