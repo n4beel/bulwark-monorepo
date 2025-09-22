@@ -13,11 +13,13 @@ import {
     Database,
     DollarSign,
     Layers,
-    X
+    X,
+    Download
 } from 'lucide-react';
 import { StaticAnalysisReport } from '@/types/api';
 import { staticAnalysisApi } from '@/services/api';
 import StaticAnalysisReportDisplay from '@/components/StaticAnalysisReportDisplay';
+import ExportModal from '@/components/ExportModal';
 
 export default function ReportsPage() {
     const router = useRouter();
@@ -29,6 +31,7 @@ export default function ReportsPage() {
     const [sortBy, setSortBy] = useState<'date' | 'score' | 'repository'>('date');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [selectedReport, setSelectedReport] = useState<StaticAnalysisReport | null>(null);
+    const [showExportModal, setShowExportModal] = useState(false);
 
     const loadReports = async () => {
         try {
@@ -158,8 +161,18 @@ export default function ReportsPage() {
                                 </p>
                             </div>
                         </div>
-                        <div className="text-sm text-gray-500">
-                            {filteredReports.length} of {reports.length} reports
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={() => setShowExportModal(true)}
+                                disabled={reports.length === 0}
+                                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                                <Download className="w-4 h-4 mr-2" />
+                                Export CSV
+                            </button>
+                            <div className="text-sm text-gray-500">
+                                {filteredReports.length} of {reports.length} reports
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -226,7 +239,7 @@ export default function ReportsPage() {
                     ) : (
                         filteredReports.map((report) => (
                             <div
-                                key={report._id.$oid}
+                                key={typeof report._id === 'string' ? report._id : report._id.$oid}
                                 onClick={() => handleReportClick(report)}
                                 className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md hover:border-blue-300 cursor-pointer transition-all"
                             >
@@ -307,6 +320,14 @@ export default function ReportsPage() {
                     )}
                 </div>
             </div>
+
+            {/* Export Modal */}
+            {showExportModal && (
+                <ExportModal
+                    reports={reports}
+                    onClose={() => setShowExportModal(false)}
+                />
+            )}
 
             {/* Report Detail Modal */}
             {selectedReport && (

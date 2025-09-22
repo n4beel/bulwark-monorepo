@@ -33,7 +33,7 @@ export default function ReportDetailPage() {
 
             // Try different ID matching strategies
             const foundReport = allReports.find(r => {
-                const rId = r._id?.$oid || r._id;
+                const rId = typeof r._id === 'string' ? r._id : r._id?.$oid;
                 console.log('Comparing:', reportId, 'with', rId);
                 return rId === reportId;
             });

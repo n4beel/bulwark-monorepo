@@ -261,7 +261,7 @@ export interface Performance {
 export interface StaticAnalysisReport {
     _id: {
         $oid: string;
-    };
+    } | string;  // Handle both MongoDB object format and plain string
     repository: string;
     repositoryUrl: string;
     language: string;

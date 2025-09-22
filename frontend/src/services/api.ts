@@ -36,6 +36,47 @@ export const staticAnalysisApi = {
         const response = await api.post('/static-analysis/reports');
         return response.data;
     },
+
+    // Get available factors for export
+    getAvailableFactors: async (): Promise<FactorsResponse> => {
+        const response = await api.post('/static-analysis/available-factors', {});
+        return response.data;
+    },
+
+    // Export reports to CSV
+    exportReportsCSV: async (reportIds?: string[], factors?: string[]): Promise<{ blob: Blob, filename: string }> => {
+        const requestBody: { reportIds?: string[]; factors?: string[] } = {};
+
+        if (reportIds && reportIds.length > 0) {
+            requestBody.reportIds = reportIds;
+        }
+
+        if (factors && factors.length > 0) {
+            requestBody.factors = factors;
+        }
+
+        const response = await api.post('/static-analysis/export-csv', requestBody);
+
+        // Handle JSON response with CSV content
+        if (response.data && response.data.csv && response.data.filename) {
+            const csvContent = response.data.csv;
+            const filename = response.data.filename;
+
+            // Create a proper CSV blob
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+            return { blob, filename };
+        }
+
+        // Fallback: if it's already a blob
+        if (response.data instanceof Blob) {
+            return {
+                blob: response.data,
+                filename: `analysis-reports-${new Date().toISOString().split('T')[0]}.csv`
+            };
+        }
+
+        throw new Error('Invalid response format');
+    },
 };
 
 export const authApi = {
@@ -66,6 +107,24 @@ interface ContentItem {
     size: number;
     contents?: ContentItem[];
 }
+
+interface FactorInfo {
+    name: string;
+    type: string;
+    description: string;
+}
+
+interface FactorGroup {
+    category: string;
+    description: string;
+    factors: Record<string, FactorInfo>;
+}
+
+export interface FactorsResponse {
+    [groupKey: string]: FactorGroup;
+}
+
+export type { FactorInfo, FactorGroup };
 
 export const uploadApi = {
     // Step 1: Upload and discover files (like GitHub file discovery)
