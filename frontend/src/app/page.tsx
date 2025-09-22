@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Shield, LogOut, FileText } from 'lucide-react';
+import { Shield, LogOut, FileText, Upload } from 'lucide-react';
 import GitHubAuth from '@/components/GitHubAuth';
 import RepositorySelector from '@/components/RepositorySelector';
 import ContractFileSelector from '@/components/ContractFileSelector';
+import FolderUpload from '@/components/FolderUpload';
+import UploadedContractFileSelector from '@/components/UploadedContractFileSelector';
 import ReportDisplay from '@/components/ReportDisplay';
 import StaticAnalysisReportDisplay from '@/components/StaticAnalysisReportDisplay';
 import { GitHubRepository, PreAuditReport, StaticAnalysisReport } from '@/types/api';
-import { scopingApi, staticAnalysisApi } from '@/services/api';
+import { scopingApi, staticAnalysisApi, uploadApi } from '@/services/api';
 
-type AppState = 'auth' | 'select' | 'fileSelect' | 'loading' | 'report' | 'staticReport';
+type AppState = 'auth' | 'select' | 'fileSelect' | 'upload' | 'uploadFileSelect' | 'loading' | 'report' | 'staticReport';
 type AnalysisType = 'ai' | 'static';
 
 interface GitHubUser {
@@ -32,6 +34,8 @@ export default function Home() {
   const [staticReport, setStaticReport] = useState<StaticAnalysisReport | null>(null);
   const [currentAnalysisType, setCurrentAnalysisType] = useState<AnalysisType>('ai');
   const [error, setError] = useState('');
+  const [extractedPath, setExtractedPath] = useState<string | null>(null);
+  const [uploadedContractFiles, setUploadedContractFiles] = useState<any[]>([]);
 
   // Check for existing authentication on component mount
   useEffect(() => {
@@ -101,6 +105,38 @@ export default function Home() {
     }
   };
 
+  const handleUploadSuccess = (extractedPath: string, contractFiles: any[]) => {
+    setExtractedPath(extractedPath);
+    setUploadedContractFiles(contractFiles);
+    setCurrentState('uploadFileSelect');
+    setError('');
+  };
+
+  const handleUploadedFileSelection = async (files: string[], analysisType: AnalysisType) => {
+    if (!extractedPath) {
+      setError('Extracted path not found. Please try uploading again.');
+      return;
+    }
+
+    setSelectedFiles(files);
+    setCurrentAnalysisType(analysisType);
+    setCurrentState('loading');
+    setError('');
+
+    try {
+      // For uploaded files, we only support static analysis for now
+      // The new API endpoint is specifically for static analysis of uploaded contracts
+      const result = await uploadApi.analyzeUploadedContracts(extractedPath, files);
+
+      setStaticReport(result);
+      setCurrentState('staticReport');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to analyze uploaded files. Please try again.';
+      setError(errorMessage);
+      setCurrentState('uploadFileSelect');
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('github_token');
     localStorage.removeItem('github_user');
@@ -136,8 +172,31 @@ export default function Home() {
 
 
   const handleNewAnalysis = () => {
-    setCurrentState('select');
+    if (user) {
+      setCurrentState('select');
+    } else {
+      setCurrentState('auth');
+    }
     setSelectedRepo(null);
+    setSelectedFiles([]);
+    setReport(null);
+    setStaticReport(null);
+    setError('');
+  };
+
+  const handleBackToUpload = () => {
+    setCurrentState('upload');
+    setSelectedRepo(null);
+    setSelectedFiles([]);
+    setReport(null);
+    setStaticReport(null);
+    setExtractedPath(null);
+    setUploadedContractFiles([]);
+    setError('');
+  };
+
+  const handleBackToUploadFileSelect = () => {
+    setCurrentState('uploadFileSelect');
     setSelectedFiles([]);
     setReport(null);
     setStaticReport(null);
@@ -155,6 +214,15 @@ export default function Home() {
               <h1 className="text-xl font-bold text-gray-900">MySecurity Tool</h1>
             </div>
             <div className="flex items-center space-x-4">
+              {/* Upload option - always visible */}
+              <button
+                onClick={() => setCurrentState('upload')}
+                className="flex items-center space-x-1 text-gray-600 hover:text-gray-800 text-sm px-3 py-2 rounded-md hover:bg-gray-100"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Upload Folder</span>
+              </button>
+
               {user && (
                 <div className="flex items-center space-x-3">
                   <button
@@ -203,7 +271,42 @@ export default function Home() {
                 for your smart contract projects.
               </p>
             </div>
-            <GitHubAuth />
+
+            <div className="max-w-4xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* GitHub Auth */}
+                <div>
+                  <GitHubAuth />
+                </div>
+
+                {/* Upload Option */}
+                <div className="max-w-md mx-auto">
+                  <div className="bg-white rounded-lg shadow-lg p-6">
+                    <div className="text-center mb-6">
+                      <Upload className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+                      <h2 className="text-2xl font-bold text-gray-900">Upload Folder</h2>
+                      <p className="text-gray-600 mt-2">
+                        Upload a zipped folder containing your smart contracts directly
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => setCurrentState('upload')}
+                      className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload & Analyze
+                    </button>
+
+                    <div className="mt-4 text-center">
+                      <p className="text-xs text-gray-500">
+                        Supports .zip, .tar.gz, .7z, .rar files up to 100MB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -212,6 +315,13 @@ export default function Home() {
             accessToken={accessToken}
             onSelect={handleRepoSelect}
             onBack={handleBackToAuth}
+          />
+        )}
+
+        {currentState === 'upload' && (
+          <FolderUpload
+            onUploadSuccess={handleUploadSuccess}
+            onBack={() => setCurrentState(user ? 'select' : 'auth')}
           />
         )}
 
@@ -224,6 +334,16 @@ export default function Home() {
           />
         )}
 
+        {currentState === 'uploadFileSelect' && extractedPath && (
+          <UploadedContractFileSelector
+            contractFiles={uploadedContractFiles}
+            extractedPath={extractedPath}
+            onBack={handleBackToUpload}
+            onProceed={handleUploadedFileSelection}
+          />
+        )}
+
+
         {currentState === 'loading' && (
           <div className="max-w-2xl mx-auto text-center">
             <div className="bg-white rounded-lg shadow-lg p-8">
@@ -232,12 +352,14 @@ export default function Home() {
                 {currentAnalysisType === 'ai' ? 'Running AI Analysis' : 'Running Static Analysis'}
               </h3>
               <p className="text-gray-600">
-                {selectedRepo?.full_name} • {selectedFiles.length} files selected • This may take a few moments...
+                {selectedRepo ? `${selectedRepo.full_name}` : 'Uploaded contracts'} • {selectedFiles.length} files selected • This may take a few moments...
               </p>
               <div className="mt-6 space-y-2">
                 <div className="flex items-center justify-center space-x-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-gray-500">Cloning repository</span>
+                  <span className="text-sm text-gray-500">
+                    {selectedRepo ? 'Cloning repository' : 'Processing uploaded files'}
+                  </span>
                 </div>
                 <div className="flex items-center justify-center space-x-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
@@ -265,7 +387,7 @@ export default function Home() {
         {currentState === 'report' && report && (
           <ReportDisplay
             report={report}
-            onBack={handleBackToSelect}
+            onBack={selectedRepo ? handleBackToSelect : handleBackToUploadFileSelect}
             onNewAnalysis={handleNewAnalysis}
           />
         )}
@@ -273,7 +395,7 @@ export default function Home() {
         {currentState === 'staticReport' && staticReport && (
           <StaticAnalysisReportDisplay
             report={staticReport}
-            onBack={handleBackToSelect}
+            onBack={selectedRepo ? handleBackToSelect : handleBackToUploadFileSelect}
             onNewAnalysis={handleNewAnalysis}
           />
         )}
