@@ -273,16 +273,16 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                     </div>
                                     <div className="space-y-2 text-sm">
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">Total Lines:</span>
-                                            <span className="font-medium">{report.scores.structural.details.totalLinesOfCode.toLocaleString()}</span>
+                                            <span className="text-blue-700 font-medium">Total Lines:</span>
+                                            <span className="font-semibold text-blue-900">{report.scores.structural.details.totalLinesOfCode.toLocaleString()}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">Functions:</span>
-                                            <span className="font-medium">{report.scores.structural.details.numFunctions}</span>
+                                            <span className="text-blue-700 font-medium">Functions:</span>
+                                            <span className="font-semibold text-blue-900">{report.scores.structural.details.numFunctions}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">Avg Complexity:</span>
-                                            <span className="font-medium">{report.scores.structural.details.avgCyclomaticComplexity.toFixed(2)}</span>
+                                            <span className="text-blue-700 font-medium">Avg Complexity:</span>
+                                            <span className="font-semibold text-blue-900">{report.scores.structural.details.avgCyclomaticComplexity.toFixed(2)}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -308,16 +308,16 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                     </div>
                                     <div className="space-y-2 text-sm">
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">Unsafe Code:</span>
-                                            <span className="font-medium">{report.scores.security.details.lowLevelOperations.assemblyBlocks}</span>
+                                            <span className="text-red-700 font-medium">Unsafe Code:</span>
+                                            <span className="font-semibold text-red-900">{report.scores.security.details.lowLevelOperations.assemblyBlocks}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">Panic Usage:</span>
-                                            <span className="font-medium">{report.analysisFactors.panicUsage}</span>
+                                            <span className="text-red-700 font-medium">Panic Usage:</span>
+                                            <span className="font-semibold text-red-900">{report.analysisFactors.panicUsage}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">Unwrap Usage:</span>
-                                            <span className="font-medium">{report.analysisFactors.unwrapUsage}</span>
+                                            <span className="text-red-700 font-medium">Unwrap Usage:</span>
+                                            <span className="font-semibold text-red-900">{report.analysisFactors.unwrapUsage}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -343,16 +343,16 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                     </div>
                                     <div className="space-y-2 text-sm">
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">External Calls:</span>
-                                            <span className="font-medium">{report.scores.systemic.details.externalDependencies.externalContractCalls}</span>
+                                            <span className="text-purple-700 font-medium">External Calls:</span>
+                                            <span className="font-semibold text-purple-900">{report.scores.systemic.details.externalDependencies.externalContractCalls}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">Oracle Usage:</span>
-                                            <span className="font-medium">{report.analysisFactors.oracleUsage.length}</span>
+                                            <span className="text-purple-700 font-medium">Oracle Usage:</span>
+                                            <span className="font-semibold text-purple-900">{report.analysisFactors.oracleUsage.length}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">Access Control:</span>
-                                            <span className="font-medium">{report.scores.systemic.details.accessControlPattern.type}</span>
+                                            <span className="text-purple-700 font-medium">Access Control:</span>
+                                            <span className="font-semibold text-purple-900">{report.scores.systemic.details.accessControlPattern.type}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -378,16 +378,16 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                     </div>
                                     <div className="space-y-2 text-sm">
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">Token Transfers:</span>
-                                            <span className="font-medium">{report.analysisFactors.tokenTransfers}</span>
+                                            <span className="text-green-700 font-medium">Token Transfers:</span>
+                                            <span className="font-semibold text-green-900">{report.analysisFactors.tokenTransfers}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">Math Operations:</span>
-                                            <span className="font-medium">{report.analysisFactors.complexMathOperations}</span>
+                                            <span className="text-green-700 font-medium">Math Operations:</span>
+                                            <span className="font-semibold text-green-900">{report.analysisFactors.complexMathOperations}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-gray-600">DeFi Patterns:</span>
-                                            <span className="font-medium">{report.analysisFactors.defiPatterns.length}</span>
+                                            <span className="text-green-700 font-medium">DeFi Patterns:</span>
+                                            <span className="font-semibold text-green-900">{report.analysisFactors.defiPatterns.length}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -396,133 +396,309 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                     )}
 
                     {activeTab === 'factors' && (
-                        <div className="space-y-6">
-                            {/* Code Structure */}
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                                <h3 className="text-lg font-semibold text-blue-900 mb-4">Code Structure</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-blue-600">{report.analysisFactors.numPrograms}</div>
-                                        <div className="text-sm text-gray-600">Programs</div>
+                        <div className="bg-white rounded-lg border border-gray-200">
+                            <div className="px-6 py-4 border-b border-gray-200">
+                                <h3 className="text-lg font-semibold text-gray-900">Complete Analysis Factors</h3>
+                                <p className="text-sm text-gray-600 mt-1">Comprehensive list of all analyzed factors and metrics</p>
+                            </div>
+                            <div className="p-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
+                                    {/* Structural Complexity */}
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Total Lines of Code</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.totalLinesOfCode.toLocaleString()}</span>
                                     </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-blue-600">{report.analysisFactors.numFunctions}</div>
-                                        <div className="text-sm text-gray-600">Functions</div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Number of Programs</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.numPrograms}</span>
                                     </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-blue-600">{report.analysisFactors.numStateVariables}</div>
-                                        <div className="text-sm text-gray-600">State Variables</div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Number of Functions</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.numFunctions}</span>
                                     </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-blue-600">{report.analysisFactors.compositionDepth}</div>
-                                        <div className="text-sm text-gray-600">Composition Depth</div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Number of State Variables</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.numStateVariables}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Average Cyclomatic Complexity</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.avgCyclomaticComplexity.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Maximum Cyclomatic Complexity</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.maxCyclomaticComplexity}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Composition Depth</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.compositionDepth}</span>
+                                    </div>
+
+                                    {/* Function Visibility */}
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Public Functions</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.functionVisibility.public}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Private Functions</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.functionVisibility.private}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Internal Functions</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.functionVisibility.internal || 0}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">View Functions</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.viewFunctions}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Pure Functions</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.pureFunctions}</span>
+                                    </div>
+
+                                    {/* Security & Risk Factors */}
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Integer Overflow Risks</span>
+                                        <span className="text-sm font-semibold text-red-600">{report.analysisFactors.integerOverflowRisks}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Access Control Issues</span>
+                                        <span className="text-sm font-semibold text-red-600">{report.analysisFactors.accessControlIssues}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Input Validation Issues</span>
+                                        <span className="text-sm font-semibold text-red-600">{report.analysisFactors.inputValidationIssues}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Unsafe Code Blocks</span>
+                                        <span className="text-sm font-semibold text-red-600">{report.analysisFactors.unsafeCodeBlocks}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Panic Usage</span>
+                                        <span className="text-sm font-semibold text-orange-600">{report.analysisFactors.panicUsage}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Unwrap Usage</span>
+                                        <span className="text-sm font-semibold text-orange-600">{report.analysisFactors.unwrapUsage}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Expect Usage</span>
+                                        <span className="text-sm font-semibold text-orange-600">{report.analysisFactors.expectUsage || 0}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Match Without Default</span>
+                                        <span className="text-sm font-semibold text-orange-600">{report.analysisFactors.matchWithoutDefault || 0}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Array Bounds Checks</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.arrayBoundsChecks || 0}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Memory Safety Issues</span>
+                                        <span className="text-sm font-semibold text-red-600">{report.analysisFactors.memorySafetyIssues || 0}</span>
+                                    </div>
+
+                                    {/* System Integration */}
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">External Program Calls</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.externalProgramCalls}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Unique External Calls</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.uniqueExternalCalls}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">CPI Usage</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.cpiUsage}</span>
+                                    </div>
+
+                                    {/* Economic & Financial */}
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Token Transfers</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.tokenTransfers}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Complex Math Operations</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.complexMathOperations}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Time Dependent Logic</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.timeDependentLogic}</span>
+                                    </div>
+
+                                    {/* Anchor-Specific Features */}
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Account Validation</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.anchorSpecificFeatures.accountValidation}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Constraint Usage</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.anchorSpecificFeatures.constraintUsage}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Instruction Handlers</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.anchorSpecificFeatures.instructionHandlers}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Account Types</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.anchorSpecificFeatures.accountTypes}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Seeds Usage</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.anchorSpecificFeatures.seedsUsage}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Bump Usage</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.anchorSpecificFeatures.bumpUsage}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Signer Checks</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.anchorSpecificFeatures.signerChecks}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Owner Checks</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.anchorSpecificFeatures.ownerChecks}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Space Allocation</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.anchorSpecificFeatures.spaceAllocation}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-b border-gray-100">
+                                        <span className="text-sm font-medium text-gray-700">Rent Exemption</span>
+                                        <span className="text-sm font-semibold text-gray-900">{report.analysisFactors.anchorSpecificFeatures.rentExemption}</span>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Function Analysis */}
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                                <h3 className="text-lg font-semibold text-green-900 mb-4">Function Analysis</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-green-600">{report.analysisFactors.functionVisibility.public}</div>
-                                        <div className="text-sm text-gray-600">Public Functions</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-green-600">{report.analysisFactors.functionVisibility.private}</div>
-                                        <div className="text-sm text-gray-600">Private Functions</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-green-600">{report.analysisFactors.functionVisibility.internal || 0}</div>
-                                        <div className="text-sm text-gray-600">Internal Functions</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-green-600">{report.analysisFactors.pureFunctions}</div>
-                                        <div className="text-sm text-gray-600">Pure Functions</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Rust-Specific Analysis */}
-                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-                                <h3 className="text-lg font-semibold text-orange-900 mb-4">Rust-Specific Analysis</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-orange-600">{report.analysisFactors.unwrapUsage}</div>
-                                        <div className="text-sm text-gray-600">Unwrap Usage</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-orange-600">{report.analysisFactors.expectUsage || 0}</div>
-                                        <div className="text-sm text-gray-600">Expect Usage</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-orange-600">{report.analysisFactors.panicUsage}</div>
-                                        <div className="text-sm text-gray-600">Panic Usage</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-orange-600">{report.analysisFactors.matchWithoutDefault || 0}</div>
-                                        <div className="text-sm text-gray-600">Match w/o Default</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Memory Safety */}
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-                                <h3 className="text-lg font-semibold text-red-900 mb-4">Memory Safety & Bounds Checking</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-red-600">{report.analysisFactors.arrayBoundsChecks || 0}</div>
-                                        <div className="text-sm text-gray-600">Array Bounds Checks</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-red-600">{report.analysisFactors.memorySafetyIssues || 0}</div>
-                                        <div className="text-sm text-gray-600">Memory Safety Issues</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-red-600">{report.analysisFactors.unsafeCodeBlocks}</div>
-                                        <div className="text-sm text-gray-600">Unsafe Code Blocks</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold text-red-600">{report.analysisFactors.integerOverflowRisks}</div>
-                                        <div className="text-sm text-gray-600">Overflow Risks</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Library Usage */}
-                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-                                <h3 className="text-lg font-semibold text-purple-900 mb-4">Standard Library Usage</h3>
-                                <div className="flex flex-wrap gap-2">
-                                    {report.analysisFactors.standardLibraryUsage.map((lib, index) => (
-                                        <span
-                                            key={index}
-                                            className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm"
-                                        >
-                                            {lib}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Oracle Usage */}
-                            {report.analysisFactors.oracleUsage.length > 0 && (
-                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-                                    <h3 className="text-lg font-semibold text-yellow-900 mb-4">Oracle Usage</h3>
-                                    <div className="space-y-3">
-                                        {report.analysisFactors.oracleUsage.map((oracle, index) => (
-                                            <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg">
-                                                <div>
-                                                    <span className="font-medium text-gray-900">{oracle.oracle}</span>
-                                                    <span className="ml-2 text-sm text-gray-600">({oracle.functions.length} functions)</span>
-                                                </div>
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskLevelColor(oracle.riskLevel)}`}>
-                                                    {oracle.riskLevel.toUpperCase()}
-                                                </span>
+                                {/* Complex Data Sections */}
+                                <div className="mt-8 space-y-6">
+                                    {/* Standard Library Usage */}
+                                    {report.analysisFactors.standardLibraryUsage.length > 0 && (
+                                        <div>
+                                            <h4 className="text-md font-semibold text-gray-900 mb-3">Standard Library Usage</h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {report.analysisFactors.standardLibraryUsage.map((lib, index) => (
+                                                    <span
+                                                        key={index}
+                                                        className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium"
+                                                    >
+                                                        {lib}
+                                                    </span>
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
+                                        </div>
+                                    )}
+
+                                    {/* Known Protocol Interactions */}
+                                    {report.analysisFactors.knownProtocolInteractions.length > 0 && (
+                                        <div>
+                                            <h4 className="text-md font-semibold text-gray-900 mb-3">Known Protocol Interactions</h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {report.analysisFactors.knownProtocolInteractions.map((protocol, index) => (
+                                                    <span
+                                                        key={index}
+                                                        className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium"
+                                                    >
+                                                        {protocol}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Program Derives */}
+                                    {report.analysisFactors.anchorSpecificFeatures.programDerives.length > 0 && (
+                                        <div>
+                                            <h4 className="text-md font-semibold text-gray-900 mb-3">Program Derives</h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {report.analysisFactors.anchorSpecificFeatures.programDerives.map((derive, index) => (
+                                                    <span
+                                                        key={index}
+                                                        className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium"
+                                                    >
+                                                        {derive}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Oracle Usage */}
+                                    {report.analysisFactors.oracleUsage.length > 0 && (
+                                        <div>
+                                            <h4 className="text-md font-semibold text-gray-900 mb-3">Oracle Usage</h4>
+                                            <div className="space-y-2">
+                                                {report.analysisFactors.oracleUsage.map((oracle, index) => (
+                                                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                        <div>
+                                                            <span className="font-medium text-gray-900">{oracle.oracle}</span>
+                                                            <span className="ml-2 text-sm text-gray-600">({oracle.functions.length} functions)</span>
+                                                        </div>
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskLevelColor(oracle.riskLevel)}`}>
+                                                            {oracle.riskLevel.toUpperCase()}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* DeFi Patterns */}
+                                    {report.analysisFactors.defiPatterns.length > 0 && (
+                                        <div>
+                                            <h4 className="text-md font-semibold text-gray-900 mb-3">DeFi Patterns</h4>
+                                            <div className="space-y-2">
+                                                {report.analysisFactors.defiPatterns.map((pattern, index) => (
+                                                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                        <div>
+                                                            <span className="font-medium text-gray-900">{pattern.type}</span>
+                                                            <span className="ml-2 text-sm text-gray-600">Complexity: {pattern.complexity}</span>
+                                                        </div>
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskLevelColor(pattern.riskLevel)}`}>
+                                                            {pattern.riskLevel.toUpperCase()}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Economic Risk Factors */}
+                                    {report.analysisFactors.economicRiskFactors.length > 0 && (
+                                        <div>
+                                            <h4 className="text-md font-semibold text-gray-900 mb-3">Economic Risk Factors</h4>
+                                            <div className="space-y-2">
+                                                {report.analysisFactors.economicRiskFactors.map((risk, index) => (
+                                                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                        <div>
+                                                            <span className="font-medium text-gray-900">{risk.type}</span>
+                                                            <span className="ml-2 text-sm text-gray-600">Count: {risk.count}, Weight: {risk.weight}</span>
+                                                        </div>
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSeverityColor(risk.severity)}`}>
+                                                            {risk.severity.toUpperCase()}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Cross Program Invocations */}
+                                    {report.analysisFactors.crossProgramInvocation.length > 0 && (
+                                        <div>
+                                            <h4 className="text-md font-semibold text-gray-900 mb-3">Cross Program Invocations</h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {report.analysisFactors.crossProgramInvocation.map((cpi, index) => (
+                                                    <span
+                                                        key={index}
+                                                        className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium"
+                                                    >
+                                                        {cpi}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+                            </div>
                         </div>
                     )}
 
