@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "Semantic static analysis for Solana/Anchor smart contracts"
 authors = ["MySecurity Team"]
+# Specify which binary should be considered the default application entrypoint.
+# This helps platforms like Railway (Rust buildpack) pick the correct binary
+# when multiple [[bin]] targets exist.
+default-run = "amm-analyzer-server"
 
 [[bin]]
 name = "amm-analyzer"
