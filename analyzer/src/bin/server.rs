@@ -95,8 +95,8 @@ async fn test_shared_volume(
     // Construct test file path in shared volume
     // NOTE: Default path aligned with NestJS service (see TestService) for local dev.
     // In Railway/production, set SHARED_WORKSPACE_PATH explicitly (e.g. /workspace/shared/workspaces).
-    let workspace_path =
-        std::env::var("SHARED_WORKSPACE_PATH").unwrap_or_else(|_| "/tmp/shared/workspaces".to_string());
+    let workspace_path = std::env::var("SHARED_WORKSPACE_PATH")
+        .unwrap_or_else(|_| "/tmp/shared/workspaces".to_string());
     let test_file_path = PathBuf::from(workspace_path)
         .join("test")
         .join(format!("{}.txt", request.test_id));
@@ -154,8 +154,8 @@ async fn analyze_workspace(
     );
 
     // Construct workspace path (shared volume)
-    let workspace_path =
-        std::env::var("SHARED_WORKSPACE_PATH").unwrap_or_else(|_| "/tmp/shared/workspaces".to_string());
+    let workspace_path = std::env::var("SHARED_WORKSPACE_PATH")
+        .unwrap_or_else(|_| "/tmp/shared/workspaces".to_string());
     let full_path = PathBuf::from(workspace_path).join(&request.workspace_id);
 
     // Validate workspace exists
@@ -236,8 +236,8 @@ async fn analyze_workspace(
 
 /// List available workspaces (for debugging)
 async fn list_workspaces() -> ResponseJson<HashMap<String, Vec<String>>> {
-    let workspace_path =
-        std::env::var("SHARED_WORKSPACE_PATH").unwrap_or_else(|_| "/tmp/shared/workspaces".to_string());
+    let workspace_path = std::env::var("SHARED_WORKSPACE_PATH")
+        .unwrap_or_else(|_| "/tmp/shared/workspaces".to_string());
 
     let mut workspaces = HashMap::new();
 
@@ -319,7 +319,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Server listening on http://{}", addr);
     log::info!(
         "Workspace path: {}",
-        std::env::var("SHARED_WORKSPACE_PATH").unwrap_or_else(|_| "/tmp/shared/workspaces".to_string())
+        std::env::var("SHARED_WORKSPACE_PATH")
+            .unwrap_or_else(|_| "/tmp/shared/workspaces".to_string())
     );
 
     // Start server
