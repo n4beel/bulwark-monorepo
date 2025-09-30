@@ -74,6 +74,23 @@ struct TestResponse {
     message: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct DirectTestRequest {
+    test_id: String,
+    test_data: String,
+}
+
+#[derive(Debug, Serialize)]
+struct DirectTestResponse {
+    success: bool,
+    test_id: String,
+    expected_data: String,
+    actual_data: Option<String>,
+    match_result: bool,
+    message: String,
+    mode: String,
+}
+
 /// Health check endpoint
 async fn health_check() -> ResponseJson<HealthResponse> {
     ResponseJson(HealthResponse {
@@ -142,6 +159,27 @@ async fn test_shared_volume(
             ))
         }
     }
+}
+
+/// Direct test endpoint (no shared filesystem required)
+/// Used for platforms where a shared volume between services is unavailable (e.g. Railway multi-service).
+async fn test_direct(Json(request): Json<DirectTestRequest>) -> ResponseJson<DirectTestResponse> {
+    log::info!(
+        "Direct mode test endpoint invoked for test_id: {} (no shared volume)",
+        request.test_id
+    );
+
+    // In direct mode we simply echo back the provided data. This mirrors the shape
+    // of the shared-volume endpoint so the Nest side can consume a uniform response.
+    ResponseJson(DirectTestResponse {
+        success: true,
+        test_id: request.test_id,
+        expected_data: request.test_data.clone(),
+        actual_data: Some(request.test_data.clone()),
+        match_result: true,
+        message: "Direct mode success (no shared volume).".to_string(),
+        mode: "direct".to_string(),
+    })
 }
 
 /// Main analysis endpoint
@@ -306,6 +344,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/analyze", post(analyze_workspace))
         .route("/workspaces", get(list_workspaces))
         .route("/test", post(test_shared_volume))
+        .route("/test-direct", post(test_direct))
         .layer(CorsLayer::permissive()); // Allow CORS for development
 
     // Get port from environment or default to 8080
