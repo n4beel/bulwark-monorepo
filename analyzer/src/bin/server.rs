@@ -58,6 +58,22 @@ struct HealthResponse {
     uptime: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct TestRequest {
+    test_id: String,
+    expected_data: String,
+}
+
+#[derive(Debug, Serialize)]
+struct TestResponse {
+    success: bool,
+    test_id: String,
+    expected_data: String,
+    actual_data: Option<String>,
+    match_result: bool,
+    message: String,
+}
+
 /// Health check endpoint
 async fn health_check() -> ResponseJson<HealthResponse> {
     ResponseJson(HealthResponse {
@@ -65,6 +81,67 @@ async fn health_check() -> ResponseJson<HealthResponse> {
         version: env!("CARGO_PKG_VERSION").to_string(),
         uptime: "0s".to_string(), // TODO: implement actual uptime
     })
+}
+
+/// Test endpoint to verify shared volume communication
+async fn test_shared_volume(
+    Json(request): Json<TestRequest>,
+) -> Result<ResponseJson<TestResponse>, (StatusCode, ResponseJson<TestResponse>)> {
+    log::info!(
+        "Testing shared volume communication for test_id: {}",
+        request.test_id
+    );
+
+    // Construct test file path in shared volume
+    // NOTE: Default path aligned with NestJS service (see TestService) for local dev.
+    // In Railway/production, set SHARED_WORKSPACE_PATH explicitly (e.g. /workspace/shared/workspaces).
+    let workspace_path =
+        std::env::var("SHARED_WORKSPACE_PATH").unwrap_or_else(|_| "/tmp/shared/workspaces".to_string());
+    let test_file_path = PathBuf::from(workspace_path)
+        .join("test")
+        .join(format!("{}.txt", request.test_id));
+
+    // Try to read the test file
+    match std::fs::read_to_string(&test_file_path) {
+        Ok(actual_data) => {
+            let actual_data = actual_data.trim().to_string();
+            let match_result = actual_data == request.expected_data;
+
+            log::info!(
+                "Test file read successfully: {} bytes, match: {}",
+                actual_data.len(),
+                match_result
+            );
+
+            Ok(ResponseJson(TestResponse {
+                success: true,
+                test_id: request.test_id,
+                expected_data: request.expected_data,
+                actual_data: Some(actual_data),
+                match_result,
+                message: if match_result {
+                    "Data matches! Shared volume communication successful.".to_string()
+                } else {
+                    "Data mismatch! Shared volume communication issue.".to_string()
+                },
+            }))
+        }
+        Err(e) => {
+            log::error!("Failed to read test file {:?}: {}", test_file_path, e);
+
+            Err((
+                StatusCode::NOT_FOUND,
+                ResponseJson(TestResponse {
+                    success: false,
+                    test_id: request.test_id,
+                    expected_data: request.expected_data,
+                    actual_data: None,
+                    match_result: false,
+                    message: format!("Failed to read test file: {}", e),
+                }),
+            ))
+        }
+    }
 }
 
 /// Main analysis endpoint
@@ -78,7 +155,7 @@ async fn analyze_workspace(
 
     // Construct workspace path (shared volume)
     let workspace_path =
-        std::env::var("SHARED_WORKSPACE_PATH").unwrap_or_else(|_| "/shared/workspaces".to_string());
+        std::env::var("SHARED_WORKSPACE_PATH").unwrap_or_else(|_| "/tmp/shared/workspaces".to_string());
     let full_path = PathBuf::from(workspace_path).join(&request.workspace_id);
 
     // Validate workspace exists
@@ -160,7 +237,7 @@ async fn analyze_workspace(
 /// List available workspaces (for debugging)
 async fn list_workspaces() -> ResponseJson<HashMap<String, Vec<String>>> {
     let workspace_path =
-        std::env::var("SHARED_WORKSPACE_PATH").unwrap_or_else(|_| "/shared/workspaces".to_string());
+        std::env::var("SHARED_WORKSPACE_PATH").unwrap_or_else(|_| "/tmp/shared/workspaces".to_string());
 
     let mut workspaces = HashMap::new();
 
@@ -228,6 +305,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/health", get(health_check))
         .route("/analyze", post(analyze_workspace))
         .route("/workspaces", get(list_workspaces))
+        .route("/test", post(test_shared_volume))
         .layer(CorsLayer::permissive()); // Allow CORS for development
 
     // Get port from environment or default to 8080
@@ -241,7 +319,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Server listening on http://{}", addr);
     log::info!(
         "Workspace path: {}",
-        std::env::var("SHARED_WORKSPACE_PATH").unwrap_or_else(|_| "/shared/workspaces".to_string())
+        std::env::var("SHARED_WORKSPACE_PATH").unwrap_or_else(|_| "/tmp/shared/workspaces".to_string())
     );
 
     // Start server
