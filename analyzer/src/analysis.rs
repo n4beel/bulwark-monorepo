@@ -3,6 +3,7 @@
 use crate::{
     config::AnalyzerConfig,
     error::{AnalyzerError, Result},
+    factors::lines_of_code::count_lines_of_code,
     metrics::{AggregatedMetrics, FileMetrics, RepoMetrics, RiskSummary},
     output::AnalysisReport,
     visitor::FunctionVisitor,
@@ -192,7 +193,7 @@ impl AnalyzerEngine {
         syn::visit::visit_file(&mut visitor, &syntax_tree);
 
         // Calculate lines of code (excluding comments and empty lines)
-        let lines_of_code = self.count_lines_of_code(&content);
+        let lines_of_code = count_lines_of_code(&content) as u32;
 
         // Calculate aggregated metrics for this file
         let aggregated = self.calculate_file_aggregated_metrics(&visitor.functions);
@@ -205,35 +206,6 @@ impl AnalyzerEngine {
             aggregated,
             semantic_tags: Vec::new(), // TODO: collect from functions
         })
-    }
-
-    fn count_lines_of_code(&self, content: &str) -> u32 {
-        let mut count = 0;
-        let mut in_block_comment = false;
-
-        for line in content.lines() {
-            let trimmed = line.trim();
-
-            // Handle block comments
-            if trimmed.starts_with("/*") {
-                in_block_comment = true;
-            }
-            if in_block_comment {
-                if trimmed.ends_with("*/") {
-                    in_block_comment = false;
-                }
-                continue;
-            }
-
-            // Skip empty lines and line comments
-            if trimmed.is_empty() || trimmed.starts_with("//") {
-                continue;
-            }
-
-            count += 1;
-        }
-
-        count
     }
 
     fn calculate_file_aggregated_metrics(

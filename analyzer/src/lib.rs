@@ -6,6 +6,7 @@
 pub mod analysis;
 pub mod config;
 pub mod error;
+pub mod factors;
 pub mod metrics;
 pub mod output;
 pub mod patterns;

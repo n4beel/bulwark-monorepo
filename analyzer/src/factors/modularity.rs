@@ -1,0 +1,448 @@
+//! Modularity analysis for Rust source files
+//!
+//! This module analyzes code organization, module structure, and dependency patterns
+//! to assess the overall modularity and separation of concerns in the codebase.
+
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use syn::{visit::Visit, File, Item, ItemMod, ItemUse, UseTree};
+
+#[derive(Debug, Clone)]
+pub struct ModularityMetrics {
+    pub total_files: usize,
+    pub total_modules: usize,
+    pub avg_lines_per_file: f64,
+    pub max_nesting_depth: u32,
+    pub total_imports: usize,
+    pub external_dependencies: usize,
+    pub internal_cross_references: usize,
+    pub modularity_score: f64,
+}
+
+impl ModularityMetrics {
+    /// Convert to structured JSON object
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "totalFiles": self.total_files,
+            "totalModules": self.total_modules,
+            "avgLinesPerFile": self.avg_lines_per_file,
+            "maxNestingDepth": self.max_nesting_depth,
+            "totalImports": self.total_imports,
+            "externalDependencies": self.external_dependencies,
+            "internalCrossReferences": self.internal_cross_references,
+            "modularityScore": self.modularity_score
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct FileAnalysis {
+    path: String,
+    lines_of_code: usize,
+    modules: Vec<ModuleInfo>,
+    imports: Vec<ImportInfo>,
+    max_depth: u32,
+}
+
+#[derive(Debug, Clone)]
+struct ModuleInfo {
+    name: String,
+    is_public: bool,
+    is_inline: bool,
+    nesting_depth: u32,
+}
+
+#[derive(Debug, Clone)]
+struct ImportInfo {
+    path: String,
+    is_external: bool,
+    is_crate_local: bool,
+}
+
+/// Calculate modularity metrics for workspace files
+pub fn calculate_workspace_modularity(
+    workspace_path: &PathBuf,
+    selected_files: &[String],
+) -> Result<ModularityMetrics, Box<dyn std::error::Error>> {
+    log::info!(
+        "Calculating modularity metrics for {} files in workspace: {:?}",
+        selected_files.len(),
+        workspace_path
+    );
+
+    let mut file_analyses = Vec::new();
+    let mut total_lines = 0;
+    let mut analyzed_files = 0;
+
+    // Analyze each file
+    for file_path in selected_files {
+        let full_file_path = workspace_path.join(file_path);
+
+        if full_file_path.exists() && full_file_path.is_file() {
+            if let Some(extension) = full_file_path.extension() {
+                if extension == "rs" {
+                    match std::fs::read_to_string(&full_file_path) {
+                        Ok(content) => match analyze_file_modularity(file_path, &content) {
+                            Ok(file_analysis) => {
+                                total_lines += file_analysis.lines_of_code;
+                                file_analyses.push(file_analysis);
+                                analyzed_files += 1;
+
+                                log::debug!(
+                                    "File {}: {} lines, {} modules, {} imports, max depth: {}",
+                                    file_path,
+                                    file_analyses.last().unwrap().lines_of_code,
+                                    file_analyses.last().unwrap().modules.len(),
+                                    file_analyses.last().unwrap().imports.len(),
+                                    file_analyses.last().unwrap().max_depth
+                                );
+                            }
+                            Err(e) => {
+                                log::warn!(
+                                    "Failed to analyze modularity for file {}: {}",
+                                    file_path,
+                                    e
+                                );
+                            }
+                        },
+                        Err(e) => {
+                            log::warn!("Failed to read file {}: {}", file_path, e);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if analyzed_files == 0 {
+        return Err("No files were successfully analyzed for modularity".into());
+    }
+
+    // Calculate aggregate metrics
+    let total_files = analyzed_files;
+    let total_modules: usize = file_analyses.iter().map(|f| f.modules.len()).sum();
+    let avg_lines_per_file = if total_files > 0 {
+        total_lines as f64 / total_files as f64
+    } else {
+        0.0
+    };
+    let max_nesting_depth = file_analyses.iter().map(|f| f.max_depth).max().unwrap_or(0);
+    let total_imports: usize = file_analyses.iter().map(|f| f.imports.len()).sum();
+
+    // Count external vs internal dependencies
+    let mut external_deps = HashSet::new();
+    let mut internal_refs = 0;
+
+    for file in &file_analyses {
+        for import in &file.imports {
+            if import.is_external {
+                external_deps.insert(import.path.clone());
+            } else if import.is_crate_local {
+                internal_refs += 1;
+            }
+        }
+    }
+
+    let external_dependencies = external_deps.len();
+    let internal_cross_references = internal_refs;
+
+    // Calculate modularity score (0-100)
+    let modularity_score = calculate_modularity_score(
+        total_files,
+        &file_analyses,
+        avg_lines_per_file,
+        max_nesting_depth,
+        internal_cross_references,
+    );
+
+    let result = ModularityMetrics {
+        total_files,
+        total_modules,
+        avg_lines_per_file,
+        max_nesting_depth,
+        total_imports,
+        external_dependencies,
+        internal_cross_references,
+        modularity_score,
+    };
+
+    log::info!(
+        "Modularity analysis complete: {} files, {} modules, avg {:.1} lines/file, modularity score: {:.1}",
+        total_files,
+        total_modules,
+        avg_lines_per_file,
+        modularity_score
+    );
+
+    Ok(result)
+}
+
+/// Analyze modularity for a single file
+fn analyze_file_modularity(
+    file_path: &str,
+    content: &str,
+) -> Result<FileAnalysis, Box<dyn std::error::Error>> {
+    // Parse the Rust file using syn
+    let syntax_tree: File = syn::parse_file(content)
+        .map_err(|e| format!("Failed to parse Rust file {}: {}", file_path, e))?;
+
+    let mut visitor = ModularityVisitor::new();
+    visitor.visit_file(&syntax_tree);
+
+    // Count lines of code (non-empty, non-comment lines)
+    let lines_of_code = content
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            !trimmed.is_empty() && !trimmed.starts_with("//")
+        })
+        .count();
+
+    Ok(FileAnalysis {
+        path: file_path.to_string(),
+        lines_of_code,
+        modules: visitor.modules,
+        imports: visitor.imports,
+        max_depth: visitor.max_nesting_depth,
+    })
+}
+
+/// Calculate overall modularity score (0-100)
+fn calculate_modularity_score(
+    total_files: usize,
+    file_analyses: &[FileAnalysis],
+    avg_lines_per_file: f64,
+    max_nesting_depth: u32,
+    internal_cross_references: usize,
+) -> f64 {
+    let mut score = 0.0;
+
+    // Component 1: More files = better modularity (0-40 points)
+    let file_count_score = if total_files <= 1 {
+        0.0
+    } else if total_files >= 10 {
+        40.0
+    } else {
+        (total_files as f64 - 1.0) / 9.0 * 40.0
+    };
+
+    // Component 2: Balanced file sizes = better organization (0-30 points)
+    let balance_score = if file_analyses.len() <= 1 {
+        30.0 // Single file gets full points for balance
+    } else {
+        let sizes: Vec<usize> = file_analyses.iter().map(|f| f.lines_of_code).collect();
+        let mean = sizes.iter().sum::<usize>() as f64 / sizes.len() as f64;
+        let variance = sizes
+            .iter()
+            .map(|&size| (size as f64 - mean).powi(2))
+            .sum::<f64>()
+            / sizes.len() as f64;
+        let coefficient_of_variation = if mean > 0.0 {
+            variance.sqrt() / mean
+        } else {
+            0.0
+        };
+
+        // Lower CV = better balance, score inversely related to CV
+        let balance_factor = if coefficient_of_variation <= 0.5 {
+            1.0
+        } else if coefficient_of_variation >= 2.0 {
+            0.0
+        } else {
+            1.0 - (coefficient_of_variation - 0.5) / 1.5
+        };
+
+        balance_factor * 30.0
+    };
+
+    // Component 3: Fewer cross-dependencies = cleaner architecture (0-30 points)
+    let dependency_score = if total_files <= 1 {
+        30.0 // Single file has no cross-dependencies
+    } else {
+        let max_expected_deps = total_files * (total_files - 1); // Theoretical maximum
+        let dependency_ratio = internal_cross_references as f64 / max_expected_deps as f64;
+
+        if dependency_ratio <= 0.1 {
+            30.0 // Very clean
+        } else if dependency_ratio >= 0.5 {
+            0.0 // Highly coupled
+        } else {
+            30.0 * (1.0 - (dependency_ratio - 0.1) / 0.4)
+        }
+    };
+
+    score = file_count_score + balance_score + dependency_score;
+
+    // Penalty for excessive nesting depth
+    if max_nesting_depth > 3 {
+        score -= (max_nesting_depth - 3) as f64 * 5.0;
+    }
+
+    // Ensure score is within bounds
+    score.max(0.0).min(100.0)
+}
+
+/// Visitor to analyze module structure and imports
+struct ModularityVisitor {
+    modules: Vec<ModuleInfo>,
+    imports: Vec<ImportInfo>,
+    current_nesting_depth: u32,
+    max_nesting_depth: u32,
+}
+
+impl ModularityVisitor {
+    fn new() -> Self {
+        Self {
+            modules: Vec::new(),
+            imports: Vec::new(),
+            current_nesting_depth: 0,
+            max_nesting_depth: 0,
+        }
+    }
+}
+
+impl<'ast> Visit<'ast> for ModularityVisitor {
+    fn visit_item(&mut self, item: &'ast Item) {
+        match item {
+            Item::Mod(item_mod) => {
+                self.visit_item_mod(item_mod);
+            }
+            Item::Use(item_use) => {
+                self.visit_item_use(item_use);
+            }
+            _ => {
+                syn::visit::visit_item(self, item);
+            }
+        }
+    }
+
+    fn visit_item_mod(&mut self, module: &'ast ItemMod) {
+        let is_public = matches!(module.vis, syn::Visibility::Public(_));
+        let is_inline = module.content.is_some();
+
+        self.modules.push(ModuleInfo {
+            name: module.ident.to_string(),
+            is_public,
+            is_inline,
+            nesting_depth: self.current_nesting_depth,
+        });
+
+        // If it's an inline module, visit its contents with increased nesting
+        if let Some((_, items)) = &module.content {
+            self.current_nesting_depth += 1;
+            self.max_nesting_depth = self.max_nesting_depth.max(self.current_nesting_depth);
+
+            for item in items {
+                self.visit_item(item);
+            }
+
+            self.current_nesting_depth -= 1;
+        }
+    }
+
+    fn visit_item_use(&mut self, use_item: &'ast ItemUse) {
+        self.analyze_use_tree(&use_item.tree);
+        syn::visit::visit_item_use(self, use_item);
+    }
+}
+
+impl ModularityVisitor {
+    fn analyze_use_tree(&mut self, tree: &UseTree) {
+        match tree {
+            UseTree::Path(use_path) => {
+                let path_str = use_path.ident.to_string();
+                let is_external = !path_str.starts_with("crate")
+                    && !path_str.starts_with("self")
+                    && !path_str.starts_with("super");
+                let is_crate_local = path_str.starts_with("crate") || path_str.starts_with("super");
+
+                self.imports.push(ImportInfo {
+                    path: path_str,
+                    is_external,
+                    is_crate_local,
+                });
+
+                self.analyze_use_tree(&use_path.tree);
+            }
+            UseTree::Name(use_name) => {
+                // This is handled by the parent Path case
+                let _ = use_name;
+            }
+            UseTree::Rename(use_rename) => {
+                let _ = use_rename;
+            }
+            UseTree::Glob(_) => {
+                // Glob imports like `use module::*`
+            }
+            UseTree::Group(use_group) => {
+                for tree in &use_group.items {
+                    self.analyze_use_tree(tree);
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_simple_file_modularity() {
+        let code = r#"
+            use std::collections::HashMap;
+            
+            fn simple_function() {
+                println!("Hello, world!");
+            }
+        "#;
+
+        let result = analyze_file_modularity("test.rs", code).unwrap();
+        assert_eq!(result.modules.len(), 0); // No module declarations
+        assert!(result.imports.len() >= 1); // At least one import (may detect multiple due to path parsing)
+        assert_eq!(result.max_depth, 0); // No nesting
+    }
+
+    #[test]
+    fn test_module_with_nesting() {
+        let code = r#"
+            use crate::utils;
+            
+            mod outer {
+                mod inner {
+                    pub fn nested_function() {}
+                }
+                
+                pub use inner::nested_function;
+            }
+        "#;
+
+        let result = analyze_file_modularity("test.rs", code).unwrap();
+        assert_eq!(result.modules.len(), 2); // outer and inner modules
+        assert_eq!(result.max_depth, 2); // Two levels of nesting
+        assert!(result.imports.len() >= 1); // At least one import
+    }
+
+    #[test]
+    fn test_modularity_score_calculation() {
+        let file_analyses = vec![
+            FileAnalysis {
+                path: "file1.rs".to_string(),
+                lines_of_code: 100,
+                modules: vec![],
+                imports: vec![],
+                max_depth: 0,
+            },
+            FileAnalysis {
+                path: "file2.rs".to_string(),
+                lines_of_code: 120,
+                modules: vec![],
+                imports: vec![],
+                max_depth: 0,
+            },
+        ];
+
+        let score = calculate_modularity_score(2, &file_analyses, 110.0, 0, 1);
+        assert!(score > 0.0 && score <= 100.0);
+    }
+}

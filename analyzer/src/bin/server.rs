@@ -2,16 +2,29 @@
 //!
 //! Provides REST API endpoints for semantic analysis of Rust smart contracts
 
+use amm_analyzer::factors::{
+    calculate_workspace_access_control, calculate_workspace_arithmetic,
+    calculate_workspace_asset_types, calculate_workspace_composability,
+    calculate_workspace_cpi_calls, calculate_workspace_cyclomatic_complexity,
+    calculate_workspace_dependencies, calculate_workspace_dos_resource_limits,
+    calculate_workspace_error_handling, calculate_workspace_external_integration,
+    calculate_workspace_input_constraints, calculate_workspace_invariants_risk_params,
+    calculate_workspace_modularity, calculate_workspace_operational_security,
+    calculate_workspace_oracle_price_feed, calculate_workspace_pda_seeds,
+    calculate_workspace_privileged_roles, calculate_workspace_statefulness,
+    calculate_workspace_unsafe_lowlevel, calculate_workspace_upgradeability,
+    count_lines_of_code, count_total_functions,
+};
 use amm_analyzer::{analyze_repository, AnalyzerConfig};
 use axum::{
-    extract::{Json, Query},
+    extract::Json,
     http::StatusCode,
     response::Json as ResponseJson,
     routing::{get, post},
     Router,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
+use std::{collections::HashMap, fs, net::SocketAddr, path::PathBuf};
 use tower_http::cors::CorsLayer;
 
 #[derive(Debug, Deserialize)]
@@ -89,6 +102,30 @@ struct DirectTestResponse {
     match_result: bool,
     message: String,
     mode: String,
+}
+
+// Augmentation request/response (initial stub)
+#[derive(Debug, Deserialize)]
+struct AugmentRequest {
+    workspace_id: String,
+    selected_files: Option<Vec<String>>,
+    api_version: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct AugmentResponseMeta {
+    api_version: String,
+    timestamp: String,
+}
+
+#[derive(Debug, Serialize)]
+struct AugmentResponse {
+    success: bool,
+    workspace_id: String,
+    overridden: Vec<String>,
+    factors: serde_json::Value,
+    raw: serde_json::Value,
+    meta: AugmentResponseMeta,
 }
 
 /// Health check endpoint
@@ -180,6 +217,1028 @@ async fn test_direct(Json(request): Json<DirectTestRequest>) -> ResponseJson<Dir
         message: "Direct mode success (no shared volume).".to_string(),
         mode: "direct".to_string(),
     })
+}
+
+/// Helper function to calculate lines of code for workspace files
+fn calculate_workspace_lines_of_code(
+    workspace_path: &PathBuf,
+    selected_files: &[String],
+) -> Result<usize, Box<dyn std::error::Error>> {
+    let mut total_lines = 0;
+
+    for file_path in selected_files {
+        let full_file_path = workspace_path.join(file_path);
+
+        // Check if the file exists and is a Rust file
+        if full_file_path.exists() && full_file_path.is_file() {
+            if let Some(extension) = full_file_path.extension() {
+                if extension == "rs" {
+                    match fs::read_to_string(&full_file_path) {
+                        Ok(content) => {
+                            total_lines += count_lines_of_code(&content);
+                        }
+                        Err(_) => {
+                            // Skip files that can't be read
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(total_lines)
+}
+
+/// Helper function to calculate total functions for workspace files
+fn calculate_workspace_functions(
+    workspace_path: &PathBuf,
+    selected_files: &[String],
+) -> Result<usize, Box<dyn std::error::Error>> {
+    let mut total_functions = 0;
+
+    for file_path in selected_files {
+        let full_file_path = workspace_path.join(file_path);
+
+        // Check if the file exists and is a Rust file
+        if full_file_path.exists() && full_file_path.is_file() {
+            if let Some(extension) = full_file_path.extension() {
+                if extension == "rs" {
+                    match fs::read_to_string(&full_file_path) {
+                        Ok(content) => {
+                            total_functions += count_total_functions(&content);
+                        }
+                        Err(_) => {
+                            // Skip files that can't be read
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(total_functions)
+}
+
+/// Augmentation endpoint: calculates actual factor values from workspace files
+async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentResponse> {
+    let start_time = std::time::Instant::now();
+    log::info!(
+        "🚀 AUGMENT START: Processing workspace: {} (api_version={:?}) with {} files",
+        request.workspace_id,
+        request.api_version,
+        request.selected_files.as_ref().map_or(0, |f| f.len())
+    );
+
+    // Construct workspace path
+    let workspace_path = std::env::var("SHARED_WORKSPACE_PATH")
+        .unwrap_or_else(|_| "/tmp/shared/workspaces".to_string());
+    let full_path = PathBuf::from(workspace_path).join(&request.workspace_id);
+
+    let mut factors_map = serde_json::Map::new();
+    let mut computed_factors = Vec::new();
+    let mut notes = Vec::new();
+
+    // Calculate actual lines of code from workspace files
+    let selected_files = request.selected_files.as_deref().unwrap_or(&[]);
+    match calculate_workspace_lines_of_code(&full_path, selected_files) {
+        Ok(total_lines) => {
+            factors_map.insert(
+                "totalLinesOfCode".to_string(),
+                serde_json::json!(total_lines),
+            );
+            computed_factors.push("totalLinesOfCode".to_string());
+            notes.push(format!(
+                "Calculated {} lines of code from workspace files",
+                total_lines
+            ));
+            log::info!(
+                "Calculated {} lines of code for workspace: {}",
+                total_lines,
+                request.workspace_id
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate lines of code for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            // Fallback to a reasonable default instead of 0.1
+            factors_map.insert("totalLinesOfCode".to_string(), serde_json::json!(100));
+            computed_factors.push("totalLinesOfCode".to_string());
+            notes.push(format!("Fallback value used due to error: {}", e));
+        }
+    }
+
+    // Calculate actual function count from workspace files
+    match calculate_workspace_functions(&full_path, selected_files) {
+        Ok(total_functions) => {
+            factors_map.insert(
+                "numFunctions".to_string(),
+                serde_json::json!(total_functions),
+            );
+            computed_factors.push("numFunctions".to_string());
+            notes.push(format!(
+                "Calculated {} functions from workspace files",
+                total_functions
+            ));
+            log::info!(
+                "Calculated {} functions for workspace: {}",
+                total_functions,
+                request.workspace_id
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate functions for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            // Fallback to a reasonable default
+            factors_map.insert("numFunctions".to_string(), serde_json::json!(10));
+            computed_factors.push("numFunctions".to_string());
+            notes.push(format!("Function count fallback used due to error: {}", e));
+        }
+    }
+
+    // Calculate cyclomatic complexity from workspace files
+    match calculate_workspace_cyclomatic_complexity(&full_path, selected_files) {
+        Ok(complexity_metrics) => {
+            factors_map.insert("complexity".to_string(), complexity_metrics.to_json());
+            computed_factors.push("complexity".to_string());
+            notes.push(format!(
+                "Calculated cyclomatic complexity: avg={:.2}, max={}, functions={}",
+                complexity_metrics.avg_complexity,
+                complexity_metrics.max_complexity,
+                complexity_metrics.total_functions
+            ));
+            log::info!(
+                "Calculated cyclomatic complexity for workspace {}: avg={:.2}, max={}, functions={}",
+                request.workspace_id,
+                complexity_metrics.avg_complexity,
+                complexity_metrics.max_complexity,
+                complexity_metrics.total_functions
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate cyclomatic complexity for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            // Return error as requested - no fallback for complexity
+            return ResponseJson(AugmentResponse {
+                success: false,
+                workspace_id: request.workspace_id,
+                overridden: Vec::new(),
+                factors: serde_json::Value::Object(serde_json::Map::new()),
+                raw: serde_json::json!({
+                    "error": format!("Cyclomatic complexity calculation failed: {}", e),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                }),
+                meta: AugmentResponseMeta {
+                    api_version: request.api_version.unwrap_or_else(|| "v1".to_string()),
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                },
+            });
+        }
+    }
+
+    // Calculate modularity metrics from workspace files
+    match calculate_workspace_modularity(&full_path, selected_files) {
+        Ok(modularity_metrics) => {
+            factors_map.insert("modularity".to_string(), modularity_metrics.to_json());
+            computed_factors.push("modularity".to_string());
+            notes.push(format!(
+                "Calculated modularity metrics: {} files, {} modules, score={:.1}, avg lines/file={:.1}",
+                modularity_metrics.total_files,
+                modularity_metrics.total_modules,
+                modularity_metrics.modularity_score,
+                modularity_metrics.avg_lines_per_file
+            ));
+            log::info!(
+                "Calculated modularity for workspace {}: {} files, {} modules, score={:.1}",
+                request.workspace_id,
+                modularity_metrics.total_files,
+                modularity_metrics.total_modules,
+                modularity_metrics.modularity_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate modularity for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            // Return error as requested - no fallback for modularity
+            return ResponseJson(AugmentResponse {
+                success: false,
+                workspace_id: request.workspace_id,
+                overridden: Vec::new(),
+                factors: serde_json::Value::Object(serde_json::Map::new()),
+                raw: serde_json::json!({
+                    "error": format!("Modularity calculation failed: {}", e),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                }),
+                meta: AugmentResponseMeta {
+                    api_version: request.api_version.unwrap_or_else(|| "v1".to_string()),
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                },
+            });
+        }
+    }
+
+    // Calculate access control metrics from workspace files
+    log::info!("📊 PROGRESS: Starting access control analysis...");
+    match calculate_workspace_access_control(&full_path, selected_files) {
+        Ok(access_control_metrics) => {
+            factors_map.insert(
+                "accessControl".to_string(),
+                access_control_metrics.to_json(),
+            );
+            computed_factors.push("accessControl".to_string());
+            notes.push(format!(
+                "Analyzed access control: {} total handlers, {} decorators, {} constraints, {} explicit checks, {} distinct patterns",
+                access_control_metrics.total_access_controlled_handlers,
+                access_control_metrics.access_control_decorators,
+                access_control_metrics.account_constraint_handlers,
+                access_control_metrics.explicit_authority_checks,
+                access_control_metrics.distinct_authority_patterns
+            ));
+            log::info!(
+                "Calculated access control for workspace {}: {} total handlers, {} distinct patterns",
+                request.workspace_id,
+                access_control_metrics.total_access_controlled_handlers,
+                access_control_metrics.distinct_authority_patterns
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate access control for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            // Return error as requested - no fallback for access control
+            return ResponseJson(AugmentResponse {
+                success: false,
+                workspace_id: request.workspace_id,
+                overridden: Vec::new(),
+                factors: serde_json::Value::Object(serde_json::Map::new()),
+                raw: serde_json::json!({
+                    "error": format!("Access control calculation failed: {}", e),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                }),
+                meta: AugmentResponseMeta {
+                    api_version: request.api_version.unwrap_or_else(|| "v1".to_string()),
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                },
+            });
+        }
+    }
+
+    // Calculate PDA seed metrics from workspace files
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze PDA seeds for workspace: {:?}",
+        full_path
+    );
+    match calculate_workspace_pda_seeds(&full_path, selected_files) {
+        Ok(pda_metrics) => {
+            factors_map.insert("pdaSeeds".to_string(), pda_metrics.to_json());
+            computed_factors.push("pdaSeeds".to_string());
+            notes.push(format!(
+                "Analyzed PDA seeds: {} total accounts, {} simple, {} complex, {} multi-seed, {} dynamic",
+                pda_metrics.total_pda_accounts,
+                pda_metrics.simple_seed_pdas,
+                pda_metrics.complex_seed_pdas,
+                pda_metrics.multi_seed_pdas,
+                pda_metrics.dynamic_seed_pdas
+            ));
+            log::info!(
+                "Calculated PDA seeds for workspace {}: {} total accounts, {} distinct patterns",
+                request.workspace_id,
+                pda_metrics.total_pda_accounts,
+                pda_metrics.distinct_seed_patterns
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate PDA seeds for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            // Return error as requested - no fallback for PDA seeds
+            return ResponseJson(AugmentResponse {
+                success: false,
+                workspace_id: request.workspace_id,
+                overridden: Vec::new(),
+                factors: serde_json::Value::Object(serde_json::Map::new()),
+                raw: serde_json::json!({
+                    "error": format!("PDA seeds calculation failed: {}", e),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                }),
+                meta: AugmentResponseMeta {
+                    api_version: request.api_version.unwrap_or_else(|| "v1".to_string()),
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                },
+            });
+        }
+    }
+
+    // Calculate CPI call metrics from workspace files
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze CPI calls for workspace: {:?}",
+        full_path
+    );
+    match calculate_workspace_cpi_calls(&full_path, selected_files) {
+        Ok(cpi_metrics) => {
+            factors_map.insert("cpiCalls".to_string(), cpi_metrics.to_json());
+            computed_factors.push("cpiCalls".to_string());
+            notes.push(format!(
+                "Analyzed CPI calls: {} total ({} signed, {} unsigned), {} unique programs, complexity={:.1}",
+                cpi_metrics.total_cpi_calls,
+                cpi_metrics.signed_cpi_calls,
+                cpi_metrics.unsigned_cpi_calls,
+                cpi_metrics.unique_programs,
+                cpi_metrics.cpi_complexity_score
+            ));
+            log::info!(
+                "Calculated CPI calls for workspace {}: {} total, {} unique programs, complexity={:.1}",
+                request.workspace_id,
+                cpi_metrics.total_cpi_calls,
+                cpi_metrics.unique_programs,
+                cpi_metrics.cpi_complexity_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate CPI calls for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            // Return error as requested - no fallback for CPI calls
+            return ResponseJson(AugmentResponse {
+                success: false,
+                workspace_id: request.workspace_id,
+                overridden: Vec::new(),
+                factors: serde_json::Value::Object(serde_json::Map::new()),
+                raw: serde_json::json!({
+                    "error": format!("CPI calls calculation failed: {}", e),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                }),
+                meta: AugmentResponseMeta {
+                    api_version: request.api_version.unwrap_or_else(|| "v1".to_string()),
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                },
+            });
+        }
+    }
+
+    // Calculate input/constraint surface metrics
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze input constraints for workspace: {:?}",
+        full_path
+    );
+    match calculate_workspace_input_constraints(&full_path, selected_files) {
+        Ok(input_constraint_metrics) => {
+            factors_map.insert(
+                "inputConstraints".to_string(),
+                input_constraint_metrics.to_json(),
+            );
+            computed_factors.push("inputConstraints".to_string());
+            notes.push(format!(
+                "Analyzed input constraints: {} handlers, avg {:.1} accounts, {} numeric params, {} vector params, {} constraints",
+                input_constraint_metrics.total_handlers,
+                input_constraint_metrics.avg_accounts_per_handler,
+                input_constraint_metrics.total_numeric_params,
+                input_constraint_metrics.total_vector_params,
+                input_constraint_metrics.total_constraints
+            ));
+            log::info!(
+                "Calculated input constraints for workspace {}: {} handlers, {} constraints",
+                request.workspace_id,
+                input_constraint_metrics.total_handlers,
+                input_constraint_metrics.total_constraints
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate input constraints for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            // Return error as requested - no fallback for input constraints
+            return ResponseJson(AugmentResponse {
+                success: false,
+                workspace_id: request.workspace_id,
+                overridden: Vec::new(),
+                factors: serde_json::Value::Object(serde_json::Map::new()),
+                raw: serde_json::json!({
+                    "error": format!("Input constraints calculation failed: {}", e),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                }),
+                meta: AugmentResponseMeta {
+                    api_version: request.api_version.unwrap_or_else(|| "v1".to_string()),
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                },
+            });
+        }
+    }
+
+    // Calculate arithmetic operation metrics
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze arithmetic operations for workspace: {:?}",
+        full_path
+    );
+    match calculate_workspace_arithmetic(&full_path, selected_files) {
+        Ok(arithmetic_metrics) => {
+            factors_map.insert(
+                "arithmeticOperations".to_string(),
+                arithmetic_metrics.to_json(),
+            );
+            computed_factors.push("arithmeticOperations".to_string());
+            notes.push(format!(
+                "Analyzed arithmetic operations: {} math handlers, {} total operations, {} high-risk, {} medium-risk, {} low-risk, complexity score {:.1}",
+                arithmetic_metrics.total_math_handlers,
+                arithmetic_metrics.total_arithmetic_operations,
+                arithmetic_metrics.high_risk_operations,
+                arithmetic_metrics.medium_risk_operations,
+                arithmetic_metrics.low_risk_operations,
+                arithmetic_metrics.arithmetic_complexity_score
+            ));
+            log::info!(
+                "Calculated arithmetic operations for workspace {}: {} handlers, {} operations, complexity {:.1}",
+                request.workspace_id,
+                arithmetic_metrics.total_math_handlers,
+                arithmetic_metrics.total_arithmetic_operations,
+                arithmetic_metrics.arithmetic_complexity_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate arithmetic operations for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("Arithmetic operations analysis failed: {}", e));
+        }
+    }
+
+    // Calculate asset types metrics
+    log::info!("📊 PROGRESS: Starting asset types analysis...");
+    match calculate_workspace_asset_types(&full_path, selected_files) {
+        Ok(asset_metrics) => {
+            factors_map.insert("assetTypes".to_string(), asset_metrics.to_json());
+            computed_factors.push("assetTypes".to_string());
+            notes.push(format!(
+                "Analyzed asset types: {} unique asset types, {} token types, {} NFT types, {} generic asset types, complexity score {:.1}",
+                asset_metrics.unique_asset_types,
+                asset_metrics.unique_token_types,
+                asset_metrics.unique_nft_types,
+                asset_metrics.unique_generic_asset_types,
+                asset_metrics.asset_complexity_score
+            ));
+            log::info!(
+                "Calculated asset types for workspace {}: {} unique asset types, {} token types, {} NFT types, {} generic asset types, complexity {:.1}",
+                request.workspace_id,
+                asset_metrics.unique_asset_types,
+                asset_metrics.unique_token_types,
+                asset_metrics.unique_nft_types,
+                asset_metrics.unique_generic_asset_types,
+                asset_metrics.asset_complexity_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate asset types for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("Asset types analysis failed: {}", e));
+        }
+    }
+
+    // Calculate invariants and risk parameters metrics
+    log::info!("📊 PROGRESS: Starting invariants and risk parameters analysis...");
+    match calculate_workspace_invariants_risk_params(&full_path, selected_files) {
+        Ok(invariants_metrics) => {
+            factors_map.insert("invariantsAndRiskParams".to_string(), invariants_metrics.to_json());
+            computed_factors.push("invariantsAndRiskParams".to_string());
+            notes.push(format!(
+                "Analyzed invariants: {} require assertions, {} mathematical constraints, {} risk parameter checks, total score {:.1}",
+                invariants_metrics.require_assertions + invariants_metrics.require_eq_assertions,
+                invariants_metrics.mathematical_constraints,
+                invariants_metrics.collateral_ratio_checks + invariants_metrics.fee_rate_checks + invariants_metrics.health_factor_checks,
+                invariants_metrics.total_invariant_score
+            ));
+            log::info!(
+                "Calculated invariants for workspace {}: {} require assertions, {} mathematical constraints, {} risk parameter checks, total score {:.1}",
+                request.workspace_id,
+                invariants_metrics.require_assertions + invariants_metrics.require_eq_assertions,
+                invariants_metrics.mathematical_constraints,
+                invariants_metrics.collateral_ratio_checks + invariants_metrics.fee_rate_checks + invariants_metrics.health_factor_checks,
+                invariants_metrics.total_invariant_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate invariants for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("Invariants analysis failed: {}", e));
+        }
+    }
+
+    // Calculate oracle and price feed usage metrics
+    log::info!("📊 PROGRESS: Starting oracle and price feed usage analysis...");
+    match calculate_workspace_oracle_price_feed(&full_path, selected_files) {
+        Ok(oracle_metrics) => {
+            factors_map.insert("oracleAndPriceFeedUsage".to_string(), oracle_metrics.to_json());
+            computed_factors.push("oracleAndPriceFeedUsage".to_string());
+            notes.push(format!(
+                "Analyzed oracle usage: {} oracle programs, {} price feed calls, {} staleness checks, total score {:.1}",
+                oracle_metrics.oracle_programs_detected,
+                oracle_metrics.price_feed_calls,
+                oracle_metrics.staleness_checks,
+                oracle_metrics.total_oracle_score
+            ));
+            log::info!(
+                "Calculated oracle usage for workspace {}: {} oracle programs, {} price feed calls, {} staleness checks, total score {:.1}",
+                request.workspace_id,
+                oracle_metrics.oracle_programs_detected,
+                oracle_metrics.price_feed_calls,
+                oracle_metrics.staleness_checks,
+                oracle_metrics.total_oracle_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate oracle usage for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("Oracle usage analysis failed: {}", e));
+        }
+    }
+
+    // Calculate privileged roles and admin action metrics
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze privileged roles for workspace: {:?}",
+        full_path
+    );
+    match calculate_workspace_privileged_roles(&full_path, selected_files) {
+        Ok(privileged_roles_metrics) => {
+            factors_map.insert(
+                "privilegedRoles".to_string(),
+                privileged_roles_metrics.to_json(),
+            );
+            computed_factors.push("privilegedRoles".to_string());
+            notes.push(format!(
+                "Analyzed privileged roles: {} privileged handlers, {} admin actions, {} high-impact, {} medium-impact, {} low-impact, complexity score {:.1}",
+                privileged_roles_metrics.total_privileged_handlers,
+                privileged_roles_metrics.total_admin_actions,
+                privileged_roles_metrics.high_impact_actions,
+                privileged_roles_metrics.medium_impact_actions,
+                privileged_roles_metrics.low_impact_actions,
+                privileged_roles_metrics.privileged_complexity_score
+            ));
+            log::info!(
+                "Calculated privileged roles for workspace {}: {} handlers, {} admin actions, complexity {:.1}",
+                request.workspace_id,
+                privileged_roles_metrics.total_privileged_handlers,
+                privileged_roles_metrics.total_admin_actions,
+                privileged_roles_metrics.privileged_complexity_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate privileged roles for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("Privileged roles analysis failed: {}", e));
+        }
+    }
+
+    // Calculate unsafe and low-level usage metrics
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze unsafe/low-level usage for workspace: {:?}",
+        full_path
+    );
+    match calculate_workspace_unsafe_lowlevel(&full_path, selected_files) {
+        Ok(unsafe_metrics) => {
+            factors_map.insert("unsafeLowLevel".to_string(), unsafe_metrics.to_json());
+            computed_factors.push("unsafeLowLevel".to_string());
+            notes.push(format!(
+                "Analyzed unsafe/low-level usage: {} unsafe blocks, {} unsafe functions, {} transmute usage, {} bytemuck usage, {} ptr operations, complexity score {:.1}",
+                unsafe_metrics.total_unsafe_blocks,
+                unsafe_metrics.total_unsafe_functions,
+                unsafe_metrics.transmute_usage,
+                unsafe_metrics.bytemuck_usage,
+                unsafe_metrics.ptr_operations,
+                unsafe_metrics.unsafe_complexity_score
+            ));
+            log::info!(
+                "Calculated unsafe/low-level usage for workspace {}: {} unsafe blocks, {} unsafe functions, {} transmute, {} bytemuck, complexity {:.1}",
+                request.workspace_id,
+                unsafe_metrics.total_unsafe_blocks,
+                unsafe_metrics.total_unsafe_functions,
+                unsafe_metrics.transmute_usage,
+                unsafe_metrics.bytemuck_usage,
+                unsafe_metrics.unsafe_complexity_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate unsafe/low-level usage for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("Unsafe/low-level usage analysis failed: {}", e));
+        }
+    }
+
+    // Calculate error handling metrics
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze error handling for workspace: {:?}",
+        full_path
+    );
+    match calculate_workspace_error_handling(&full_path, selected_files) {
+        Ok(error_metrics) => {
+            factors_map.insert("errorHandling".to_string(), error_metrics.to_json());
+            computed_factors.push("errorHandling".to_string());
+            notes.push(format!(
+                "Analyzed error handling: {} require macros, {} require_eq macros, {} assert macros, {} panic calls, {} unwrap calls, {} expect calls, complexity score {:.1}",
+                error_metrics.total_require_macros,
+                error_metrics.total_require_eq_macros,
+                error_metrics.total_assert_macros,
+                error_metrics.total_panic_calls,
+                error_metrics.total_unwrap_calls,
+                error_metrics.total_expect_calls,
+                error_metrics.error_handling_complexity_score
+            ));
+            log::info!(
+                "Calculated error handling for workspace {}: {} require, {} require_eq, {} assert, {} panic, {} unwrap, {} expect, complexity {:.1}",
+                request.workspace_id,
+                error_metrics.total_require_macros,
+                error_metrics.total_require_eq_macros,
+                error_metrics.total_assert_macros,
+                error_metrics.total_panic_calls,
+                error_metrics.total_unwrap_calls,
+                error_metrics.total_expect_calls,
+                error_metrics.error_handling_complexity_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate error handling for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("Error handling analysis failed: {}", e));
+        }
+    }
+
+    // Calculate upgradeability and governance control metrics
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze upgradeability for workspace: {:?}",
+        full_path
+    );
+    match calculate_workspace_upgradeability(&full_path, selected_files) {
+        Ok(upgradeability_metrics) => {
+            factors_map.insert(
+                "upgradeability".to_string(),
+                upgradeability_metrics.to_json(),
+            );
+            computed_factors.push("upgradeability".to_string());
+            notes.push(format!(
+                "Analyzed upgradeability: {} upgradeable programs, {} single key authorities, {} governance authorities, {} timelocked authorities, risk score {:.1}, governance maturity {:.1}",
+                upgradeability_metrics.total_upgradeable_programs,
+                upgradeability_metrics.single_key_authorities,
+                upgradeability_metrics.governance_authorities,
+                upgradeability_metrics.timelocked_authorities,
+                upgradeability_metrics.upgradeability_risk_score,
+                upgradeability_metrics.governance_maturity_score
+            ));
+            log::info!(
+                "Calculated upgradeability for workspace {}: {} upgradeable programs, {} single key, {} governance, {} timelocked, risk {:.1}, governance {:.1}",
+                request.workspace_id,
+                upgradeability_metrics.total_upgradeable_programs,
+                upgradeability_metrics.single_key_authorities,
+                upgradeability_metrics.governance_authorities,
+                upgradeability_metrics.timelocked_authorities,
+                upgradeability_metrics.upgradeability_risk_score,
+                upgradeability_metrics.governance_maturity_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate upgradeability for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("Upgradeability analysis failed: {}", e));
+        }
+    }
+
+    // Calculate external integration and oracle metrics
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze external integration for workspace: {:?}",
+        full_path
+    );
+    match calculate_workspace_external_integration(&full_path, selected_files) {
+        Ok(external_integration_metrics) => {
+            factors_map.insert(
+                "externalIntegration".to_string(),
+                external_integration_metrics.to_json(),
+            );
+            computed_factors.push("externalIntegration".to_string());
+            notes.push(format!(
+                    "Analyzed external integration: {} oracle integrations, {} bridge integrations, {} defi integrations, {} external cpi calls, risk score {:.1}",
+                    external_integration_metrics.total_oracle_integrations,
+                    external_integration_metrics.total_bridge_integrations,
+                    external_integration_metrics.total_defi_integrations,
+                    external_integration_metrics.external_cpi_calls,
+                    external_integration_metrics.integration_risk_score
+                ));
+            log::info!(
+                    "Calculated external integration for workspace {}: {} oracle, {} bridge, {} defi, {} cpi, risk {:.1}",
+                    request.workspace_id,
+                    external_integration_metrics.total_oracle_integrations,
+                    external_integration_metrics.total_bridge_integrations,
+                    external_integration_metrics.total_defi_integrations,
+                    external_integration_metrics.external_cpi_calls,
+                    external_integration_metrics.integration_risk_score
+                );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate external integration for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("External integration analysis failed: {}", e));
+        }
+    }
+
+    // Calculate composability and inter-program complexity metrics
+    log::info!("📊 PROGRESS: Starting composability analysis...");
+    match calculate_workspace_composability(&full_path, selected_files) {
+        Ok(composability_metrics) => {
+            factors_map.insert("composability".to_string(), composability_metrics.to_json());
+            computed_factors.push("composability".to_string());
+            notes.push(format!(
+                    "Analyzed composability: {} flash loan callbacks, {} cross-program flows, {} callback interfaces, {} dex integrations, complexity score {:.1}",
+                    composability_metrics.flash_loan_callbacks,
+                    composability_metrics.cross_program_instruction_sequences,
+                    composability_metrics.callback_interface_functions,
+                    composability_metrics.dex_integration_patterns,
+                    composability_metrics.composability_complexity_score
+                ));
+            log::info!(
+                    "Calculated composability for workspace {}: {} flash loan, {} cross-program, {} callbacks, {} dex, complexity {:.1}",
+                    request.workspace_id,
+                    composability_metrics.flash_loan_callbacks,
+                    composability_metrics.cross_program_instruction_sequences,
+                    composability_metrics.callback_interface_functions,
+                    composability_metrics.dex_integration_patterns,
+                    composability_metrics.composability_complexity_score
+                );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate composability for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("Composability analysis failed: {}", e));
+        }
+    }
+
+    // Calculate statefulness and sequence of operations metrics
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze statefulness for workspace: {:?}",
+        full_path
+    );
+    match calculate_workspace_statefulness(&full_path, selected_files) {
+        Ok(statefulness_metrics) => {
+            factors_map.insert("statefulness".to_string(), statefulness_metrics.to_json());
+            computed_factors.push("statefulness".to_string());
+            notes.push(format!(
+                "Analyzed statefulness: {} mutable accounts, {} sequence dependencies, {} multi-step workflows, {} race condition risks, complexity score {:.1}",
+                statefulness_metrics.mutable_account_patterns,
+                statefulness_metrics.sequence_dependency_patterns,
+                statefulness_metrics.multi_step_workflow_patterns,
+                statefulness_metrics.race_condition_risks,
+                statefulness_metrics.statefulness_complexity_score
+            ));
+            log::info!(
+                "Calculated statefulness for workspace {}: {} mutable accounts, {} sequences, {} workflows, {} race conditions, complexity {:.1}",
+                request.workspace_id,
+                statefulness_metrics.mutable_account_patterns,
+                statefulness_metrics.sequence_dependency_patterns,
+                statefulness_metrics.multi_step_workflow_patterns,
+                statefulness_metrics.race_condition_risks,
+                statefulness_metrics.statefulness_complexity_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate statefulness for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("Statefulness analysis failed: {}", e));
+        }
+    }
+
+    // Calculate DOS and resource limits metrics
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze DOS resource limits for workspace: {:?}",
+        full_path
+    );
+    match calculate_workspace_dos_resource_limits(&full_path, selected_files) {
+        Ok(dos_metrics) => {
+            factors_map.insert("dosResourceLimits".to_string(), dos_metrics.to_json());
+            computed_factors.push("dosResourceLimits".to_string());
+            notes.push(format!(
+                "Analyzed DOS resource limits: {} unbounded loops, {} recursive calls, {} cryptographic operations, {} large CPI sequences, complexity score {:.1}",
+                dos_metrics.unbounded_loops,
+                dos_metrics.recursive_calls,
+                dos_metrics.cryptographic_operations,
+                dos_metrics.large_cpi_sequences,
+                dos_metrics.dos_complexity_score
+            ));
+            log::info!(
+                "Calculated DOS resource limits for workspace {}: {} unbounded loops, {} recursive calls, {} crypto ops, {} large CPI sequences, complexity {:.1}",
+                request.workspace_id,
+                dos_metrics.unbounded_loops,
+                dos_metrics.recursive_calls,
+                dos_metrics.cryptographic_operations,
+                dos_metrics.large_cpi_sequences,
+                dos_metrics.dos_complexity_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate DOS resource limits for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("DOS resource limits analysis failed: {}", e));
+        }
+    }
+
+    // Calculate operational security metrics
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze operational security for workspace: {:?}",
+        full_path
+    );
+    match calculate_workspace_operational_security(&full_path, selected_files) {
+        Ok(operational_metrics) => {
+            factors_map.insert(
+                "operationalSecurity".to_string(),
+                operational_metrics.to_json(),
+            );
+            computed_factors.push("operationalSecurity".to_string());
+            notes.push(format!(
+                "Analyzed operational security: {} pause functions, {} emergency controls, {} upgrade mechanisms, {} circuit breakers, complexity score {:.1}",
+                operational_metrics.pause_functions + operational_metrics.unpause_functions,
+                operational_metrics.emergency_admin_functions,
+                operational_metrics.program_upgrade_functions,
+                operational_metrics.circuit_breaker_patterns,
+                operational_metrics.operational_security_score
+            ));
+            log::info!(
+                "Calculated operational security for workspace {}: {} pause functions, {} emergency controls, {} upgrade mechanisms, {} circuit breakers, complexity {:.1}",
+                request.workspace_id,
+                operational_metrics.pause_functions + operational_metrics.unpause_functions,
+                operational_metrics.emergency_admin_functions,
+                operational_metrics.program_upgrade_functions,
+                operational_metrics.circuit_breaker_patterns,
+                operational_metrics.operational_security_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate operational security for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            notes.push(format!("Operational security analysis failed: {}", e));
+        }
+    }
+
+    // Calculate external dependencies from workspace Cargo.toml
+    log::info!(
+        "🔍 SERVER DEBUG: About to analyze dependencies for workspace: {:?}",
+        full_path
+    );
+    log::info!("🔍 SERVER DEBUG: Workspace exists: {}", full_path.exists());
+    log::info!(
+        "🔍 SERVER DEBUG: Workspace is directory: {}",
+        full_path.is_dir()
+    );
+    match calculate_workspace_dependencies(&full_path, selected_files) {
+        Ok(dependency_metrics) => {
+            factors_map.insert("dependencies".to_string(), dependency_metrics.to_json());
+            computed_factors.push("dependencies".to_string());
+            notes.push(format!(
+                "Analyzed dependencies: {} total (T1:{}, T2:{}, T3:{}, T4:{}), security score={:.1}",
+                dependency_metrics.total_dependencies,
+                dependency_metrics.tier_1_count,
+                dependency_metrics.tier_2_count,
+                dependency_metrics.tier_3_count,
+                dependency_metrics.tier_4_count,
+                dependency_metrics.dependency_security_score
+            ));
+            log::info!(
+                "Calculated dependencies for workspace {}: {} total, security score={:.1}",
+                request.workspace_id,
+                dependency_metrics.total_dependencies,
+                dependency_metrics.dependency_security_score
+            );
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to calculate dependencies for workspace {}: {}",
+                request.workspace_id,
+                e
+            );
+            // Return error as requested - no fallback for dependencies
+            return ResponseJson(AugmentResponse {
+                success: false,
+                workspace_id: request.workspace_id,
+                overridden: Vec::new(),
+                factors: serde_json::Value::Object(serde_json::Map::new()),
+                raw: serde_json::json!({
+                    "error": format!("Dependencies calculation failed: {}", e),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                }),
+                meta: AugmentResponseMeta {
+                    api_version: request.api_version.unwrap_or_else(|| "v1".to_string()),
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                },
+            });
+        }
+    }
+
+    // Build raw diagnostic information
+    let raw = serde_json::json!({
+        "selectedFiles": request.selected_files,
+        "computed": computed_factors,
+        "notes": notes,
+        "workspacePath": full_path.to_string_lossy(),
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    });
+
+    let elapsed = start_time.elapsed();
+    log::info!(
+        "✅ AUGMENT COMPLETE: Processed workspace {} in {:.2}s with {} factors: {}",
+        request.workspace_id,
+        elapsed.as_secs_f64(),
+        computed_factors.len(),
+        computed_factors.join(", ")
+    );
+
+    let response = AugmentResponse {
+        success: true,
+        workspace_id: request.workspace_id,
+        overridden: computed_factors.clone(),
+        factors: serde_json::Value::Object(factors_map),
+        raw,
+        meta: AugmentResponseMeta {
+            api_version: request.api_version.unwrap_or_else(|| "v1".to_string()),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+    };
+    ResponseJson(response)
+}
+
+/// Simple GET variant for diagnostics to confirm route exists
+async fn augment_get() -> ResponseJson<serde_json::Value> {
+    ResponseJson(serde_json::json!({
+        "route": "/augment",
+        "method": "GET",
+        "diagnostic": true,
+        "example_payload": {"workspace_id":"test","api_version":"v1"}
+    }))
+}
+
+/// List registered routes (static listing since Axum doesn't expose them directly)
+async fn list_routes() -> ResponseJson<serde_json::Value> {
+    ResponseJson(serde_json::json!({
+        "routes": [
+            {"path":"/health","methods":["GET"]},
+            {"path":"/analyze","methods":["POST"]},
+            {"path":"/augment","methods":["POST","GET"]},
+            {"path":"/workspaces","methods":["GET"]},
+            {"path":"/test","methods":["POST"]},
+            {"path":"/test-direct","methods":["POST"]}
+        ]
+    }))
 }
 
 /// Main analysis endpoint
@@ -342,7 +1401,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/analyze", post(analyze_workspace))
+        .route("/augment", post(augment).get(augment_get))
         .route("/workspaces", get(list_workspaces))
+        .route("/routes", get(list_routes))
         .route("/test", post(test_shared_volume))
         .route("/test-direct", post(test_direct))
         .layer(CorsLayer::permissive()); // Allow CORS for development
