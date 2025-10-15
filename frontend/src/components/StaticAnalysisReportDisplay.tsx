@@ -10,7 +10,6 @@ import {
     XCircle,
     Layers,
     Shield,
-    TrendingUp,
     DollarSign,
     Database
 } from 'lucide-react';
@@ -33,7 +32,7 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
             .trim();
     };
 
-    const formatRustAnalysisValue = (value: any): string => {
+    const formatRustAnalysisValue = (value: unknown): string => {
         if (typeof value === 'number') {
             return value.toLocaleString();
         }
@@ -131,7 +130,7 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
         return colorMap[sectionKey] || 'gray';
     };
 
-    const renderArrayValue = (value: any[], key: string, color: string) => {
+    const renderArrayValue = (value: unknown[], key: string, color: string) => {
         if (value.length === 0) return null;
 
         // Check if array contains objects
@@ -186,7 +185,7 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
         );
     };
 
-    const renderScoreCards = (sectionData: any, color: string) => {
+    const renderScoreCards = (sectionData: Record<string, unknown>, color: string) => {
         const scoreKeys = ['score', 'riskScore', 'securityScore', 'modularityScore', 'dependencyRiskScore', 'dependencySecurityScore'];
         const scoreEntries = Object.entries(sectionData).filter(([key]) =>
             scoreKeys.some(scoreKey => key.toLowerCase().includes(scoreKey.toLowerCase()))
@@ -1005,7 +1004,7 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                             <p className="text-purple-800 text-sm leading-relaxed">
                                                 This AI analysis provides insights into code quality, security risks, and economic factors using advanced language models.
                                                 The findings are based on pattern recognition and should be used in conjunction with manual code review and security audits.
-                                                Confidence scores indicate the AI's certainty in its assessments.
+                                                Confidence scores indicate the AI&apos;s certainty in its assessments.
                                             </p>
                                         </div>
                                     </div>

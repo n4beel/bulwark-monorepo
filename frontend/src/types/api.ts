@@ -263,7 +263,7 @@ export interface RustAnalysisFactors {
     numFunctions: number;
     totalLinesOfCode: number;
     // Dynamic nested sections - any object with string keys and various value types
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 // AI Analysis specific types
@@ -326,7 +326,7 @@ export interface AIAnalysisFactors {
         confidence: number;
     };
     // Dynamic sections for future AI analysis categories
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 export interface AIAnalysis {
