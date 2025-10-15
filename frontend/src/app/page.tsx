@@ -344,7 +344,6 @@ export default function Home() {
         {currentState === 'uploadFileSelect' && extractedPath && (
           <UploadedContractFileSelector
             contractFiles={uploadedContractFiles}
-            extractedPath={extractedPath}
             onBack={handleBackToUpload}
             onProceed={handleUploadedFileSelection}
           />
