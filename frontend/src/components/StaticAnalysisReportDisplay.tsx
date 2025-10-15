@@ -922,12 +922,12 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                                     </div>
                                                     <div className="p-6">
                                                         {/* Render score cards if any score-like properties exist */}
-                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
-                                                            renderScoreCards(sectionData as Record<string, unknown>, color)}
+                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) ?
+                                                            renderScoreCards(sectionData as Record<string, unknown>, color) : null}
 
                                                         {/* Render regular properties */}
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                                                            {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
+                                                            {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) ?
                                                                 Object.entries(sectionData as Record<string, unknown>).map(([key, value]) => {
                                                                     // Skip arrays, score properties, and findings (handled separately)
                                                                     if (Array.isArray(value) || key.toLowerCase().includes('score') || key === 'findings' || key === 'confidence') {
@@ -963,37 +963,37 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                                                             </span>
                                                                         </div>
                                                                     );
-                                                                })}
+                                                                }) : null}
                                                         </div>
 
                                                         {/* Render findings as special content */}
                                                         {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
-                                                            'findings' in sectionData && Array.isArray(sectionData.findings) && sectionData.findings.length > 0 && (
-                                                                <div className="mt-6">
-                                                                    <h4 className="text-sm font-semibold text-gray-900 mb-3">Key Findings</h4>
-                                                                    <div className="space-y-2">
-                                                                        {sectionData.findings.map((finding: string, index: number) => (
-                                                                            <div key={index} className={`p-3 bg-${color}-50 border border-${color}-200 rounded-lg`}>
-                                                                                <p className="text-sm text-gray-700">{finding}</p>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
+                                                            'findings' in sectionData && Array.isArray(sectionData.findings) && sectionData.findings.length > 0 ? (
+                                                            <div className="mt-6">
+                                                                <h4 className="text-sm font-semibold text-gray-900 mb-3">Key Findings</h4>
+                                                                <div className="space-y-2">
+                                                                    {sectionData.findings.map((finding: string, index: number) => (
+                                                                        <div key={index} className={`p-3 bg-${color}-50 border border-${color}-200 rounded-lg`}>
+                                                                            <p className="text-sm text-gray-700">{finding}</p>
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
-                                                            )}
+                                                            </div>
+                                                        ) : null}
 
                                                         {/* Render confidence score if available */}
                                                         {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
-                                                            'confidence' in sectionData && sectionData.confidence && (
-                                                                <div className="mt-4 flex items-center justify-end">
-                                                                    <span className="text-sm text-gray-600 mr-2">Confidence:</span>
-                                                                    <span className={`px-2 py-1 rounded text-sm font-medium ${sectionData.confidence >= 80 ? 'bg-green-100 text-green-800' :
-                                                                        sectionData.confidence >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                                                                            'bg-red-100 text-red-800'
-                                                                        }`}>
-                                                                        {sectionData.confidence}%
-                                                                    </span>
-                                                                </div>
-                                                            )}
+                                                            'confidence' in sectionData && typeof sectionData.confidence === 'number' ? (
+                                                            <div className="mt-4 flex items-center justify-end">
+                                                                <span className="text-sm text-gray-600 mr-2">Confidence:</span>
+                                                                <span className={`px-2 py-1 rounded text-sm font-medium ${sectionData.confidence >= 80 ? 'bg-green-100 text-green-800' :
+                                                                    sectionData.confidence >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                                                                        'bg-red-100 text-red-800'
+                                                                    }`}>
+                                                                    {sectionData.confidence}%
+                                                                </span>
+                                                            </div>
+                                                        ) : null}
                                                     </div>
                                                 </div>
                                             );
@@ -1114,12 +1114,12 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                                     </div>
                                                     <div className="p-6">
                                                         {/* Render score cards if any score-like properties exist */}
-                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
-                                                            renderScoreCards(sectionData as Record<string, unknown>, color)}
+                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) ?
+                                                            renderScoreCards(sectionData as Record<string, unknown>, color) : null}
 
                                                         {/* Render regular properties */}
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                                                            {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
+                                                            {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) ?
                                                                 Object.entries(sectionData as Record<string, unknown>).map(([key, value]) => {
                                                                     // Skip arrays and score properties (handled separately)
                                                                     if (Array.isArray(value) || key.toLowerCase().includes('score')) {
@@ -1155,17 +1155,17 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                                                             </span>
                                                                         </div>
                                                                     );
-                                                                })}
+                                                                }) : null}
                                                         </div>
 
                                                         {/* Render arrays as tag collections */}
-                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
+                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) ?
                                                             Object.entries(sectionData as Record<string, unknown>).map(([key, value]) => {
                                                                 if (Array.isArray(value)) {
                                                                     return renderArrayValue(value, key, color);
                                                                 }
                                                                 return null;
-                                                            })}
+                                                            }) : null}
 
                                                         {/* Special handling for dependency tiers */}
                                                         {sectionKey === 'dependencies' && (
@@ -1179,8 +1179,8 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                                                     ].map(({ tier, label, color: tierColor }) => {
                                                                         const cratesKey = `${tier}Crates`;
                                                                         const countKey = `${tier}Dependencies`;
-                                                                        const crates = sectionData[cratesKey];
-                                                                        const count = sectionData[countKey];
+                                                                        const crates = (sectionData as Record<string, unknown>)[cratesKey];
+                                                                        const count = (sectionData as Record<string, unknown>)[countKey];
 
                                                                         if (!crates || !Array.isArray(crates) || crates.length === 0) {
                                                                             return null;
@@ -1191,15 +1191,15 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                                                                 <div className="flex items-center justify-between mb-2">
                                                                                     <h4 className="text-sm font-semibold text-gray-900">{label}</h4>
                                                                                     <span className={`px-2 py-1 rounded-full text-xs font-medium bg-${tierColor}-100 text-${tierColor}-800`}>
-                                                                                        {count} dependencies
+                                                                                        {typeof count === 'number' ? count : 0} dependencies
                                                                                     </span>
                                                                                 </div>
                                                                                 <div className="flex flex-wrap gap-2">
-                                                                                    {crates.map((crate, index) => (
+                                                                                    {Array.isArray(crates) ? crates.map((crate, index) => (
                                                                                         <span key={index} className={`bg-${tierColor}-50 text-${tierColor}-700 px-3 py-1 rounded-full text-sm`}>
-                                                                                            {crate}
+                                                                                            {typeof crate === 'string' ? crate : String(crate)}
                                                                                         </span>
-                                                                                    ))}
+                                                                                    )) : null}
                                                                                 </div>
                                                                             </div>
                                                                         );
