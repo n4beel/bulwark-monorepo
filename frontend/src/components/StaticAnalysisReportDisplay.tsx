@@ -922,11 +922,13 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                                     </div>
                                                     <div className="p-6">
                                                         {/* Render score cards if any score-like properties exist */}
-                                                        {renderScoreCards(sectionData, color)}
+                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) && 
+                                                            renderScoreCards(sectionData as Record<string, unknown>, color)}
 
                                                         {/* Render regular properties */}
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                                                            {Object.entries(sectionData).map(([key, value]) => {
+                                                            {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) && 
+                                                                Object.entries(sectionData as Record<string, unknown>).map(([key, value]) => {
                                                                 // Skip arrays, score properties, and findings (handled separately)
                                                                 if (Array.isArray(value) || key.toLowerCase().includes('score') || key === 'findings' || key === 'confidence') {
                                                                     return null;
@@ -1110,11 +1112,13 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                                     </div>
                                                     <div className="p-6">
                                                         {/* Render score cards if any score-like properties exist */}
-                                                        {renderScoreCards(sectionData, color)}
+                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) && 
+                                                            renderScoreCards(sectionData as Record<string, unknown>, color)}
 
                                                         {/* Render regular properties */}
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                                                            {Object.entries(sectionData).map(([key, value]) => {
+                                                            {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) && 
+                                                                Object.entries(sectionData as Record<string, unknown>).map(([key, value]) => {
                                                                 // Skip arrays and score properties (handled separately)
                                                                 if (Array.isArray(value) || key.toLowerCase().includes('score')) {
                                                                     return null;
@@ -1153,12 +1157,13 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                                         </div>
 
                                                         {/* Render arrays as tag collections */}
-                                                        {Object.entries(sectionData).map(([key, value]) => {
-                                                            if (Array.isArray(value)) {
-                                                                return renderArrayValue(value, key, color);
-                                                            }
-                                                            return null;
-                                                        })}
+                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) && 
+                                                            Object.entries(sectionData as Record<string, unknown>).map(([key, value]) => {
+                                                                if (Array.isArray(value)) {
+                                                                    return renderArrayValue(value, key, color);
+                                                                }
+                                                                return null;
+                                                            })}
 
                                                         {/* Special handling for dependency tiers */}
                                                         {sectionKey === 'dependencies' && (
