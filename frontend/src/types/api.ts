@@ -258,6 +258,102 @@ export interface Performance {
     memoryUsage: number;
 }
 
+// Rust Analysis specific types - Dynamic structure
+export interface RustAnalysisFactors {
+    numFunctions: number;
+    totalLinesOfCode: number;
+    // Dynamic nested sections - any object with string keys and various value types
+    [key: string]: any;
+}
+
+// AI Analysis specific types
+export interface AIAnalysisFactors {
+    documentationClarity?: {
+        codeCommentsScore: number;
+        functionDocumentationScore: number;
+        readmeQualityScore: number;
+        securityDocumentationScore: number;
+        overallClarityScore: number;
+        findings: string[];
+        confidence: number;
+    };
+    testingCoverage?: {
+        unitTestCoverage: number;
+        integrationTestCoverage: number;
+        testQualityScore: number;
+        edgeCaseTestingScore: number;
+        securityTestScore: number;
+        overallTestingScore: number;
+        findings: string[];
+        confidence: number;
+    };
+    financialLogicIntricacy?: {
+        mathematicalComplexityScore: number;
+        algorithmSophisticationScore: number;
+        interestRateComplexityScore: number;
+        ammPricingComplexityScore: number;
+        rewardDistributionComplexityScore: number;
+        riskManagementComplexityScore: number;
+        overallFinancialComplexityScore: number;
+        findings: string[];
+        confidence: number;
+    };
+    profitAttackVectors?: {
+        flashLoanAttackRisk: number;
+        sandwichAttackRisk: number;
+        arbitrageOpportunities: number;
+        economicExploitRisk: number;
+        overallAttackVectorScore: number;
+        findings: string[];
+        confidence: number;
+    };
+    valueAtRisk?: {
+        assetVolumeComplexity: number;
+        liquidityRiskScore: number;
+        marketCapImplications: number;
+        economicStakesScore: number;
+        overallValueAtRiskScore: number;
+        findings: string[];
+        confidence: number;
+    };
+    gameTheoryIncentives?: {
+        incentiveAlignmentScore: number;
+        economicSecurityDependencies: number;
+        maliciousActorResistance: number;
+        protocolGovernanceComplexity: number;
+        overallGameTheoryScore: number;
+        findings: string[];
+        confidence: number;
+    };
+    // Dynamic sections for future AI analysis categories
+    [key: string]: any;
+}
+
+export interface AIAnalysis {
+    engine: string;
+    version: string;
+    success: boolean;
+    error?: string | null;
+    analysisFactors: AIAnalysisFactors;
+    documentation_clarity: number;
+    testing_coverage: number;
+    financial_logic_complexity: number;
+    attack_vector_risk: number;
+    value_at_risk: number;
+    game_theory_complexity: number;
+}
+
+export interface RustAnalysis {
+    engine: string;
+    version: string;
+    success: boolean;
+    error?: string | null;
+    analysisFactors: RustAnalysisFactors;
+    total_lines_of_code: number;
+    total_functions: number;
+    complex_math_operations: number;
+}
+
 export interface StaticAnalysisReport {
     _id: {
         $oid: string;
@@ -269,6 +365,8 @@ export interface StaticAnalysisReport {
     analysisFactors: AnalysisFactors;
     scores: Scores;
     performance: Performance;
+    rust_analysis?: RustAnalysis; // Optional field for Rust analysis
+    ai_analysis?: AIAnalysis; // Optional field for AI analysis
     createdAt: {
         $date: string;
     };
