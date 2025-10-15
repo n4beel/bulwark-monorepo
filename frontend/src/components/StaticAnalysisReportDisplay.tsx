@@ -922,76 +922,78 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                                     </div>
                                                     <div className="p-6">
                                                         {/* Render score cards if any score-like properties exist */}
-                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) && 
+                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
                                                             renderScoreCards(sectionData as Record<string, unknown>, color)}
 
                                                         {/* Render regular properties */}
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                                                            {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) && 
+                                                            {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
                                                                 Object.entries(sectionData as Record<string, unknown>).map(([key, value]) => {
-                                                                // Skip arrays, score properties, and findings (handled separately)
-                                                                if (Array.isArray(value) || key.toLowerCase().includes('score') || key === 'findings' || key === 'confidence') {
-                                                                    return null;
-                                                                }
+                                                                    // Skip arrays, score properties, and findings (handled separately)
+                                                                    if (Array.isArray(value) || key.toLowerCase().includes('score') || key === 'findings' || key === 'confidence') {
+                                                                        return null;
+                                                                    }
 
-                                                                // Handle nested objects
-                                                                if (typeof value === 'object' && value !== null) {
-                                                                    return (
-                                                                        <div key={key} className="col-span-full">
-                                                                            <div className="py-2 border-b border-gray-100">
-                                                                                <h4 className="text-sm font-semibold text-gray-900 mb-2">{formatRustAnalysisKey(key)}</h4>
-                                                                                <div className={`p-3 bg-${color}-50 border border-${color}-200 rounded-lg`}>
-                                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
-                                                                                        {Object.entries(value).map(([nestedKey, nestedValue]) => (
-                                                                                            <div key={nestedKey} className="flex justify-between text-sm">
-                                                                                                <span className="font-medium text-gray-700">{formatRustAnalysisKey(nestedKey)}:</span>
-                                                                                                <span className="text-gray-900">{formatRustAnalysisValue(nestedValue)}</span>
-                                                                                            </div>
-                                                                                        ))}
+                                                                    // Handle nested objects
+                                                                    if (typeof value === 'object' && value !== null) {
+                                                                        return (
+                                                                            <div key={key} className="col-span-full">
+                                                                                <div className="py-2 border-b border-gray-100">
+                                                                                    <h4 className="text-sm font-semibold text-gray-900 mb-2">{formatRustAnalysisKey(key)}</h4>
+                                                                                    <div className={`p-3 bg-${color}-50 border border-${color}-200 rounded-lg`}>
+                                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
+                                                                                            {Object.entries(value).map(([nestedKey, nestedValue]) => (
+                                                                                                <div key={nestedKey} className="flex justify-between text-sm">
+                                                                                                    <span className="font-medium text-gray-700">{formatRustAnalysisKey(nestedKey)}:</span>
+                                                                                                    <span className="text-gray-900">{formatRustAnalysisValue(nestedValue)}</span>
+                                                                                                </div>
+                                                                                            ))}
+                                                                                        </div>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
+                                                                        );
+                                                                    }
+
+                                                                    return (
+                                                                        <div key={key} className="flex justify-between py-2 border-b border-gray-100">
+                                                                            <span className="text-sm font-medium text-gray-700">{formatRustAnalysisKey(key)}</span>
+                                                                            <span className="text-sm font-semibold text-gray-900">
+                                                                                {formatRustAnalysisValue(value)}
+                                                                            </span>
                                                                         </div>
                                                                     );
-                                                                }
-
-                                                                return (
-                                                                    <div key={key} className="flex justify-between py-2 border-b border-gray-100">
-                                                                        <span className="text-sm font-medium text-gray-700">{formatRustAnalysisKey(key)}</span>
-                                                                        <span className="text-sm font-semibold text-gray-900">
-                                                                            {formatRustAnalysisValue(value)}
-                                                                        </span>
-                                                                    </div>
-                                                                );
-                                                            })}
+                                                                })}
                                                         </div>
 
                                                         {/* Render findings as special content */}
-                                                        {sectionData.findings && Array.isArray(sectionData.findings) && sectionData.findings.length > 0 && (
-                                                            <div className="mt-6">
-                                                                <h4 className="text-sm font-semibold text-gray-900 mb-3">Key Findings</h4>
-                                                                <div className="space-y-2">
-                                                                    {sectionData.findings.map((finding: string, index: number) => (
-                                                                        <div key={index} className={`p-3 bg-${color}-50 border border-${color}-200 rounded-lg`}>
-                                                                            <p className="text-sm text-gray-700">{finding}</p>
-                                                                        </div>
-                                                                    ))}
+                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
+                                                            'findings' in sectionData && Array.isArray(sectionData.findings) && sectionData.findings.length > 0 && (
+                                                                <div className="mt-6">
+                                                                    <h4 className="text-sm font-semibold text-gray-900 mb-3">Key Findings</h4>
+                                                                    <div className="space-y-2">
+                                                                        {sectionData.findings.map((finding: string, index: number) => (
+                                                                            <div key={index} className={`p-3 bg-${color}-50 border border-${color}-200 rounded-lg`}>
+                                                                                <p className="text-sm text-gray-700">{finding}</p>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        )}
+                                                            )}
 
                                                         {/* Render confidence score if available */}
-                                                        {sectionData.confidence && (
-                                                            <div className="mt-4 flex items-center justify-end">
-                                                                <span className="text-sm text-gray-600 mr-2">Confidence:</span>
-                                                                <span className={`px-2 py-1 rounded text-sm font-medium ${sectionData.confidence >= 80 ? 'bg-green-100 text-green-800' :
-                                                                    sectionData.confidence >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                                                                        'bg-red-100 text-red-800'
-                                                                    }`}>
-                                                                    {sectionData.confidence}%
-                                                                </span>
-                                                            </div>
-                                                        )}
+                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
+                                                            'confidence' in sectionData && sectionData.confidence && (
+                                                                <div className="mt-4 flex items-center justify-end">
+                                                                    <span className="text-sm text-gray-600 mr-2">Confidence:</span>
+                                                                    <span className={`px-2 py-1 rounded text-sm font-medium ${sectionData.confidence >= 80 ? 'bg-green-100 text-green-800' :
+                                                                        sectionData.confidence >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                                                                            'bg-red-100 text-red-800'
+                                                                        }`}>
+                                                                        {sectionData.confidence}%
+                                                                    </span>
+                                                                </div>
+                                                            )}
                                                     </div>
                                                 </div>
                                             );
@@ -1112,52 +1114,52 @@ export default function StaticAnalysisReportDisplay({ report, onBack, onNewAnaly
                                                     </div>
                                                     <div className="p-6">
                                                         {/* Render score cards if any score-like properties exist */}
-                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) && 
+                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
                                                             renderScoreCards(sectionData as Record<string, unknown>, color)}
 
                                                         {/* Render regular properties */}
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                                                            {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) && 
+                                                            {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
                                                                 Object.entries(sectionData as Record<string, unknown>).map(([key, value]) => {
-                                                                // Skip arrays and score properties (handled separately)
-                                                                if (Array.isArray(value) || key.toLowerCase().includes('score')) {
-                                                                    return null;
-                                                                }
+                                                                    // Skip arrays and score properties (handled separately)
+                                                                    if (Array.isArray(value) || key.toLowerCase().includes('score')) {
+                                                                        return null;
+                                                                    }
 
-                                                                // Handle nested objects
-                                                                if (typeof value === 'object' && value !== null) {
-                                                                    return (
-                                                                        <div key={key} className="col-span-full">
-                                                                            <div className="py-2 border-b border-gray-100">
-                                                                                <h4 className="text-sm font-semibold text-gray-900 mb-2">{formatRustAnalysisKey(key)}</h4>
-                                                                                <div className={`p-3 bg-${color}-50 border border-${color}-200 rounded-lg`}>
-                                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
-                                                                                        {Object.entries(value).map(([nestedKey, nestedValue]) => (
-                                                                                            <div key={nestedKey} className="flex justify-between text-sm">
-                                                                                                <span className="font-medium text-gray-700">{formatRustAnalysisKey(nestedKey)}:</span>
-                                                                                                <span className="text-gray-900">{formatRustAnalysisValue(nestedValue)}</span>
-                                                                                            </div>
-                                                                                        ))}
+                                                                    // Handle nested objects
+                                                                    if (typeof value === 'object' && value !== null) {
+                                                                        return (
+                                                                            <div key={key} className="col-span-full">
+                                                                                <div className="py-2 border-b border-gray-100">
+                                                                                    <h4 className="text-sm font-semibold text-gray-900 mb-2">{formatRustAnalysisKey(key)}</h4>
+                                                                                    <div className={`p-3 bg-${color}-50 border border-${color}-200 rounded-lg`}>
+                                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
+                                                                                            {Object.entries(value).map(([nestedKey, nestedValue]) => (
+                                                                                                <div key={nestedKey} className="flex justify-between text-sm">
+                                                                                                    <span className="font-medium text-gray-700">{formatRustAnalysisKey(nestedKey)}:</span>
+                                                                                                    <span className="text-gray-900">{formatRustAnalysisValue(nestedValue)}</span>
+                                                                                                </div>
+                                                                                            ))}
+                                                                                        </div>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
+                                                                        );
+                                                                    }
+
+                                                                    return (
+                                                                        <div key={key} className="flex justify-between py-2 border-b border-gray-100">
+                                                                            <span className="text-sm font-medium text-gray-700">{formatRustAnalysisKey(key)}</span>
+                                                                            <span className="text-sm font-semibold text-gray-900">
+                                                                                {formatRustAnalysisValue(value)}
+                                                                            </span>
                                                                         </div>
                                                                     );
-                                                                }
-
-                                                                return (
-                                                                    <div key={key} className="flex justify-between py-2 border-b border-gray-100">
-                                                                        <span className="text-sm font-medium text-gray-700">{formatRustAnalysisKey(key)}</span>
-                                                                        <span className="text-sm font-semibold text-gray-900">
-                                                                            {formatRustAnalysisValue(value)}
-                                                                        </span>
-                                                                    </div>
-                                                                );
-                                                            })}
+                                                                })}
                                                         </div>
 
                                                         {/* Render arrays as tag collections */}
-                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) && 
+                                                        {typeof sectionData === 'object' && sectionData !== null && !Array.isArray(sectionData) &&
                                                             Object.entries(sectionData as Record<string, unknown>).map(([key, value]) => {
                                                                 if (Array.isArray(value)) {
                                                                     return renderArrayValue(value, key, color);

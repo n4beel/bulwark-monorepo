@@ -14,14 +14,12 @@ type AnalysisType = 'ai' | 'static';
 
 interface UploadedContractFileSelectorProps {
     contractFiles: ContractFile[];
-    extractedPath: string;
     onBack: () => void;
     onProceed: (selectedFiles: string[], analysisType: AnalysisType) => void;
 }
 
 export default function UploadedContractFileSelector({
     contractFiles,
-    extractedPath: _extractedPath,
     onBack,
     onProceed
 }: UploadedContractFileSelectorProps) {
