@@ -3,17 +3,27 @@
 //! Provides REST API endpoints for semantic analysis of Rust smart contracts
 
 use amm_analyzer::factors::{
-    calculate_workspace_access_control, calculate_workspace_arithmetic,
-    calculate_workspace_asset_types, calculate_workspace_composability,
-    calculate_workspace_cpi_calls, calculate_workspace_cyclomatic_complexity,
-    calculate_workspace_dependencies, calculate_workspace_dos_resource_limits,
-    calculate_workspace_error_handling, calculate_workspace_external_integration,
-    calculate_workspace_input_constraints, calculate_workspace_invariants_risk_params,
-    calculate_workspace_modularity, calculate_workspace_operational_security,
-    calculate_workspace_oracle_price_feed, calculate_workspace_pda_seeds,
-    calculate_workspace_privileged_roles, calculate_workspace_statefulness,
-    calculate_workspace_unsafe_lowlevel, calculate_workspace_upgradeability,
-    count_lines_of_code, count_total_functions,
+    calculate_workspace_access_control,
+    calculate_workspace_arithmetic,
+    calculate_workspace_asset_types,
+    calculate_workspace_composability,
+    calculate_workspace_cpi_calls,
+    calculate_workspace_cyclomatic_complexity,
+    calculate_workspace_dependencies,
+    calculate_workspace_dos_resource_limits,
+    calculate_workspace_error_handling,
+    calculate_workspace_external_integration,
+    calculate_workspace_input_constraints,
+    calculate_workspace_invariants_risk_params,
+    calculate_workspace_modularity,
+    calculate_workspace_operational_security,
+    // calculate_workspace_oracle_price_feed, // TODO: Implement oracle_price_feed module
+    calculate_workspace_pda_seeds,
+    calculate_workspace_privileged_roles, // calculate_workspace_statefulness, // TODO: Implement statefulness module
+    calculate_workspace_unsafe_lowlevel,
+    calculate_workspace_upgradeability,
+    count_lines_of_code,
+    count_total_functions,
 };
 use amm_analyzer::{analyze_repository, AnalyzerConfig};
 use axum::{
@@ -723,7 +733,10 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
     log::info!("📊 PROGRESS: Starting invariants and risk parameters analysis...");
     match calculate_workspace_invariants_risk_params(&full_path, selected_files) {
         Ok(invariants_metrics) => {
-            factors_map.insert("invariantsAndRiskParams".to_string(), invariants_metrics.to_json());
+            factors_map.insert(
+                "invariantsAndRiskParams".to_string(),
+                invariants_metrics.to_json(),
+            );
             computed_factors.push("invariantsAndRiskParams".to_string());
             notes.push(format!(
                 "Analyzed invariants: {} require assertions, {} mathematical constraints, {} risk parameter checks, total score {:.1}",
@@ -752,6 +765,8 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
     }
 
     // Calculate oracle and price feed usage metrics
+    // TODO: Implement oracle_price_feed module
+    /*
     log::info!("📊 PROGRESS: Starting oracle and price feed usage analysis...");
     match calculate_workspace_oracle_price_feed(&full_path, selected_files) {
         Ok(oracle_metrics) => {
@@ -782,6 +797,7 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             notes.push(format!("Oracle usage analysis failed: {}", e));
         }
     }
+    */
 
     // Calculate privileged roles and admin action metrics
     log::info!(
@@ -1018,6 +1034,8 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
     }
 
     // Calculate statefulness and sequence of operations metrics
+    // TODO: Implement statefulness module
+    /*
     log::info!(
         "🔍 SERVER DEBUG: About to analyze statefulness for workspace: {:?}",
         full_path
@@ -1053,6 +1071,7 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             notes.push(format!("Statefulness analysis failed: {}", e));
         }
     }
+    */
 
     // Calculate DOS and resource limits metrics
     log::info!(
@@ -1152,13 +1171,13 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 dependency_metrics.tier_2_count,
                 dependency_metrics.tier_3_count,
                 dependency_metrics.tier_4_count,
-                dependency_metrics.dependency_security_score
+                dependency_metrics.dependency_factor
             ));
             log::info!(
                 "Calculated dependencies for workspace {}: {} total, security score={:.1}",
                 request.workspace_id,
                 dependency_metrics.total_dependencies,
-                dependency_metrics.dependency_security_score
+                dependency_metrics.dependency_factor
             );
         }
         Err(e) => {

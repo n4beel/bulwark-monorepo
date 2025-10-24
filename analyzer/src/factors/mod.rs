@@ -19,10 +19,10 @@ pub mod invariants_risk_params;
 pub mod lines_of_code;
 pub mod modularity;
 pub mod operational_security;
-pub mod oracle_price_feed;
+// pub mod oracle_price_feed; // TODO: Implement oracle price feed module
 pub mod pda_seeds;
 pub mod privileged_roles;
-pub mod statefulness;
+// pub mod statefulness; // TODO: Implement statefulness module
 pub mod unsafe_lowlevel;
 pub mod upgradeability;
 
@@ -48,9 +48,9 @@ pub use modularity::{calculate_workspace_modularity, ModularityMetrics};
 pub use operational_security::{
     calculate_workspace_operational_security, OperationalSecurityMetrics,
 };
-pub use oracle_price_feed::{calculate_workspace_oracle_price_feed, OraclePriceFeedMetrics};
+// pub use oracle_price_feed::{calculate_workspace_oracle_price_feed, OraclePriceFeedMetrics};
 pub use pda_seeds::{calculate_workspace_pda_seeds, PdaMetrics};
 pub use privileged_roles::{calculate_workspace_privileged_roles, PrivilegedRolesMetrics};
-pub use statefulness::{calculate_workspace_statefulness, StatefulnessMetrics};
+// pub use statefulness::{calculate_workspace_statefulness, StatefulnessMetrics}; // TODO: Implement statefulness module
 pub use unsafe_lowlevel::{calculate_workspace_unsafe_lowlevel, UnsafeLowLevelMetrics};
 pub use upgradeability::{calculate_workspace_upgradeability, UpgradeabilityMetrics};

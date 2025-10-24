@@ -10,12 +10,11 @@ use toml::Value;
 #[derive(Debug, Clone)]
 pub struct DependencyMetrics {
     pub total_dependencies: usize,
-    pub tier_1_count: usize,            // Solana official (safest)
-    pub tier_2_count: usize,            // Security/crypto crates
-    pub tier_3_count: usize,            // Popular ecosystem
-    pub tier_4_count: usize,            // Unknown/custom (riskiest)
-    pub dependency_risk_score: f64,     // Weighted risk (lower = better)
-    pub dependency_security_score: f64, // Final score (higher = better)
+    pub tier_1_count: usize,    // Solana official (safest)
+    pub tier_2_count: usize,    // Security/crypto crates
+    pub tier_3_count: usize,    // Popular ecosystem
+    pub tier_4_count: usize,    // Unknown/custom (riskiest)
+    pub dependency_factor: f64, // Unified risk factor (0-100, higher = riskier)
     pub tier_1_crates: Vec<String>,
     pub tier_2_crates: Vec<String>,
     pub tier_3_crates: Vec<String>,
@@ -31,8 +30,7 @@ impl DependencyMetrics {
             "tier2Dependencies": self.tier_2_count,
             "tier3Dependencies": self.tier_3_count,
             "tier4Dependencies": self.tier_4_count,
-            "dependencySecurityScore": self.dependency_security_score,
-            "dependencyRiskScore": self.dependency_risk_score,
+            "dependencyFactor": self.dependency_factor,
             "tier1Crates": self.tier_1_crates,
             "tier2Crates": self.tier_2_crates,
             "tier3Crates": self.tier_3_crates,
@@ -247,8 +245,7 @@ impl Default for DependencyMetrics {
             tier_2_count: 0,
             tier_3_count: 0,
             tier_4_count: 0,
-            dependency_risk_score: 0.0,
-            dependency_security_score: 100.0, // Perfect score for no dependencies
+            dependency_factor: 0.0, // No dependencies = no risk
             tier_1_crates: Vec::new(),
             tier_2_crates: Vec::new(),
             tier_3_crates: Vec::new(),
@@ -263,39 +260,24 @@ impl DependencyMetrics {
             self.tier_1_count + self.tier_2_count + self.tier_3_count + self.tier_4_count;
 
         if self.total_dependencies == 0 {
-            self.dependency_security_score = 100.0;
-            self.dependency_risk_score = 0.0;
+            self.dependency_factor = 0.0; // No dependencies = no risk
             return;
         }
 
-        // Calculate weighted risk score
+        // 1. Calculate the Weighted Risk Score (0.0 to 1.0)
         let total = self.total_dependencies as f64;
-        self.dependency_risk_score = (
-            self.tier_1_count as f64 * 0.1 +  // Solana official (very safe)
+        let weighted_risk_sum = self.tier_1_count as f64 * 0.1 +  // Solana official (very safe)
             self.tier_2_count as f64 * 0.3 +  // Security crates (safe)
             self.tier_3_count as f64 * 0.5 +  // Popular ecosystem (moderate)
-            self.tier_4_count as f64 * 1.0
-            // Unknown/custom (risky)
-        ) / total;
+            self.tier_4_count as f64 * 1.0; // Unknown/custom (risky)
 
-        // Convert risk to security score (invert and scale to 0-100)
-        let base_security_score = (1.0 - self.dependency_risk_score) * 100.0;
+        let base_risk_score_0_1 = weighted_risk_sum / total;
 
-        // Bonus for heavy Solana ecosystem usage
-        let solana_ratio = self.tier_1_count as f64 / total;
-        let solana_bonus = solana_ratio * 15.0; // Up to 15 bonus points
+        // 2. Scale to 0-100 (Higher is riskier)
+        self.dependency_factor = base_risk_score_0_1 * 100.0;
 
-        // Penalty for many unknown dependencies
-        let unknown_ratio = self.tier_4_count as f64 / total;
-        let unknown_penalty = if unknown_ratio > 0.5 {
-            (unknown_ratio - 0.5) * 20.0 // Penalty if >50% unknown
-        } else {
-            0.0
-        };
-
-        self.dependency_security_score = (base_security_score + solana_bonus - unknown_penalty)
-            .max(0.0)
-            .min(100.0);
+        // 3. Ensure bounds (already handled by the calculation but good practice)
+        self.dependency_factor = self.dependency_factor.max(0.0).min(100.0);
     }
 
     pub fn add_dependency(&mut self, crate_name: String, tier: DependencyTier) {
@@ -317,6 +299,146 @@ impl DependencyMetrics {
                 self.tier_4_crates.push(crate_name);
             }
         }
+    }
+}
+
+/// Collect all local crate names from workspace members and package names
+fn collect_local_crates(
+    cargo_toml_paths: &[PathBuf],
+) -> Result<HashSet<String>, Box<dyn std::error::Error>> {
+    let mut local_crates = HashSet::new();
+
+    for cargo_toml_path in cargo_toml_paths {
+        let cargo_content = std::fs::read_to_string(cargo_toml_path)
+            .map_err(|e| format!("Failed to read Cargo.toml {:?}: {}", cargo_toml_path, e))?;
+
+        let cargo_toml: Value = toml::from_str(&cargo_content)
+            .map_err(|e| format!("Failed to parse Cargo.toml {:?}: {}", cargo_toml_path, e))?;
+
+        // Check if this is a workspace root (has [workspace] section)
+        let is_workspace_root = cargo_toml.get("workspace").is_some();
+
+        if is_workspace_root {
+            log::debug!("Collecting workspace members from: {:?}", cargo_toml_path);
+
+            // Extract workspace members from [workspace.members]
+            if let Some(workspace) = cargo_toml.get("workspace").and_then(|w| w.as_table()) {
+                if let Some(members) = workspace.get("members").and_then(|m| m.as_array()) {
+                    for member in members {
+                        if let Some(member_str) = member.as_str() {
+                            // Extract package name from member path
+                            let member_path = PathBuf::from(member_str);
+                            if let Some(package_name) =
+                                member_path.file_name().and_then(|n| n.to_str())
+                            {
+                                local_crates.insert(package_name.to_string());
+                                log::debug!("Found workspace member: {}", package_name);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Collect package name from this Cargo.toml (if it's a package)
+        if let Some(package) = cargo_toml.get("package").and_then(|v| v.as_table()) {
+            if let Some(name) = package.get("name").and_then(|v| v.as_str()) {
+                local_crates.insert(name.to_string());
+                log::debug!("Found package name: {}", name);
+            }
+        }
+    }
+
+    log::info!(
+        "Collected {} local crates: {:?}",
+        local_crates.len(),
+        local_crates
+    );
+    Ok(local_crates)
+}
+
+/// Process a dependency table and filter out local dependencies
+fn process_dependency_table(
+    deps_table: &toml::Table,
+    local_crates: &HashSet<String>,
+    workspace_dependencies: &std::collections::HashMap<String, String>,
+    classifier: &DependencyClassifier,
+    metrics: &mut DependencyMetrics,
+) {
+    for (name, dep_value) in deps_table {
+        let name_str = name.clone();
+
+        // Check if this is a workspace dependency
+        if let Some(dep_table) = dep_value.as_table() {
+            if dep_table.contains_key("workspace") {
+                // This is a workspace dependency, resolve it
+                if let Some(workspace_dep_name) = workspace_dependencies.get(&name_str) {
+                    log::debug!(
+                        "Resolved workspace dependency '{}' -> '{}'",
+                        name_str,
+                        workspace_dep_name
+                    );
+
+                    // Check if the resolved dependency is local
+                    if local_crates.contains(workspace_dep_name) {
+                        log::debug!(
+                            "Ignoring local workspace dependency: {} -> {}",
+                            name_str,
+                            workspace_dep_name
+                        );
+                        continue;
+                    }
+
+                    // Classify the resolved external dependency
+                    let tier = classifier.classify(workspace_dep_name);
+                    log::debug!(
+                        "Classified workspace dependency '{}' as {:?}",
+                        workspace_dep_name,
+                        tier
+                    );
+                    metrics.add_dependency(workspace_dep_name.clone(), tier);
+                } else {
+                    log::debug!(
+                        "Workspace dependency '{}' not found in workspace root",
+                        name_str
+                    );
+                    // Treat as external if not found in workspace
+                    if !local_crates.contains(&name_str) {
+                        let tier = classifier.classify(&name_str);
+                        log::debug!(
+                            "Classified unresolved workspace dependency '{}' as {:?}",
+                            name_str,
+                            tier
+                        );
+                        metrics.add_dependency(name_str, tier);
+                    } else {
+                        log::debug!("Ignoring local crate dependency: {}", name_str);
+                    }
+                }
+                continue;
+            }
+
+            // Check if this is a path dependency (local)
+            if dep_table.contains_key("path") {
+                log::debug!("Ignoring local path dependency: {}", name_str);
+                continue;
+            }
+        }
+
+        // Check if the dependency name itself is a known local crate
+        if local_crates.contains(&name_str) {
+            log::debug!("Ignoring local crate dependency: {}", name_str);
+            continue;
+        }
+
+        // Must be an external dependency - classify it
+        let tier = classifier.classify(&name_str);
+        log::debug!(
+            "Classified external dependency '{}' as {:?}",
+            name_str,
+            tier
+        );
+        metrics.add_dependency(name_str, tier);
     }
 }
 
@@ -585,8 +707,10 @@ pub fn calculate_workspace_dependencies(
         cargo_toml_paths.len()
     );
 
+    // PASS 1: Collect all local crate names
+    let local_crates = collect_local_crates(&cargo_toml_paths)?;
+
     // Extract dependencies from all found Cargo.toml files
-    let mut all_dependencies = Vec::new();
     let mut workspace_dependencies = std::collections::HashMap::new();
 
     // First pass: collect workspace dependencies from workspace root
@@ -620,7 +744,7 @@ pub fn calculate_workspace_dependencies(
         }
     }
 
-    // Second pass: analyze all Cargo.toml files for dependencies
+    // PASS 2 & 3: Analyze dependencies with local filtering
     for cargo_toml_path in &cargo_toml_paths {
         log::debug!("Analyzing Cargo.toml: {:?}", cargo_toml_path);
 
@@ -639,129 +763,57 @@ pub fn calculate_workspace_dependencies(
             continue;
         }
 
-        // Regular dependencies
+        // Process regular dependencies
         if let Some(deps) = cargo_toml.get("dependencies").and_then(|v| v.as_table()) {
-            for (name, dep_value) in deps {
-                // Check if this is a workspace dependency
-                if let Some(dep_table) = dep_value.as_table() {
-                    if dep_table.contains_key("workspace") {
-                        // This is a workspace dependency, use the actual dependency name
-                        if let Some(workspace_dep_name) = workspace_dependencies.get(name) {
-                            log::debug!(
-                                "Resolved workspace dependency '{}' -> '{}'",
-                                name,
-                                workspace_dep_name
-                            );
-                            all_dependencies.push(workspace_dep_name.clone());
-                        } else {
-                            log::debug!(
-                                "Workspace dependency '{}' not found in workspace root",
-                                name
-                            );
-                            all_dependencies.push(name.clone());
-                        }
-                    } else {
-                        // Regular dependency
-                        all_dependencies.push(name.clone());
-                    }
-                } else {
-                    // Simple string dependency
-                    all_dependencies.push(name.clone());
-                }
-            }
+            process_dependency_table(
+                deps,
+                &local_crates,
+                &workspace_dependencies,
+                &classifier,
+                &mut metrics,
+            );
         }
 
-        // Dev dependencies (optional - could be excluded for production analysis)
+        // Process dev dependencies
         if let Some(dev_deps) = cargo_toml
             .get("dev-dependencies")
             .and_then(|v| v.as_table())
         {
-            for (name, dep_value) in dev_deps {
-                // Check if this is a workspace dependency
-                if let Some(dep_table) = dep_value.as_table() {
-                    if dep_table.contains_key("workspace") {
-                        // This is a workspace dependency, use the actual dependency name
-                        if let Some(workspace_dep_name) = workspace_dependencies.get(name) {
-                            log::debug!(
-                                "Resolved workspace dev-dependency '{}' -> '{}'",
-                                name,
-                                workspace_dep_name
-                            );
-                            all_dependencies.push(workspace_dep_name.clone());
-                        } else {
-                            log::debug!(
-                                "Workspace dev-dependency '{}' not found in workspace root",
-                                name
-                            );
-                            all_dependencies.push(name.clone());
-                        }
-                    } else {
-                        // Regular dependency
-                        all_dependencies.push(name.clone());
-                    }
-                } else {
-                    // Simple string dependency
-                    all_dependencies.push(name.clone());
-                }
-            }
+            process_dependency_table(
+                dev_deps,
+                &local_crates,
+                &workspace_dependencies,
+                &classifier,
+                &mut metrics,
+            );
         }
 
-        // Build dependencies
+        // Process build dependencies
         if let Some(build_deps) = cargo_toml
             .get("build-dependencies")
             .and_then(|v| v.as_table())
         {
-            for (name, dep_value) in build_deps {
-                // Check if this is a workspace dependency
-                if let Some(dep_table) = dep_value.as_table() {
-                    if dep_table.contains_key("workspace") {
-                        // This is a workspace dependency, use the actual dependency name
-                        if let Some(workspace_dep_name) = workspace_dependencies.get(name) {
-                            log::debug!(
-                                "Resolved workspace build-dependency '{}' -> '{}'",
-                                name,
-                                workspace_dep_name
-                            );
-                            all_dependencies.push(workspace_dep_name.clone());
-                        } else {
-                            log::debug!(
-                                "Workspace build-dependency '{}' not found in workspace root",
-                                name
-                            );
-                            all_dependencies.push(name.clone());
-                        }
-                    } else {
-                        // Regular dependency
-                        all_dependencies.push(name.clone());
-                    }
-                } else {
-                    // Simple string dependency
-                    all_dependencies.push(name.clone());
-                }
-            }
+            process_dependency_table(
+                build_deps,
+                &local_crates,
+                &workspace_dependencies,
+                &classifier,
+                &mut metrics,
+            );
         }
-    }
-
-    log::debug!("Found {} total dependencies", all_dependencies.len());
-
-    // Classify each dependency
-    for dep_name in all_dependencies {
-        let tier = classifier.classify(&dep_name);
-        log::debug!("Classified '{}' as {:?}", dep_name, tier);
-        metrics.add_dependency(dep_name, tier);
     }
 
     // Calculate final scores
     metrics.calculate_score();
 
     log::info!(
-        "Dependencies analysis complete: {} total, Tier1: {}, Tier2: {}, Tier3: {}, Tier4: {}, Score: {:.1}",
+        "Dependencies analysis complete: {} total, Tier1: {}, Tier2: {}, Tier3: {}, Tier4: {}, Risk Factor: {:.1}",
         metrics.total_dependencies,
         metrics.tier_1_count,
         metrics.tier_2_count,
         metrics.tier_3_count,
         metrics.tier_4_count,
-        metrics.dependency_security_score
+        metrics.dependency_factor
     );
 
     Ok(metrics)
@@ -820,8 +872,8 @@ mod tests {
         assert_eq!(metrics.tier_1_count, 1);
         assert_eq!(metrics.tier_3_count, 1);
         assert_eq!(metrics.tier_4_count, 1);
-        assert!(metrics.dependency_security_score > 0.0);
-        assert!(metrics.dependency_security_score <= 100.0);
+        assert!(metrics.dependency_factor > 0.0);
+        assert!(metrics.dependency_factor <= 100.0);
     }
 
     #[test]
@@ -830,7 +882,7 @@ mod tests {
         metrics.calculate_score();
 
         assert_eq!(metrics.total_dependencies, 0);
-        assert_eq!(metrics.dependency_security_score, 100.0); // Perfect score for no deps
+        assert_eq!(metrics.dependency_factor, 0.0); // No risk for no dependencies
     }
 
     #[test]
@@ -843,6 +895,87 @@ mod tests {
 
         metrics.calculate_score();
 
-        assert!(metrics.dependency_security_score > 95.0); // Should get high score + bonus
+        // With 3 Tier 1 dependencies: (3 * 0.1) / 3 * 100 = 10.0
+        assert!((metrics.dependency_factor - 10.0).abs() < 0.01); // Should get very low risk (all Tier 1)
+    }
+
+    #[test]
+    fn test_local_crate_collection() {
+        // Test that local crates are properly identified
+        let classifier = DependencyClassifier::new();
+
+        // Test that local crates are filtered out
+        let mut local_crates = HashSet::new();
+        local_crates.insert("program_a".to_string());
+        local_crates.insert("program_b".to_string());
+        local_crates.insert("shared".to_string());
+
+        let mut metrics = DependencyMetrics::default();
+        let workspace_deps = std::collections::HashMap::new();
+
+        // Simulate processing a dependency table with local and external deps
+        let mut deps_table = toml::Table::new();
+
+        // Local path dependency
+        let mut local_dep = toml::Table::new();
+        local_dep.insert(
+            "path".to_string(),
+            toml::Value::String("../shared".to_string()),
+        );
+        deps_table.insert("shared".to_string(), toml::Value::Table(local_dep));
+
+        // External dependency
+        deps_table.insert(
+            "anchor-lang".to_string(),
+            toml::Value::String("0.29.0".to_string()),
+        );
+
+        // Local crate name dependency
+        deps_table.insert(
+            "program_a".to_string(),
+            toml::Value::String("0.1.0".to_string()),
+        );
+
+        process_dependency_table(
+            &deps_table,
+            &local_crates,
+            &workspace_deps,
+            &classifier,
+            &mut metrics,
+        );
+
+        // Should only have anchor-lang classified, not shared or program_a
+        assert_eq!(metrics.tier_1_count, 1); // Only anchor-lang
+        assert_eq!(metrics.tier_4_count, 0); // No unknown dependencies
+    }
+
+    #[test]
+    fn test_workspace_dependency_resolution() {
+        let classifier = DependencyClassifier::new();
+        let mut local_crates = HashSet::new();
+        local_crates.insert("shared".to_string());
+
+        let mut workspace_deps = std::collections::HashMap::new();
+        workspace_deps.insert("shared".to_string(), "anchor-lang".to_string());
+
+        let mut metrics = DependencyMetrics::default();
+
+        let mut deps_table = toml::Table::new();
+
+        // Workspace dependency that resolves to external crate
+        let mut workspace_dep = toml::Table::new();
+        workspace_dep.insert("workspace".to_string(), toml::Value::Boolean(true));
+        deps_table.insert("shared".to_string(), toml::Value::Table(workspace_dep));
+
+        process_dependency_table(
+            &deps_table,
+            &local_crates,
+            &workspace_deps,
+            &classifier,
+            &mut metrics,
+        );
+
+        // Should classify the resolved external dependency
+        assert_eq!(metrics.tier_1_count, 1); // anchor-lang
     }
 }

@@ -3,9 +3,12 @@
 //! This module analyzes code organization, module structure, and dependency patterns
 //! to assess the overall modularity and separation of concerns in the codebase.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::PathBuf;
-use syn::{visit::Visit, File, Item, ItemMod, ItemUse, UseTree};
+use syn::{
+    visit::Visit, Attribute, File, FnArg, ImplItemFn, Item, ItemFn, ItemMod, ItemUse, Meta,
+    Signature, Type, UseTree, Visibility,
+};
 
 #[derive(Debug, Clone)]
 pub struct ModularityMetrics {
@@ -17,6 +20,11 @@ pub struct ModularityMetrics {
     pub external_dependencies: usize,
     pub internal_cross_references: usize,
     pub modularity_score: f64,
+    // Anchor-specific modularity metrics
+    pub total_instruction_handlers: usize,
+    pub files_with_handlers: usize,
+    pub instruction_handler_density: f64,
+    pub anchor_modularity_score: f64,
 }
 
 impl ModularityMetrics {
@@ -30,7 +38,11 @@ impl ModularityMetrics {
             "totalImports": self.total_imports,
             "externalDependencies": self.external_dependencies,
             "internalCrossReferences": self.internal_cross_references,
-            "modularityScore": self.modularity_score
+            "modularityScore": self.modularity_score,
+            "totalInstructionHandlers": self.total_instruction_handlers,
+            "filesWithHandlers": self.files_with_handlers,
+            "instructionHandlerDensity": self.instruction_handler_density,
+            "anchorModularityScore": self.anchor_modularity_score
         })
     }
 }
@@ -42,6 +54,7 @@ struct FileAnalysis {
     modules: Vec<ModuleInfo>,
     imports: Vec<ImportInfo>,
     max_depth: u32,
+    handler_count: usize, // NEW: Count of Anchor instruction handlers in this file
 }
 
 #[derive(Debug, Clone)]
@@ -146,6 +159,24 @@ pub fn calculate_workspace_modularity(
     let external_dependencies = external_deps.len();
     let internal_cross_references = internal_refs;
 
+    // Calculate Anchor-specific metrics
+    let mut total_instruction_handlers = 0;
+    let mut files_with_handlers = 0;
+
+    for file_analysis in &file_analyses {
+        total_instruction_handlers += file_analysis.handler_count;
+        if file_analysis.handler_count > 0 {
+            files_with_handlers += 1;
+        }
+    }
+
+    // Calculate Instruction Handler Density (IHD)
+    let instruction_handler_density = if files_with_handlers > 0 {
+        total_instruction_handlers as f64 / files_with_handlers as f64
+    } else {
+        0.0
+    };
+
     // Calculate modularity score (0-100)
     let modularity_score = calculate_modularity_score(
         total_files,
@@ -154,6 +185,9 @@ pub fn calculate_workspace_modularity(
         max_nesting_depth,
         internal_cross_references,
     );
+
+    // Calculate Anchor-specific modularity score
+    let anchor_modularity_score = calculate_anchor_modularity_score(instruction_handler_density);
 
     let result = ModularityMetrics {
         total_files,
@@ -164,14 +198,22 @@ pub fn calculate_workspace_modularity(
         external_dependencies,
         internal_cross_references,
         modularity_score,
+        total_instruction_handlers,
+        files_with_handlers,
+        instruction_handler_density,
+        anchor_modularity_score,
     };
 
     log::info!(
-        "Modularity analysis complete: {} files, {} modules, avg {:.1} lines/file, modularity score: {:.1}",
+        "Modularity analysis complete: {} files, {} modules, avg {:.1} lines/file, modularity score: {:.1}, {} handlers in {} files (IHD: {:.2}), anchor modularity: {:.1}",
         total_files,
         total_modules,
         avg_lines_per_file,
-        modularity_score
+        modularity_score,
+        total_instruction_handlers,
+        files_with_handlers,
+        instruction_handler_density,
+        anchor_modularity_score
     );
 
     Ok(result)
@@ -189,6 +231,10 @@ fn analyze_file_modularity(
     let mut visitor = ModularityVisitor::new();
     visitor.visit_file(&syntax_tree);
 
+    // Count Anchor instruction handlers
+    let mut handler_counter = HandlerCounter::new();
+    handler_counter.visit_file(&syntax_tree);
+
     // Count lines of code (non-empty, non-comment lines)
     let lines_of_code = content
         .lines()
@@ -204,6 +250,7 @@ fn analyze_file_modularity(
         modules: visitor.modules,
         imports: visitor.imports,
         max_depth: visitor.max_nesting_depth,
+        handler_count: handler_counter.handler_count,
     })
 }
 
@@ -211,7 +258,7 @@ fn analyze_file_modularity(
 fn calculate_modularity_score(
     total_files: usize,
     file_analyses: &[FileAnalysis],
-    avg_lines_per_file: f64,
+    _avg_lines_per_file: f64,
     max_nesting_depth: u32,
     internal_cross_references: usize,
 ) -> f64 {
@@ -282,12 +329,213 @@ fn calculate_modularity_score(
     score.max(0.0).min(100.0)
 }
 
+/// Calculate Anchor-specific modularity score based on Instruction Handler Density
+fn calculate_anchor_modularity_score(instruction_handler_density: f64) -> f64 {
+    if instruction_handler_density == 0.0 {
+        return 0.0; // No handlers found
+    }
+
+    // IHD Score Component (0-100 points)
+    // Goal: Maximize score when IHD ≈ 1 (one handler per file)
+    // Formula: The score is inversely proportional to the IHD, with a sharp penalty for IHD ≥ 2
+
+    if instruction_handler_density <= 1.0 {
+        // Perfect or near-perfect separation (IHD ≤ 1)
+        100.0
+    } else if instruction_handler_density <= 2.0 {
+        // Acceptable separation (1 < IHD ≤ 2)
+        100.0 - (instruction_handler_density - 1.0) * 50.0
+    } else {
+        // Poor separation (IHD > 2) - sharp penalty
+        let penalty = (instruction_handler_density - 2.0) * 25.0;
+        (50.0 - penalty).max(0.0)
+    }
+}
+
 /// Visitor to analyze module structure and imports
 struct ModularityVisitor {
     modules: Vec<ModuleInfo>,
     imports: Vec<ImportInfo>,
     current_nesting_depth: u32,
     max_nesting_depth: u32,
+}
+
+/// Visitor to count Anchor instruction handlers
+struct HandlerCounter {
+    pub handler_count: usize,
+}
+
+impl HandlerCounter {
+    fn new() -> Self {
+        Self { handler_count: 0 }
+    }
+
+    /// Check if a function is an Anchor instruction handler
+    fn is_anchor_instruction_handler(&self, item_fn: &ItemFn) -> bool {
+        // Check if function is public (instruction handlers are typically public)
+        if !matches!(item_fn.vis, Visibility::Public(_)) {
+            return false;
+        }
+
+        // Check for Anchor-specific attributes first (most reliable)
+        if self.has_anchor_handler_attributes(&item_fn.attrs) {
+            return true;
+        }
+
+        // Check function name patterns common in Anchor programs
+        let name = item_fn.sig.ident.to_string();
+        if name.ends_with("_handler")
+            || name.starts_with("initialize")
+            || name.starts_with("update")
+            || name.starts_with("transfer")
+            || name.starts_with("swap")
+            || name.starts_with("deposit")
+            || name.starts_with("withdraw")
+            || name == "validate"
+            || name == "execute"
+        {
+            return true;
+        }
+
+        // Check if function takes a Context parameter (common in Anchor)
+        if self.has_context_parameter(&item_fn.sig) {
+            return true;
+        }
+
+        false
+    }
+
+    /// Check if an impl method is an Anchor instruction handler
+    fn is_anchor_instruction_handler_method(&self, item_fn: &ImplItemFn) -> bool {
+        // Check if method is public (instruction handlers are typically public)
+        if !matches!(item_fn.vis, Visibility::Public(_)) {
+            return false;
+        }
+
+        // Check for Anchor-specific attributes first (most reliable)
+        if self.has_anchor_handler_attributes(&item_fn.attrs) {
+            return true;
+        }
+
+        // Check method name patterns common in Anchor programs
+        let name = item_fn.sig.ident.to_string();
+        if name.ends_with("_handler")
+            || name.starts_with("initialize")
+            || name.starts_with("update")
+            || name.starts_with("transfer")
+            || name.starts_with("swap")
+            || name.starts_with("deposit")
+            || name.starts_with("withdraw")
+            || name == "validate"
+            || name == "execute"
+        {
+            return true;
+        }
+
+        // Check if method takes a Context parameter (common in Anchor)
+        if self.has_context_parameter(&item_fn.sig) {
+            return true;
+        }
+
+        false
+    }
+
+    /// Check for Anchor-specific handler attributes
+    fn has_anchor_handler_attributes(&self, attrs: &[Attribute]) -> bool {
+        for attr in attrs {
+            // Check the attribute path directly
+            if attr.path().is_ident("instruction")
+                || attr.path().is_ident("handler")
+                || attr.path().is_ident("anchor_handler")
+            {
+                return true;
+            }
+
+            // Also try parsing as meta for more complex attributes
+            if let Ok(meta) = attr.parse_args::<Meta>() {
+                match meta {
+                    Meta::Path(path) => {
+                        if path.is_ident("instruction")
+                            || path.is_ident("handler")
+                            || path.is_ident("anchor_handler")
+                        {
+                            return true;
+                        }
+                    }
+                    Meta::List(meta_list) => {
+                        if meta_list.path.is_ident("instruction")
+                            || meta_list.path.is_ident("handler")
+                        {
+                            return true;
+                        }
+                    }
+                    Meta::NameValue(_) => {
+                        // Handle name-value attributes if needed
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// Check if a function signature has a Context parameter (Anchor pattern)
+    fn has_context_parameter(&self, sig: &Signature) -> bool {
+        for input in &sig.inputs {
+            if let FnArg::Typed(pat_type) = input {
+                if let Type::Path(type_path) = &*pat_type.ty {
+                    // Check for full Anchor Context path (more robust)
+                    let path_str = type_path
+                        .path
+                        .segments
+                        .iter()
+                        .map(|seg| seg.ident.to_string())
+                        .collect::<Vec<_>>()
+                        .join("::");
+
+                    // Look for standard Anchor Context patterns
+                    if path_str.starts_with("Context<")
+                        || path_str.starts_with("anchor_lang::Context<")
+                        || path_str.starts_with("anchor_lang::prelude::Context<")
+                    {
+                        return true;
+                    }
+
+                    // Fallback: check if any segment starts with "Context"
+                    if type_path
+                        .path
+                        .segments
+                        .iter()
+                        .any(|seg| seg.ident.to_string().starts_with("Context"))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+}
+
+impl<'ast> Visit<'ast> for HandlerCounter {
+    fn visit_item(&mut self, item: &'ast Item) {
+        match item {
+            Item::Fn(item_fn) => {
+                if self.is_anchor_instruction_handler(item_fn) {
+                    self.handler_count += 1;
+                }
+            }
+            _ => {
+                syn::visit::visit_item(self, item);
+            }
+        }
+    }
+
+    fn visit_impl_item_fn(&mut self, item_fn: &'ast ImplItemFn) {
+        if self.is_anchor_instruction_handler_method(item_fn) {
+            self.handler_count += 1;
+        }
+        syn::visit::visit_impl_item_fn(self, item_fn);
+    }
 }
 
 impl ModularityVisitor {
@@ -432,6 +680,7 @@ mod tests {
                 modules: vec![],
                 imports: vec![],
                 max_depth: 0,
+                handler_count: 0,
             },
             FileAnalysis {
                 path: "file2.rs".to_string(),
@@ -439,10 +688,121 @@ mod tests {
                 modules: vec![],
                 imports: vec![],
                 max_depth: 0,
+                handler_count: 0,
             },
         ];
 
         let score = calculate_modularity_score(2, &file_analyses, 110.0, 0, 1);
         assert!(score > 0.0 && score <= 100.0);
+    }
+
+    #[test]
+    fn test_anchor_instruction_handler_detection() {
+        let code = r#"
+            use anchor_lang::prelude::*;
+
+            pub fn initialize_handler(ctx: Context<Initialize>) -> Result<()> {
+                Ok(())
+            }
+
+            pub fn transfer_handler(ctx: Context<Transfer>) -> Result<()> {
+                Ok(())
+            }
+
+            fn helper_function() {
+                // This should not be detected as a handler
+            }
+        "#;
+
+        let result = analyze_file_modularity("test.rs", code).unwrap();
+        assert_eq!(result.handler_count, 2); // initialize_handler and transfer_handler
+    }
+
+    #[test]
+    fn test_instruction_handler_density_calculation() {
+        // Test perfect separation (IHD = 1.0)
+        let score_perfect = calculate_anchor_modularity_score(1.0);
+        assert_eq!(score_perfect, 100.0);
+
+        // Test acceptable separation (IHD = 1.5)
+        let score_acceptable = calculate_anchor_modularity_score(1.5);
+        // IHD = 1.5 should give score = 100.0 - (1.5 - 1.0) * 50.0 = 75.0
+        assert_eq!(score_acceptable, 75.0);
+
+        // Test poor separation (IHD = 3.0)
+        let score_poor = calculate_anchor_modularity_score(3.0);
+        assert!(score_poor < 50.0);
+
+        // Test no handlers (IHD = 0.0)
+        let score_none = calculate_anchor_modularity_score(0.0);
+        assert_eq!(score_none, 0.0);
+    }
+
+    #[test]
+    fn test_context_parameter_detection() {
+        let code = r#"
+            use anchor_lang::prelude::*;
+
+            pub fn handler_with_context(ctx: Context<MyContext>) -> Result<()> {
+                Ok(())
+            }
+
+            pub fn handler_without_context() -> Result<()> {
+                Ok(())
+            }
+        "#;
+
+        let result = analyze_file_modularity("test.rs", code).unwrap();
+        assert_eq!(result.handler_count, 1); // Only the one with Context parameter
+    }
+
+    #[test]
+    fn test_anchor_attribute_detection() {
+        let code = r#"
+            use anchor_lang::prelude::*;
+
+            #[instruction]
+            pub fn attributed_handler(ctx: Context<MyContext>) -> Result<()> {
+                Ok(())
+            }
+
+            #[handler]
+            pub fn handler_attributed() -> Result<()> {
+                Ok(())
+            }
+
+            pub fn regular_function() -> Result<()> {
+                Ok(())
+            }
+        "#;
+
+        let result = analyze_file_modularity("test.rs", code).unwrap();
+        assert_eq!(result.handler_count, 2); // Both attributed functions should be detected
+    }
+
+    #[test]
+    fn test_improved_context_detection() {
+        let code = r#"
+            use anchor_lang::prelude::*;
+
+            pub fn standard_context(ctx: Context<Initialize>) -> Result<()> {
+                Ok(())
+            }
+
+            pub fn full_path_context(ctx: anchor_lang::Context<Transfer>) -> Result<()> {
+                Ok(())
+            }
+
+            pub fn prelude_context(ctx: anchor_lang::prelude::Context<Update>) -> Result<()> {
+                Ok(())
+            }
+
+            pub fn non_context(ctx: MyCustomContext) -> Result<()> {
+                Ok(())
+            }
+        "#;
+
+        let result = analyze_file_modularity("test.rs", code).unwrap();
+        assert_eq!(result.handler_count, 3); // First three should be detected as handlers
     }
 }
