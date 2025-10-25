@@ -26,9 +26,11 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       inline-flex items-center justify-center gap-2
       px-6 py-2
       cursor-pointer
-      rounded-2xl
+      rounded-xl
       font-medium
       transition-all
+      focus:outline-none
+      focus:ring-0
       disabled:opacity-50 disabled:cursor-not-allowed
       ${fullWidth ? "w-full" : ""}
     `;
@@ -37,23 +39,19 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       primary: `
         bg-blue-primary text-text-inverse
         hover:bg-blue-hover
-        focus:ring-2 focus:ring-blue-primary focus:ring-offset-2
       `,
       secondary: `
         bg-blue-secondary text-text-inverse
         hover:bg-blue-dark
-        focus:ring-2 focus:ring-blue-secondary focus:ring-offset-2
       `,
       dark: `
         bg-gray-dark text-text-inverse
         hover:bg-black
-        focus:ring-2 focus:ring-gray-dark focus:ring-offset-2
       `,
       outline: `
         bg-white text-gray-dark
         border border-[var(--border-color)]
         hover:bg-gray-light
-        focus:ring-2 focus:ring-gray-light focus:ring-offset-2
       `,
     };
 

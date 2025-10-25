@@ -17,6 +17,9 @@ import {
 import { scopingApi, staticAnalysisApi, uploadApi } from "@/services/api";
 import Navbar from "@/components/NavBar";
 import HeroSection from "@/components/Hero";
+import { handleGitHubLogin } from "@/utils/auth";
+import { useUploadFlow } from "@/hooks";
+import UploadFlowModal from "@/components/uploadFlow/UploadFlowModal";
 
 interface ContractFile {
   path: string;
@@ -45,6 +48,19 @@ interface GitHubUser {
 }
 
 export default function Home() {
+  const {
+    step,
+    contractFiles,
+    report: finalReport,
+    isAnalyzing,
+    startFileSelect,
+    runAnalysis,
+    resetFlow,
+    goToPreviousStep,
+    completeAnalysis,
+  } = useUploadFlow();
+
+  const [isUploadFlowOpen, setUploadFlowOpen] = useState(false);
   const [currentState, setCurrentState] = useState<AppState>("auth");
   const [accessToken, setAccessToken] = useState("");
   const [user, setUser] = useState<GitHubUser | null>(null);
@@ -256,12 +272,8 @@ export default function Home() {
       {/* Hero Section - Full Width */}
       {/* {currentState === "auth" && <HeroSection onAnalyze={()=>{}} onConnectGitHub={on} />} */}
       <HeroSection
-        onConnectGitHub={() => {
-          const apiUrl =
-            process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-          window.location.href = `${apiUrl}/auth/github`;
-        }}
-        onUploadZip={() => setCurrentState("upload")}
+        onConnectGitHub={handleGitHubLogin}
+        onUploadZip={() => setUploadFlowOpen(true)}
         onAnalyze={(input) => {
           console.log("Analyze input:", input);
         }}
@@ -445,6 +457,22 @@ export default function Home() {
           </div>
         </div>
       </footer>
+      {isUploadFlowOpen && (
+        <UploadFlowModal
+          step={step}
+          contractFiles={contractFiles}
+          startFileSelect={startFileSelect}
+          runAnalysis={runAnalysis}
+          report={finalReport}
+          apiReady={!isAnalyzing}
+          onClose={() => {
+            resetFlow();
+            setUploadFlowOpen(false);
+          }}
+          goToPreviousStep={goToPreviousStep}
+          completeAnalysis={completeAnalysis}
+        />
+      )}
     </div>
   );
 }
