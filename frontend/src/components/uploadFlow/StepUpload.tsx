@@ -51,7 +51,7 @@ export default function StepUpload({ onComplete, onBack }: Props) {
   };
 
   return (
-    <div className="px-10 py-6 min-h-[520px] flex flex-col justify-between">
+    <div className="px-10 py-4 min-h-[520px] flex flex-col justify-between">
       {/* Title */}
       <div>
         <h2 className="text-[20px] font-normal text-[var(--text-primary)]">
@@ -64,7 +64,7 @@ export default function StepUpload({ onComplete, onBack }: Props) {
 
         {/* File Picked Display */}
         {filePicked && (
-          <div className="mt-6 p-4 bg-green-50 border-2 border-green-200 rounded-2xl flex items-center justify-between">
+          <div className="mt-20 p-4 bg-green-50 border-2 border-green-200 rounded-2xl flex items-center justify-between">
             <div className="flex items-center gap-3">
               <CheckCircle className="w-6 h-6 text-green-600" />
               <div>
@@ -96,7 +96,7 @@ export default function StepUpload({ onComplete, onBack }: Props) {
         {/* Dropzone */}
         {!filePicked && (
           <div
-            className="mt-6 rounded-2xl border-2 border-dashed p-10 text-center cursor-pointer
+            className="mt-6 rounded-2xl border-2 border-dashed px-10 py-4 text-center cursor-pointer
                        border-[#3A8DFF]/40 bg-[#D9E8FF]/20 hover:bg-[#D9E8FF]/30 transition-colors"
             onClick={() => inputRef.current?.click()}
           >
@@ -138,7 +138,11 @@ export default function StepUpload({ onComplete, onBack }: Props) {
         )}
 
         {/* Instructions */}
-        <div className="mt-6 p-4 rounded-2xl bg-[#F5F3FF] border border-[#E2D9FF]">
+        <div
+          className={`${
+            filePicked ? "mt-26" : "mt-6"
+          } p-4 rounded-2xl bg-[#F5F3FF] border border-[#E2D9FF]`}
+        >
           <div className="flex gap-2 items-center mb-2">
             <Info size={16} className="text-[var(--button-primary)]" />
             <span className="text-sm font-medium">Upload Instructions</span>

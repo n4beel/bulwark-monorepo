@@ -17,27 +17,30 @@ export default function ReportSummaryPage() {
     if (!id) return;
 
     async function load() {
-      setLoading(true);
-
       try {
-        const allReports = await staticAnalysisApi.getAllReports();
-        const found = allReports.find((r) => {
-          const oid = typeof r._id === "string" ? r._id : r._id?.$oid;
-          return oid === id;
-        });
-        setReport(found ?? null);
+        setLoading(true);
+        const report = await staticAnalysisApi.getReportById(id as string);
+        setReport(report);
       } catch (err) {
         console.error("Error loading report:", err);
+        setReport(null);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     }
 
     load();
   }, [id]);
 
   if (loading) {
-    return <div className="p-10 text-gray-600">Loading detailed report…</div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center space-y-4">
+        <div className="w-10 h-10 border-4 border-[var(--blue-primary)] border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-[var(--text-secondary)] animate-pulse">
+          Loading detailed report…
+        </p>
+      </div>
+    );
   }
 
   if (!report) {

@@ -1,24 +1,41 @@
 "use client";
 
-import { Stage, useAnalysisAnimator } from "@/hooks/useAnalysisAnimator";
-import { Check, Loader2 } from "lucide-react";
 import Image from "next/image";
+import { Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+type Stage = {
+  key: "parsing" | "structural" | "security" | "systemic" | "economic";
+  title: string;
+  weight?: string;
+  iconPending: string;
+  iconDone: string;
+  subtitles: string[];
+};
 
 interface Props {
   onComplete?: () => void;
-  apiReady?: boolean;
+  apiReady?: boolean; // ← this is the only gate we use for finishing parsing
 }
+
+/** Timing controls (increase numbers ⇒ slower) */
+const DELAY = {
+  minParsingMs: 2000, // small minimum to avoid flicker (set 0 if not needed)
+  subtitle: 2000, // per-subtitle tick
+  rotate: 2000, // focus-card rotation speed
+};
 
 const STAGES: Stage[] = [
   {
+    key: "parsing",
     title: "Parsing rust files",
-    weight: "",
     iconPending: "/icons/TickMark.svg",
     iconDone: "/icons/TickMark.svg",
     subtitles: [],
   },
   {
-    title: "Computing complexity scores",
+    key: "structural",
+    title: "Structural Complexity",
     weight: "20/100",
     iconPending: "/icons/TickMark.svg",
     iconDone: "/icons/TickMark.svg",
@@ -33,7 +50,8 @@ const STAGES: Stage[] = [
     ],
   },
   {
-    title: "Detecting security vulnerability hotspots",
+    key: "security",
+    title: "Security Analysis Complexity",
     weight: "30/100",
     iconPending: "/icons/ShieldIconGrey.svg",
     iconDone: "/icons/TickMark.svg",
@@ -49,7 +67,8 @@ const STAGES: Stage[] = [
     ],
   },
   {
-    title: "Calculating Audit Effort Units (AEU)",
+    key: "systemic",
+    title: "Systemic Analysis",
     weight: "20/100",
     iconPending: "/icons/GraphIconGrey.svg",
     iconDone: "/icons/TickMark.svg",
@@ -63,7 +82,8 @@ const STAGES: Stage[] = [
     ],
   },
   {
-    title: "Issuing commit-bound receipt via Arcium",
+    key: "economic",
+    title: "Economic & Logical Complexity",
     weight: "30/100",
     iconPending: "/icons/DocumentIconGrey.svg",
     iconDone: "/icons/TickMark.svg",
@@ -79,33 +99,126 @@ const STAGES: Stage[] = [
   },
 ];
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export default function StepAnalysisProgress({
   onComplete,
   apiReady = false,
 }: Props) {
-  const { phase, stageIdx, visibleSubs, overallPct } = useAnalysisAnimator(
-    STAGES,
-    {
-      apiReady: apiReady,
-      perSubtitleMs: 100,
-      interStagePauseMs: 100,
-      finishDelayMs: 100,
-    },
-    onComplete
-  );
+  // per-stage subtitle index (0..len)
+  const [subIdx, setSubIdx] = useState<number[]>(() => STAGES.map(() => 0));
+  const [done, setDone] = useState<boolean[]>(() => STAGES.map(() => false));
 
-  const getStageState = (index: number) => {
-    if (index === 0) {
-      return phase === "parsing" ? "blinking" : "done";
-    }
-    if (index < stageIdx) return "done";
-    if (index === stageIdx && phase === "analyzing") return "current";
+  // UI phase & rotation for bottom focus card
+  const [phase, setPhase] = useState<"parsing" | "parallel" | "done">(
+    "parsing"
+  );
+  const [focusIdx, setFocusIdx] = useState<number>(1); // cycles 1..4 (structural..economic)
+  const rotTimerRef = useRef<number | null>(null);
+  const parsingStartMs = useRef<number>(Date.now());
+
+  /** overall percent (simple heuristic) */
+  const overallPct = useMemo(() => {
+    const totals = STAGES.map((s) => s.subtitles.length);
+    const doneSubs = subIdx.reduce(
+      (acc, val, i) => acc + Math.min(val, totals[i] ?? 0),
+      0
+    );
+    const totalSubs = totals.reduce((a, b) => a + b, 0);
+    const parsingChunk = 1;
+    const denom = totalSubs + parsingChunk;
+    const numer = done[0] ? doneSubs + parsingChunk : doneSubs;
+    return Math.min(100, Math.round((numer / Math.max(denom, 1)) * 100));
+  }, [subIdx, done]);
+
+  /** 1) Stay in PARSING until apiReady becomes true (with optional minimum time) */
+  useEffect(() => {
+    let cancelled = false;
+
+    const finishParsingIfReady = async () => {
+      if (!apiReady || done[0]) return;
+      const elapsed = Date.now() - parsingStartMs.current;
+      const waitMore = Math.max(0, DELAY.minParsingMs - elapsed);
+      if (waitMore > 0) await sleep(waitMore);
+      if (cancelled) return;
+
+      // mark parsing done
+      setDone((d) => {
+        const next = [...d];
+        next[0] = true;
+        return next;
+      });
+
+      // move to parallel
+      setPhase("parallel");
+
+      // start rotating focus across 1..4
+      rotTimerRef.current = window.setInterval(() => {
+        setFocusIdx((i) => (i >= 4 ? 1 : i + 1));
+      }, DELAY.rotate) as unknown as number;
+
+      // helper: advance subtitles in a stage
+      const advance = async (i: number) => {
+        const total = STAGES[i].subtitles.length;
+        for (let s = 1; s <= total; s++) {
+          if (cancelled) return;
+          setSubIdx((arr) => {
+            const next = [...arr];
+            next[i] = s;
+            return next;
+          });
+          await sleep(DELAY.subtitle);
+        }
+        if (cancelled) return;
+        setDone((d) => {
+          const next = [...d];
+          next[i] = true;
+          return next;
+        });
+      };
+
+      // run structural, security, systemic, economic in parallel
+      await Promise.all([advance(1), advance(2), advance(3), advance(4)]);
+
+      if (rotTimerRef.current) {
+        window.clearInterval(rotTimerRef.current);
+        rotTimerRef.current = null;
+      }
+      if (cancelled) return;
+
+      setPhase("done");
+      onComplete?.();
+    };
+
+    finishParsingIfReady();
+
+    return () => {
+      cancelled = true;
+      if (rotTimerRef.current) {
+        window.clearInterval(rotTimerRef.current);
+        rotTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiReady]); // ← only reacts to apiReady flipping true
+
+  /** helpers for list UI */
+  const stageState = (i: number) => {
+    if (i === 0) return !done[0] ? "blinking" : "done";
+    if (done[i]) return "done";
+    if (phase === "parallel" && subIdx[i] > 0) return "current";
     return "pending";
   };
 
+  /** rotating focus card shows among 1..4 */
+  const focusStageIndex = focusIdx; // 1..4
+  const focusStage = STAGES[focusStageIndex];
+  const focusSubIdx = subIdx[focusStageIndex];
+  const currentSubtitle = focusStage.subtitles[focusSubIdx - 1];
+
   return (
     <div className="px-8 pt-4 pb-8 min-h-[520px] flex flex-col">
-      {/* Top Video Banner */}
+      {/* Top banner */}
       <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--gray-light)]/40 p-6 mb-6">
         <div className="flex flex-col items-center">
           <p className="text-sm font-medium text-[var(--text-primary)] mb-3">
@@ -125,7 +238,7 @@ export default function StepAnalysisProgress({
           </p>
         </div>
 
-        {/* Overall Progress Bar */}
+        {/* Overall Progress */}
         <div className="mt-5">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-[var(--text-secondary)]">
@@ -144,26 +257,20 @@ export default function StepAnalysisProgress({
         </div>
       </div>
 
-      {/* All Stages - Always Visible */}
+      {/* Stages list */}
       <div className="space-y-3 mb-6">
-        {STAGES.map((stage, index) => {
-          const state = getStageState(index);
-
+        {STAGES.map((stage, i) => {
+          const state = stageState(i);
           return (
-            <div key={index} className="flex items-center gap-3">
-              {/* Status Icon */}
+            <div key={stage.key} className="flex items-center gap-3">
+              {/* icon */}
               <div className="w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center">
                 {state === "blinking" || state === "current" ? (
                   <div className="w-8 h-8 rounded-full bg-[var(--button-primary)] flex items-center justify-center animate-pulse">
                     <Loader2 className="w-4 h-4 text-white animate-spin" />
                   </div>
                 ) : state === "done" ? (
-                  <Image
-                    src={stage.iconDone}
-                    alt="steps_icons"
-                    width={30}
-                    height={30}
-                  />
+                  <Image src={stage.iconDone} alt="" width={30} height={30} />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
                     <Image
@@ -176,7 +283,7 @@ export default function StepAnalysisProgress({
                 )}
               </div>
 
-              {/* Stage Title */}
+              {/* title */}
               <div className="flex-1">
                 <span
                   className={`text-sm font-medium ${
@@ -186,10 +293,15 @@ export default function StepAnalysisProgress({
                   }`}
                 >
                   {stage.title}
+                  {stage.weight && (
+                    <span className="text-xs text-[var(--text-secondary)] ml-2">
+                      (weightage: {stage.weight})
+                    </span>
+                  )}
                 </span>
               </div>
 
-              {/* Done Label */}
+              {/* done chip */}
               {state === "done" && (
                 <span className="text-xs text-green-600 font-medium">Done</span>
               )}
@@ -198,37 +310,44 @@ export default function StepAnalysisProgress({
         })}
       </div>
 
-      {/* Bottom Details Card - Only Current Subtitle */}
-      {phase === "analyzing" && stageIdx > 0 && stageIdx < STAGES.length && (
-        <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--button-primary)]/10 p-5">
-          <div className="flex items-center gap-3 mb-4">
+      {/* Focus card (rotates during parallel) */}
+      {focusStage && phase !== "done" && (
+        <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--button-primary)]/10 px-2 py-2">
+          <div className="flex items-center gap-3 mb-3">
             <Image
-              src={"/icons/GraphIconGrey.svg"}
+              src={
+                focusStage.key === "security"
+                  ? "/icons/ShieldIconGrey.svg"
+                  : focusStage.key === "systemic"
+                  ? "/icons/GraphIconGrey.svg"
+                  : focusStage.key === "economic"
+                  ? "/icons/DocumentIconGrey.svg"
+                  : "/icons/TickMark.svg"
+              }
               alt=""
-              width={30}
-              height={30}
-              // className="w-5 h-5"
+              width={28}
+              height={28}
             />
             <div className="flex-1">
               <span className="text-sm font-medium text-[var(--text-primary)]">
-                {STAGES[stageIdx].title}
+                {focusStage.title}
               </span>
-              {STAGES[stageIdx].weight && (
+              {focusStage.weight && (
                 <span className="text-xs text-[var(--text-secondary)] ml-2">
-                  (weightage: {STAGES[stageIdx].weight})
+                  (weightage: {focusStage.weight})
                 </span>
               )}
             </div>
           </div>
 
-          {/* Only show current subtitle with enhanced fade */}
-          {visibleSubs > 0 && STAGES[stageIdx].subtitles[visibleSubs - 1] && (
+          {/* subtitle with fade-in (force remount on change) */}
+          {currentSubtitle && (
             <div
-              key={visibleSubs}
-              className="text-sm text-[var(--text-secondary)] pl-5 relative animate-slowFadeIn min-h-[24px]"
+              key={`${focusStage.key}-${focusSubIdx}`}
+              className="text-sm text-[var(--text-secondary)] pl-5 ml-5 relative animate-slowFadeIn min-h-[24px]"
             >
               <span className="absolute left-0 top-[9px] w-1.5 h-1.5 rounded-full bg-[var(--button-primary)]" />
-              {STAGES[stageIdx].subtitles[visibleSubs - 1]}
+              {currentSubtitle}
             </div>
           )}
         </div>
@@ -238,7 +357,7 @@ export default function StepAnalysisProgress({
         @keyframes slowFadeIn {
           0% {
             opacity: 0;
-            transform: translateY(-12px);
+            transform: translateY(-10px);
           }
           100% {
             opacity: 1;
@@ -246,7 +365,7 @@ export default function StepAnalysisProgress({
           }
         }
         .animate-slowFadeIn {
-          animation: slowFadeIn 0.8s ease-out;
+          animation: slowFadeIn 0.6s ease-out;
         }
       `}</style>
     </div>

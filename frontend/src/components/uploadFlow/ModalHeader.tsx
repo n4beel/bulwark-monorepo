@@ -12,7 +12,7 @@ export default function ModalHeader({ step, onClose }: Props) {
   return (
     <div className="relative">
       {/* Progress Bar */}
-      <div className="h-[3px] w-full bg-[var(--border-color)] rounded-t-[26px]">
+      <div className="h-[5px] w-full bg-[var(--border-color)] rounded-t-[26px]">
         <div
           className="h-full bg-[var(--button-primary)] transition-all rounded-tl-[26px]"
           style={{

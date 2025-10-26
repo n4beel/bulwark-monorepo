@@ -1,6 +1,7 @@
 "use client";
 
 import HeroBody from "./HeroBody";
+import HeroFooter from "./HeroFooter";
 import HeroHeader from "./HeroHeader";
 
 interface HeroSectionProps {
@@ -27,6 +28,7 @@ const HeroSection = ({
         onUploadZip={onUploadZip}
         onAnalyze={onAnalyze}
       />
+      <HeroFooter />
     </section>
   );
 };

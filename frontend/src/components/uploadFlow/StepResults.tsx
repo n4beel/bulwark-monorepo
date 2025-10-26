@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Tooltip from "../ui/ToolTip";
+import Chip from "../ui/Chip";
 
 export default function StepResults({ report, onExit }: any) {
   const router = useRouter();
@@ -19,10 +20,10 @@ export default function StepResults({ report, onExit }: any) {
   const redPct = Math.max(complexityScore - 70, 0);
 
   const handleViewDetailed = () => {
-    const id = report?.id ?? "preview";
-    console.log("Viewing detailed report:", id);
-    // onExit();router.push(`/report-summary/${id}`);
-    router.push(`/report`);
+    const oid =
+      typeof report?._id === "string" ? report._id : report?._id?.$oid;
+    if (!oid) return;
+    router.push(`/report-summary/${oid}`);
   };
 
   return (
@@ -35,11 +36,16 @@ export default function StepResults({ report, onExit }: any) {
       }}
     >
       {/* Encrypted Ribbon */}
-      <div className="flex items-center gap-2 w-fit rounded-full px-3 py-1 border border-[var(--border-color)] bg-[var(--background)]">
-        <span className="text-xs text-[var(--text-secondary)]">
-          Encrypted by Arcum
-        </span>
-        <Image src="/icons/arcium.svg" alt="Encrypted" width={34} height={20} />
+
+      <div className="w-fit">
+        <Chip
+          label="Encrypted by Arcium"
+          iconSrc="/icons/arcium.svg"
+          iconAlt="Arcium"
+          iconSide="right"
+          variant="filled"
+          size="sm"
+        />
       </div>
 
       {/* Success Section */}
@@ -102,7 +108,7 @@ export default function StepResults({ report, onExit }: any) {
       {/* MAIN GRID */}
       <div className="grid grid-cols-3 gap-3 mt-3 p-3 rounded-xl border border-[var(--border-color)] bg-[var(--background)]">
         {/* Complexity Card */}
-        <div className="rounded-lg p-3 border border-[var(--blue-primary)] bg-[#E8F0FF] relative">
+        <div className="rounded-lg p-3 border border-[var(--blue-primary)] bg-[#E8F0FF] relative bg-red">
           {/* Tooltip */}
           <div className="flex flex-row items-center justify-between gap-1">
             <p className="text-[11px] text-[var(--blue-primary)] font-medium">
@@ -238,12 +244,12 @@ export default function StepResults({ report, onExit }: any) {
 
       {/* Footer Buttons */}
       <div className="flex justify-end mt-4 mb-3">
-        <button className="px-4 py-2 mr-2 rounded-lg border border-[var(--border-color)] text-sm text-[var(--text-secondary)]">
+        <button className="px-4 py-2 mr-2 cursor-pointer rounded-lg border border-[var(--border-color)] text-sm text-[var(--text-secondary)]">
           Signup to save
         </button>
         <button
           onClick={handleViewDetailed}
-          className="px-6 py-2 bg-[var(--blue-primary)] text-white rounded-lg"
+          className="px-6 py-2 bg-[var(--blue-primary)] text-white rounded-lg cursor-pointer"
         >
           View Detailed Report →
         </button>

@@ -50,7 +50,7 @@ export default function StepFileSelect({
       {/* Header */}
       <div>
         {/* Success Message */}
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">
+        <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white">
             ✓
           </div>

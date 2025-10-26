@@ -26,7 +26,7 @@ const HeroBody = ({
   return (
     <div className="relative w-full py-0 px-6 md:px-12 bg-[var(--background)]">
       <div className="max-w-7xl mx-auto">
-        <div className="relative flex items-center justify-center min-h-[500px]">
+        <div className="relative flex items-center justify-center min-h-[450px]">
           {/* Left Side: Circular Video (Half Cut) */}
           <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3/4 z-10">
             <div className="relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] overflow-hidden">
