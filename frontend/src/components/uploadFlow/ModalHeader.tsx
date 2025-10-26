@@ -2,11 +2,11 @@
 import { X } from "lucide-react";
 
 interface Props {
-  step: "upload" | "fileSelect" | "progress" | "results";
+  step: "upload" | "fileSelect" | "progress";
   onClose: () => void;
 }
 
-const steps = ["Upload", "Select Files", "Analyze", "Results"] as const;
+const steps = ["Upload", "Select Files", "Analyze"] as const;
 
 export default function ModalHeader({ step, onClose }: Props) {
   return (
@@ -18,11 +18,9 @@ export default function ModalHeader({ step, onClose }: Props) {
           style={{
             width:
               step === "upload"
-                ? "25%"
+                ? "33%"
                 : step === "fileSelect"
-                ? "50%"
-                : step === "progress"
-                ? "75%"
+                ? "66%"
                 : "100%",
           }}
         />
@@ -34,8 +32,7 @@ export default function ModalHeader({ step, onClose }: Props) {
           const isActive =
             (step === "upload" && label === "Upload") ||
             (step === "fileSelect" && label === "Select Files") ||
-            (step === "progress" && label === "Analyze") ||
-            (step === "results" && label === "Results");
+            (step === "progress" && label === "Analyze");
 
           return (
             <div key={label} className="flex flex-col items-center">

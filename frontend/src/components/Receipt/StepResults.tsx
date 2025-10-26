@@ -6,7 +6,7 @@ import { useState } from "react";
 import Tooltip from "../ui/ToolTip";
 import Chip from "../ui/Chip";
 
-export default function StepResults({ report, onExit }: any) {
+export default function StepResults({ report }: any) {
   const router = useRouter();
 
   const complexityScore =
@@ -18,13 +18,6 @@ export default function StepResults({ report, onExit }: any) {
   const greenPct = Math.min(complexityScore, 40);
   const orangePct = Math.min(Math.max(complexityScore - 40, 0), 30);
   const redPct = Math.max(complexityScore - 70, 0);
-
-  const handleViewDetailed = () => {
-    const oid =
-      typeof report?._id === "string" ? report._id : report?._id?.$oid;
-    if (!oid) return;
-    router.push(`/report-summary/${oid}`);
-  };
 
   return (
     <div
@@ -243,17 +236,6 @@ export default function StepResults({ report, onExit }: any) {
       </div>
 
       {/* Footer Buttons */}
-      <div className="flex justify-end mt-4 mb-3">
-        <button className="px-4 py-2 mr-2 cursor-pointer rounded-lg border border-[var(--border-color)] text-sm text-[var(--text-secondary)]">
-          Signup to save
-        </button>
-        <button
-          onClick={handleViewDetailed}
-          className="px-6 py-2 bg-[var(--blue-primary)] text-white rounded-lg cursor-pointer"
-        >
-          View Detailed Report →
-        </button>
-      </div>
 
       {/* Wave */}
       <Image

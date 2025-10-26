@@ -20,6 +20,8 @@ import HeroSection from "@/components/Hero";
 import { handleGitHubLogin } from "@/utils/auth";
 import { useUploadFlow } from "@/hooks";
 import UploadFlowModal from "@/components/uploadFlow/UploadFlowModal";
+import ResultsModal from "@/components/Receipt/Receipt";
+import ReceiptModal from "@/components/Receipt/Receipt";
 
 interface ContractFile {
   path: string;
@@ -79,6 +81,8 @@ export default function Home() {
   const [uploadedContractFiles, setUploadedContractFiles] = useState<
     ContractFile[]
   >([]);
+  const [openResults, setOpenResults] = useState(false);
+  const [resultsReport, setResultsReport] = useState<any>(null);
 
   // Check for existing authentication on component mount
   useEffect(() => {
@@ -465,14 +469,24 @@ export default function Home() {
           runAnalysis={runAnalysis}
           report={finalReport}
           apiReady={!isAnalyzing}
+          goToPreviousStep={goToPreviousStep}
+          completeAnalysis={completeAnalysis}
           onClose={() => {
             resetFlow();
             setUploadFlowOpen(false);
           }}
-          goToPreviousStep={goToPreviousStep}
-          completeAnalysis={completeAnalysis}
+          onOpenResults={(r) => {
+            setResultsReport(r);
+            setOpenResults(true);
+          }}
         />
       )}
+
+      <ReceiptModal
+        open={openResults}
+        report={resultsReport}
+        onClose={() => setOpenResults(false)}
+      />
     </div>
   );
 }
