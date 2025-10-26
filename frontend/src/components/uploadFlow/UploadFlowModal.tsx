@@ -49,7 +49,7 @@ export default function UploadFlowModal({
           onClick={onClose}
           aria-label="Close"
           type="button"
-          className="absolute -top-2 -right-2 z-[10000] w-6 h-6 bg-white border border-gray-300 shadow rounded-full flex items-center justify-center hover:bg-gray-200 transition"
+          className="absolute -top-2 -right-2 z-[10000] w-6 h-6 bg-white border border-gray-300 shadow cursor-pointer rounded-full flex items-center justify-center hover:bg-gray-200 transition"
         >
           <svg
             viewBox="0 0 24 24"
@@ -65,7 +65,7 @@ export default function UploadFlowModal({
 
         <div className="relative w-full h-full bg-[var(--background)] rounded-[24px] shadow-xl overflow-hidden flex flex-col">
           <ModalHeader step={step} onClose={onClose} />
-          <div className="flex-1 overflow-y-auto p-1">
+          <div className="flex-1 p-1">
             {step === UploadFlowStep.UPLOAD && (
               <StepUpload onComplete={startFileSelect} onBack={onClose} />
             )}
