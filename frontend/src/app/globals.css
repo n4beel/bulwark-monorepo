@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Doto:wght@100..900&family=Host+Grotesk:wght@300..800&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -14,6 +15,7 @@
   --blue-light: #8BB9FF;
   --blue-hover: #0847C7;
   --blue-dark: #2A5BE9;
+  --blue-deep: #06358D;
 
   /* Green colors (for badges, success states) */
   --green-light: #D1FAE5;
@@ -156,4 +158,10 @@ textarea:focus,
 select:focus {
   border-color: var(--input-focus) !important;
   box-shadow: 0 0 0 3px rgba(10, 88, 235, 0.1) !important;
+}
+
+/* Doto Heading Style */
+.doto {
+  font-family: "Doto", sans-serif !important;
+
 }

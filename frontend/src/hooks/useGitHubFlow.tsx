@@ -187,7 +187,7 @@ export function useGitHubFlow() {
       localStorage.removeItem("github_token");
       localStorage.removeItem("github_user");
     }
-
+    localStorage.removeItem("github_token");
     setAccessToken("");
   };
 
