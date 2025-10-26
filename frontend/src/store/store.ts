@@ -1,10 +1,12 @@
 "use client";
 import { configureStore } from "@reduxjs/toolkit";
-import apppSlice from "./slices/appSlice";
+import appSlice from "./slices/appSlice";
+import authReducer from "./slices/authSlice";
 
 const store = configureStore({
   reducer: {
-    appp: apppSlice,
+    app: appSlice,
+    auth: authReducer,
   },
 });
 

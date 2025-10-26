@@ -12,7 +12,7 @@ export enum GitHubFlowStep {
   RESULTS = "results",
 }
 
-interface ContractFile {
+export interface ContractFile {
   path: string;
   name: string;
   size: number;
@@ -65,16 +65,25 @@ export function useGitHubFlow() {
 
     return files;
   };
-
-  const selectRepository = async (repo: any) => {
+  const selectRepository = async (repo: any, localFiles?: ContractFile[]) => {
     setSelectedRepo(repo);
 
     try {
-      // Extract owner/repo from full_name
+      // ✅ If files already set (from URL paste flow)
+      if (localFiles && localFiles?.length > 0) {
+        setStep(GitHubFlowStep.FILE_SELECT);
+        return;
+      }
+
+      // ✅ Normal GitHub flow
       const [owner, repoName] = repo.full_name.split("/");
 
-      // Find all .rs contract files in the repository
       const rustFiles = await findRustFiles(owner, repoName, accessToken);
+
+      if (!rustFiles || rustFiles.length === 0) {
+        alert("No Rust (.rs) files found in this repo.");
+        return;
+      }
 
       setContractFiles(rustFiles);
       setStep(GitHubFlowStep.FILE_SELECT);
@@ -83,8 +92,9 @@ export function useGitHubFlow() {
       alert("Failed to detect contract files in repository");
     }
   };
+
   const runAnalysis = async (selectedFiles: string[]) => {
-    if (!selectedRepo) return;
+    if (!selectedFiles) return;
 
     setStep(GitHubFlowStep.PROGRESS);
     setIsAnalyzing(true);
@@ -194,7 +204,7 @@ export function useGitHubFlow() {
   const resetFlow = () => {
     setStep(GitHubFlowStep.AUTH);
     setAccessToken("");
-    setSelectedRepo(null);
+    // setSelectedRepo(null);
     setContractFiles([]);
     setReport(null);
     setIsAnalyzing(false);
@@ -204,9 +214,12 @@ export function useGitHubFlow() {
     step,
     accessToken,
     selectedRepo,
+    setSelectedRepo,
     contractFiles,
     report,
     isAnalyzing,
+    setStep,
+    setContractFiles,
     handleAuthSuccess,
     selectRepository,
     runAnalysis,

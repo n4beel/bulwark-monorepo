@@ -18,12 +18,12 @@ export default function HowStepContainer({ step, reversed }: Props) {
   return (
     <div
       className={`bg-white rounded-3xl shadow-[0_10px_50px_rgba(0,0,0,0.06)] px-10 py-8 w-full
- border-2 border-green-300     flex flex-col md:flex-row items-center justify-between gap-12 mt-12 h-150
+     flex flex-col md:flex-row items-center justify-between gap-12 mt-12 h-150
       ${reversed ? "md:flex-row-reverse" : ""}
     `}
     >
       {/* LEFT CONTENT */}
-      <div className="md:w-[30%] w-full border-red-400 h-11/12   border-2 flex flex-col items-start ">
+      <div className="md:w-[30%] w-full h-11/12  flex flex-col items-start ">
         {/* Step Badge */}
         <span className="text-xs px-3 py-1 rounded-full bg-[#E8F0FF] text-[var(--black-primary)] font-normal">
           STEP {step.step}

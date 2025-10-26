@@ -26,9 +26,9 @@ const HeroHeader = () => {
 
       {/* Right Section: Circular Video (Half Cut) */}
       <div className="absolute right-0 top-1/12 -translate-y-8 translate-x-3/4">
-        <div className="relative w-[200px] h-[200px] md:w-[300px] md:h-[300px] rounded-full overflow-hidden shadow-2xl">
+        <div className="relative w-[200px] h-[200px] md:w-[300px] md:h-[300px] rounded-full overflow-hidden ">
           <video
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover rounded-full"
             autoPlay
             loop
             muted

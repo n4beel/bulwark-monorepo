@@ -34,7 +34,7 @@ export default function StepUpload({ onComplete, onBack }: Props) {
 
     try {
       const result = await uploadApi.discoverFiles(filePicked);
-      console.log("API Response:", result); // Debug log
+
       onComplete(result.extractedPath, result.contractFiles);
     } catch (err: any) {
       console.error("Upload error:", err);

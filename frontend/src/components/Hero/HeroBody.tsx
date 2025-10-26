@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Github, Upload } from "lucide-react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import RepoInputSection from "../RepoInputSection";
 
 interface HeroBodyProps {
   onConnectGitHub: () => void;
@@ -33,7 +34,7 @@ const HeroBody = ({
               <video
                 className="w-full h-full object-cover rounded-full"
                 autoPlay
-                loop
+                loop //
                 muted
                 playsInline
               >
@@ -62,77 +63,15 @@ const HeroBody = ({
               {/* Transparent Overlay Box */}
               <div className="absolute inset-0 flex items-center justify-center p-4 z-10 pb-20">
                 <div className="w-full max-w-3xl bg-[var(--overlay-bg)] backdrop-blur-md rounded-2xl p-8 shadow-xl border border-[var(--overlay-border)]">
-                  <div className="mb-6">
-                    <Input
-                      iconSvg="/icons/linkicon.svg"
-                      iconPosition="left"
-                      value={repoInput}
-                      onChange={(e) => setRepoInput(e.target.value)}
-                      placeholder="Paste repo URL (GitHub/GitLab) or drop .sol/.rs/.zip"
-                      onKeyPress={(e) => {
-                        if (e.key === "Enter") {
-                          handleAnalyze();
-                        }
-                      }}
-                      className="rounded-xl"
-                    />
-                  </div>
-
-                  {/* Buttons in One Row: Connect GitHub & Upload Zip */}
-                  {/* Buttons in One Row: All 3 buttons */}
-                  <div className="flex gap-4 mb-4">
-                    <Button
-                      variant="outline"
-                      icon="/icons/GithubIcon.svg"
-                      iconPosition="left"
-                      onClick={onConnectGitHub}
-                      className="flex-1"
-                    >
-                      Connect GitHub
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      icon="/icons/UploadIcon.svg"
-                      iconPosition="left"
-                      onClick={onUploadZip}
-                      className="flex-1"
-                    >
-                      Upload zip
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      onClick={handleAnalyze}
-                      disabled={!repoInput.trim()}
-                      className="flex-1"
-                    >
-                      Analyze now
-                    </Button>
-                  </div>
-
-                  {/* Remove the separate Analyze Now button below */}
-                  {/* Additional Info */}
-                  <p className="text-center text-[var(--text-secondary)] text-sm mt-4">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="inline-block w-1.5 h-1.5 bg-[var(--green-medium)] rounded-full"></span>
-                      Only available for rust (solana) codebases
-                    </span>
-                    {" • "}
-                    Private repos via OAuth
-                    {" • "}
-                    Max 100MB
-                  </p>
+                  <RepoInputSection
+                    onConnectGitHub={onConnectGitHub}
+                    onUploadZip={onUploadZip}
+                    onAnalyze={onAnalyze}
+                    showStats={true}
+                    compact={true}
+                  />
                 </div>
-              </div>
-              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20">
-                <div className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--green-light)] rounded-full shadow-md border border-[var(--border-color)]">
-                  <span className="inline-block w-2 h-2 bg-[var(--green-medium)] rounded-full"></span>
-                  <span className="text-[var(--text-primary)] font-semibold">
-                    19,568 Repos Analyzed
-                  </span>
-                </div>
-              </div>
+              </div>{" "}
             </div>
           </div>
         </div>

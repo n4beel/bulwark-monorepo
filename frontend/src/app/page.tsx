@@ -14,7 +14,12 @@ import {
   PreAuditReport,
   StaticAnalysisReport,
 } from "@/types/api";
-import { scopingApi, staticAnalysisApi, uploadApi } from "@/services/api";
+import {
+  fetchRepoFilesPublic,
+  scopingApi,
+  staticAnalysisApi,
+  uploadApi,
+} from "@/services/api";
 import Navbar from "@/components/NavBar";
 import HeroSection from "@/components/Hero";
 import { handleGitHubLogin } from "@/utils/auth";
@@ -23,7 +28,7 @@ import UploadFlowModal from "@/components/uploadFlow/UploadFlowModal";
 import ResultsModal from "@/components/Receipt/Receipt";
 import ReceiptModal from "@/components/Receipt/Receipt";
 import GitHubFlowModal from "@/components/UploadGihubFlow/GitHubModalFlow";
-import { useGitHubFlow } from "@/hooks/useGitHubFlow";
+import { GitHubFlowStep, useGitHubFlow } from "@/hooks/useGitHubFlow";
 import BulwarkAnimated from "@/components/BulwarkAnimated";
 import FeatureCards from "@/components/FeatureCards";
 import { features, teamItems } from "@/constants/ui";
@@ -32,6 +37,7 @@ import Web3TeamsSection from "@/components/Web3TeamSection";
 import AuditorMarketplace from "@/components/AuditorMarketplace";
 import PricingSection from "@/components/Pricing";
 import Footer from "@/components/Footer";
+import NewsletterSection from "@/components/NewsLetter";
 
 interface ContractFile {
   path: string;
@@ -91,15 +97,16 @@ export default function Home() {
   const [uploadedContractFiles, setUploadedContractFiles] = useState<
     ContractFile[]
   >([]);
-  const [isGitHubFlowOpen, setGitHubFlowOpen] = useState(false); // NEW
+
   const [openResults, setOpenResults] = useState(false);
   const [resultsReport, setResultsReport] = useState<any>(null);
-  const [pendingGitHubAuth, setPendingGitHubAuth] = useState(false); //
+
   const {
     step: githubStep,
     accessToken: githubAccessToken,
     selectedRepo: githubSelectedRepo,
     contractFiles: githubFiles,
+    setContractFiles,
     report: githubReport,
     isAnalyzing: isGithubAnalyzing,
     handleAuthSuccess,
@@ -107,6 +114,7 @@ export default function Home() {
     runAnalysis: runGithubAnalysis,
     completeAnalysis: completeGithubAnalysis,
     resetFlow: resetGithubFlow,
+    setStep,
   } = useGitHubFlow();
 
   // Check for existing authentication on component mount
@@ -140,7 +148,7 @@ export default function Home() {
       const urlParams = new URLSearchParams(window.location.search);
       const token = urlParams.get("token");
       const userStr = urlParams.get("user");
-      console.log("OAuth callback params:", { token, userStr });
+
       if (token && userStr) {
         try {
           const user = JSON.parse(decodeURIComponent(userStr));
@@ -149,7 +157,6 @@ export default function Home() {
 
           // Open GitHub flow modal and set token
           handleAuthSuccess(token);
-          setGitHubFlowOpen(true);
 
           // Clean URL
           window.history.replaceState({}, "", "/");
@@ -158,7 +165,7 @@ export default function Home() {
         }
       } else {
         // Only check saved token if no OAuth callback
-        console.log("No OAuth callback detected, checking saved token");
+
         const savedToken = localStorage.getItem("github_token");
         if (savedToken) {
           handleAuthSuccess(savedToken);
@@ -337,8 +344,41 @@ export default function Home() {
       <HeroSection
         onConnectGitHub={handleGitHubLogin}
         onUploadZip={() => setUploadFlowOpen(true)}
-        onAnalyze={(input) => {
-          console.log("Analyze input:", input);
+        onAnalyze={async (input) => {
+          try {
+            const match = input.match(/github\.com\/([^/]+)\/([^/]+)/);
+            if (!match) throw new Error("Invalid GitHub URL format");
+
+            const owner = match[1];
+            const repo = match[2];
+
+            const result = await fetchRepoFilesPublic(owner, repo);
+            const files = result.rsFilesOnly.map((item: any) => ({
+              path: item.path,
+              name: item.path.split("/").pop()!,
+              size: 0,
+              language: "Rust",
+            }));
+            // ✅ Set GitHubFlow Repo
+            selectRepository(
+              {
+                id: 0,
+                name: repo,
+                full_name: `${owner}/${repo}`,
+                html_url: input,
+                private: false,
+              },
+              files
+            ); // IMPORTANT ✅
+
+            // ✅ Set files into GitHubFlow
+            setContractFiles(files);
+
+            // ✅ Open modal file selection UI
+            setStep(GitHubFlowStep.FILE_SELECT);
+          } catch (err) {
+            setError("❌ Repo not found or not a public repo with Rust files.");
+          }
         }}
       />
       <BulwarkAnimated />
@@ -351,6 +391,7 @@ export default function Home() {
       />
       <AuditorMarketplace />
       <PricingSection />
+      <NewsletterSection />
       <Footer />
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -554,7 +595,6 @@ export default function Home() {
         step={githubStep}
         accessToken={githubAccessToken}
         onClose={() => {
-          setGitHubFlowOpen(false);
           resetGithubFlow();
           localStorage.removeItem("github_token");
         }}

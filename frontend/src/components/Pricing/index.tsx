@@ -1,5 +1,6 @@
 "use client";
 import Image from "next/image";
+import PaidPricingCard from "../PaidPricingCard";
 
 export default function PricingSection() {
   return (
@@ -73,39 +74,7 @@ export default function PricingSection() {
             />
           </span>
 
-          <p className="mt-4 text-3xl font-semibold text-black">200$ /mo</p>
-          <p className="text-xs text-[var(--text-secondary)]">
-            Unlimited Scans, Vulnerability Assessment Included
-          </p>
-
-          <ul className="mt-6 space-y-3 text-sm text-black/80">
-            {[
-              "Unlimited scans",
-              "Advanced vulnerability detection",
-              "Priority support & SLA",
-            ].map((t, i) => (
-              <li key={i} className="flex items-center gap-3">
-                <Image
-                  src="/icons/Check.svg"
-                  alt="Check"
-                  width={14}
-                  height={14}
-                />
-                {t}
-              </li>
-            ))}
-          </ul>
-
-          {/* ✅ SVG arrow icon inside CTA */}
-          <button className="mt-8 w-full inline-flex items-center justify-between gap-2 px-2 py-2 rounded-lg cursor-pointer text-white bg-[var(--button-primary)] hover:bg-[var(--button-primary-hover)] transition">
-            Contact sales
-            <Image
-              src={"/icons/ArrowRightDotted.svg"}
-              alt="arrowright"
-              width={14}
-              height={14}
-            />
-          </button>
+          <PaidPricingCard />
         </div>
       </div>
 

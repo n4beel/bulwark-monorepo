@@ -120,6 +120,28 @@ export const authApi = {
   },
 };
 
+export async function fetchRepoFilesPublic(owner: string, repo: string) {
+  // Step 1: Get Default Branch
+  const meta = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
+  if (!meta.ok) throw new Error("Repo not found or access denied");
+  const repoInfo = await meta.json();
+  const defaultBranch = repoInfo.default_branch;
+
+  // Step 2: Get File Tree from default branch
+  const treeRes = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`
+  );
+  if (!treeRes.ok) throw new Error("Unable to fetch repo file tree");
+
+  const data = await treeRes.json();
+
+  const rsFilesOnly = data.tree.filter(
+    (i: any) => i.type === "blob" && i.path.endsWith(".rs")
+  );
+
+  return { rsFilesOnly };
+}
+
 interface ContractFile {
   path: string;
   name: string;

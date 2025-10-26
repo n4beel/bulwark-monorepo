@@ -72,6 +72,8 @@
     --overlay-bg: rgba(0, 0, 0, 0.3);
     --overlay-border: rgba(255, 255, 255, 0.1);
     --card-accent: rgba(77, 133, 254, 0.15);
+    --logout-bg: #FFE2E2;
+    --user-chip-bg: rgba(77, 133, 254, 0.15);
   }
 }
 
@@ -162,6 +164,22 @@ select:focus {
 
 /* Doto Heading Style */
 .doto {
-  font-family: "Doto", sans-serif !important;
+  font-family: "Doto" !important;
 
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
 }

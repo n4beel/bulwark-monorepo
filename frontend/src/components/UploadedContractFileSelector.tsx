@@ -70,7 +70,7 @@ export default function UploadedContractFileSelector({
       setError("Please select at least one contract file to audit.");
       return;
     }
-    // Always use static analysis for uploaded files
+
     onProceed(Array.from(selectedFiles), "static");
   };
 
@@ -101,13 +101,6 @@ export default function UploadedContractFileSelector({
               Choose which contract files to include in the audit analysis
             </p>
           </div>
-          <button
-            onClick={onBack}
-            className="text-gray-600 hover:text-gray-800 text-sm flex items-center"
-          >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Back to Upload
-          </button>
         </div>
 
         {/* Upload Info */}
