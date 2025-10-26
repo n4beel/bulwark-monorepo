@@ -22,6 +22,8 @@ import { useUploadFlow } from "@/hooks";
 import UploadFlowModal from "@/components/uploadFlow/UploadFlowModal";
 import ResultsModal from "@/components/Receipt/Receipt";
 import ReceiptModal from "@/components/Receipt/Receipt";
+import GitHubFlowModal from "@/components/UploadGihubFlow/GitHubModalFlow";
+import { useGitHubFlow } from "@/hooks/useGitHubFlow";
 
 interface ContractFile {
   path: string;
@@ -81,8 +83,23 @@ export default function Home() {
   const [uploadedContractFiles, setUploadedContractFiles] = useState<
     ContractFile[]
   >([]);
+  const [isGitHubFlowOpen, setGitHubFlowOpen] = useState(false); // NEW
   const [openResults, setOpenResults] = useState(false);
   const [resultsReport, setResultsReport] = useState<any>(null);
+  const [pendingGitHubAuth, setPendingGitHubAuth] = useState(false); //
+  const {
+    step: githubStep,
+    accessToken: githubAccessToken,
+    selectedRepo: githubSelectedRepo,
+    contractFiles: githubFiles,
+    report: githubReport,
+    isAnalyzing: isGithubAnalyzing,
+    handleAuthSuccess,
+    selectRepository,
+    runAnalysis: runGithubAnalysis,
+    completeAnalysis: completeGithubAnalysis,
+    resetFlow: resetGithubFlow,
+  } = useGitHubFlow();
 
   // Check for existing authentication on component mount
   useEffect(() => {
@@ -106,7 +123,40 @@ export default function Home() {
     }
   }, []);
 
-  // Removed unused handleAuth function
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && !hasInitialized) {
+      setHasInitialized(true);
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get("token");
+      const userStr = urlParams.get("user");
+
+      if (token && userStr) {
+        try {
+          const user = JSON.parse(decodeURIComponent(userStr));
+          localStorage.setItem("github_token", token);
+          localStorage.setItem("github_user", JSON.stringify(user));
+
+          // Open GitHub flow modal and set token
+          handleAuthSuccess(token);
+          setGitHubFlowOpen(true);
+
+          // Clean URL
+          window.history.replaceState({}, "", "/");
+        } catch (err) {
+          console.error("Error parsing OAuth response:", err);
+        }
+      } else {
+        // Only check saved token if no OAuth callback
+        const savedToken = localStorage.getItem("github_token");
+        if (savedToken) {
+          handleAuthSuccess(savedToken);
+        }
+      }
+    }
+  }, []);
 
   const handleRepoSelect = async (repo: GitHubRepository) => {
     setSelectedRepo(repo);
@@ -481,7 +531,25 @@ export default function Home() {
           }}
         />
       )}
-
+      <GitHubFlowModal
+        step={githubStep}
+        accessToken={githubAccessToken}
+        onClose={() => {
+          setGitHubFlowOpen(false);
+          resetGithubFlow();
+        }}
+        selectedRepo={githubSelectedRepo}
+        contractFiles={githubFiles}
+        selectRepository={selectRepository}
+        runAnalysis={runGithubAnalysis}
+        apiReady={!isGithubAnalyzing}
+        completeAnalysis={completeGithubAnalysis}
+        onOpenResults={(report) => {
+          setResultsReport(report);
+          setOpenResults(true);
+        }}
+        report={githubReport}
+      />
       <ReceiptModal
         open={openResults}
         report={resultsReport}
