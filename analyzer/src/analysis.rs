@@ -3,7 +3,7 @@
 use crate::{
     config::AnalyzerConfig,
     error::{AnalyzerError, Result},
-    factors::lines_of_code::count_lines_of_code,
+    factors::lines_of_code::{calculate_workspace_tsc, analyze_file_tsc, TscMetrics},
     metrics::{AggregatedMetrics, FileMetrics, RepoMetrics, RiskSummary},
     output::AnalysisReport,
     visitor::FunctionVisitor,
@@ -193,7 +193,9 @@ impl AnalyzerEngine {
         syn::visit::visit_file(&mut visitor, &syntax_tree);
 
         // Calculate lines of code (excluding comments and empty lines)
-        let lines_of_code = count_lines_of_code(&content) as u32;
+        // Use TSC (Total Statement Count) instead of lines of code
+        let tsc_metrics = analyze_file_tsc(&content).unwrap_or_default();
+        let lines_of_code = tsc_metrics.total_statements as u32;
 
         // Calculate aggregated metrics for this file
         let aggregated = self.calculate_file_aggregated_metrics(&visitor.functions);

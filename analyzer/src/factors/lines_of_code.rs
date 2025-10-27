@@ -1,96 +1,257 @@
-//! Lines of Code Analysis Factor
+//! Total Statement Count (TSC) Analysis Factor
 //!
-//! This module provides functionality to count Source Lines of Code (SLOC)
-//! in Rust files, excluding comments and empty lines.
+//! This module provides AST-based functionality to count Total Statement Count (TSC)
+//! in Rust files by analyzing all syn::Stmt nodes within functions.
+//!
+//! This approach is superior to Source Lines of Code (SLOC) because:
+//! - It's 100% AST-based and robust against formatting/whitespace
+//! - It cannot be gamed with empty lines or comment manipulation
+//! - It provides a more accurate measure of "work being done"
+//! - It's consistent with other AST-based factors (CC, AC, etc.)
 
-/// Count lines of code in a given content string, excluding comments and empty lines
-/// 
-/// This function replicates the logic from the TypeScript lineCounter function:
-/// - Skips empty lines
-/// - Handles multi-line comments (/* ... */)
-/// - Handles single-line comments (//)
-/// - Counts lines that contain actual code
-/// 
-/// # Arguments
-/// * `content` - The source code content as a string
-/// 
-/// # Returns
-/// * `usize` - The number of source lines of code
-pub fn count_lines_of_code(content: &str) -> usize {
-    let lines: Vec<&str> = content.split('\n').collect();
-    let mut code_lines = 0;
-    let mut in_multiline_comment = false;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use syn::{visit::Visit, Block, ImplItemFn, ItemFn, Stmt};
 
-    for line in lines {
-        let line = line.trim();
+#[derive(Debug, Clone, Default)]
+pub struct TscMetrics {
+    /// Total Statement Count across all functions
+    pub total_statements: usize,
 
-        // Skip empty lines
-        if line.is_empty() {
-            continue;
-        }
+    /// Number of functions analyzed
+    pub total_functions: usize,
 
-        // Handle multi-line comments
-        if in_multiline_comment {
-            // Check if this line ends the multi-line comment
-            if let Some(comment_end_index) = line.find("*/") {
-                in_multiline_comment = false;
-                
-                // Check if there's code after the comment end
-                let remaining_line = line[(comment_end_index + 2)..].trim();
-                if !remaining_line.is_empty() && !remaining_line.starts_with("//") {
-                    code_lines += 1;
+    /// Average statements per function
+    pub avg_statements_per_function: f64,
+
+    /// Maximum statements in a single function
+    pub max_statements_per_function: usize,
+
+    /// Statement count distribution by function
+    pub function_statement_counts: HashMap<String, usize>,
+}
+
+impl TscMetrics {
+    /// Convert to structured JSON object
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "totalStatements": self.total_statements,
+            "totalFunctions": self.total_functions,
+            "avgStatementsPerFunction": self.avg_statements_per_function,
+            "maxStatementsPerFunction": self.max_statements_per_function,
+            "functionStatementCounts": self.function_statement_counts,
+        })
+    }
+}
+
+/// Calculate Total Statement Count for workspace files
+pub fn calculate_workspace_tsc(
+    workspace_path: &PathBuf,
+    selected_files: &[String],
+) -> Result<TscMetrics, Box<dyn std::error::Error>> {
+    log::info!(
+        "🔍 TSC DEBUG: Starting analysis for workspace: {:?}",
+        workspace_path
+    );
+    log::info!("🔍 TSC DEBUG: Analyzing {} files", selected_files.len());
+
+    let mut metrics = TscMetrics::default();
+    let mut analyzed_files = 0;
+
+    // Analyze each file
+    for file_path in selected_files {
+        let full_file_path = workspace_path.join(file_path);
+
+        if full_file_path.exists() && full_file_path.is_file() {
+            if let Some(extension) = full_file_path.extension() {
+                if extension == "rs" {
+                    match std::fs::read_to_string(&full_file_path) {
+                        Ok(content) => {
+                            match analyze_file_tsc(&content) {
+                                Ok(file_metrics) => {
+                                    // Merge metrics from this file
+                                    metrics.total_statements += file_metrics.total_statements;
+                                    metrics.total_functions += file_metrics.total_functions;
+
+                                    // Update max statements
+                                    if file_metrics.max_statements_per_function
+                                        > metrics.max_statements_per_function
+                                    {
+                                        metrics.max_statements_per_function =
+                                            file_metrics.max_statements_per_function;
+                                    }
+
+                                    // Merge function statement counts
+                                    for (func_name, count) in file_metrics.function_statement_counts
+                                    {
+                                        metrics.function_statement_counts.insert(func_name, count);
+                                    }
+
+                                    analyzed_files += 1;
+
+                                    log::debug!(
+                                        "🔍 TSC DEBUG: File {}: {} statements, {} functions",
+                                        file_path,
+                                        file_metrics.total_statements,
+                                        file_metrics.total_functions
+                                    );
+                                }
+                                Err(e) => {
+                                    log::warn!(
+                                        "🔍 TSC DEBUG: Failed to analyze TSC for file {}: {}",
+                                        file_path,
+                                        e
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("🔍 TSC DEBUG: Failed to read file {}: {}", file_path, e);
+                        }
+                    }
                 }
             }
-            continue;
         }
-
-        // Check for start of multi-line comment
-        if let Some(comment_start_index) = line.find("/*") {
-            // Check if there's code before the comment start
-            let code_before_comment = line[..comment_start_index].trim();
-
-            // Check if the comment ends on the same line
-            let search_start = comment_start_index + 2;
-            if let Some(relative_end_index) = line[search_start..].find("*/") {
-                let actual_end_index = search_start + relative_end_index + 2;
-                
-                // Single-line multi-line comment /* ... */
-                let code_after_comment = if actual_end_index < line.len() {
-                    line[actual_end_index..].trim()
-                } else {
-                    ""
-                };
-                let has_code_before = !code_before_comment.is_empty();
-                let has_code_after = !code_after_comment.is_empty() && !code_after_comment.starts_with("//");
-
-                if has_code_before || has_code_after {
-                    code_lines += 1;
-                }
-            } else {
-                // Multi-line comment starts here
-                in_multiline_comment = true;
-                if !code_before_comment.is_empty() {
-                    code_lines += 1;
-                }
-            }
-            continue;
-        }
-
-        // Check for single-line comments
-        if let Some(single_comment_index) = line.find("//") {
-            // Check if there's code before the comment
-            let code_before_comment = line[..single_comment_index].trim();
-            if !code_before_comment.is_empty() {
-                code_lines += 1;
-            }
-            continue;
-        }
-
-        // If we get here, it's a regular code line
-        code_lines += 1;
     }
 
-    code_lines
+    // Calculate average statements per function
+    if metrics.total_functions > 0 {
+        metrics.avg_statements_per_function =
+            metrics.total_statements as f64 / metrics.total_functions as f64;
+    }
+
+    log::info!(
+        "🔍 TSC DEBUG: Analysis complete: {} files analyzed, {} total statements, {} total functions, avg: {:.2} statements/function",
+        analyzed_files,
+        metrics.total_statements,
+        metrics.total_functions,
+        metrics.avg_statements_per_function
+    );
+
+    Ok(metrics)
+}
+
+/// Analyze Total Statement Count in a single file
+pub fn analyze_file_tsc(content: &str) -> Result<TscMetrics, Box<dyn std::error::Error>> {
+    // Parse the Rust file using syn
+    let syntax_tree: syn::File =
+        syn::parse_file(content).map_err(|e| format!("Failed to parse Rust file: {}", e))?;
+
+    let mut visitor = TscVisitor::new();
+    visitor.visit_file(&syntax_tree);
+
+    // Calculate average statements per function
+    if visitor.metrics.total_functions > 0 {
+        visitor.metrics.avg_statements_per_function =
+            visitor.metrics.total_statements as f64 / visitor.metrics.total_functions as f64;
+    }
+
+    Ok(visitor.metrics)
+}
+
+/// Visitor to analyze Total Statement Count using full AST approach
+struct TscVisitor {
+    metrics: TscMetrics,
+    current_function: Option<String>,
+    current_function_statement_count: usize,
+}
+
+impl TscVisitor {
+    fn new() -> Self {
+        Self {
+            metrics: TscMetrics::default(),
+            current_function: None,
+            current_function_statement_count: 0,
+        }
+    }
+}
+
+impl<'ast> Visit<'ast> for TscVisitor {
+    fn visit_item_fn(&mut self, item_fn: &'ast ItemFn) {
+        // Get function name
+        let func_name = item_fn.sig.ident.to_string();
+
+        println!("🔍 TSC DEBUG: Found function '{}'", func_name);
+
+        // Set current function context
+        self.current_function = Some(func_name.clone());
+        self.current_function_statement_count = 0;
+
+        // *** THE FIX: Call the default visitor to recursively visit all nodes ***
+        // This will automatically call `visit_stmt` for every statement.
+        syn::visit::visit_item_fn(self, item_fn);
+
+        // Update metrics with the count for this function
+        self.metrics.total_statements += self.current_function_statement_count;
+        self.metrics.total_functions += 1;
+        self.metrics
+            .function_statement_counts
+            .insert(func_name.clone(), self.current_function_statement_count);
+
+        // Update max statements
+        if self.current_function_statement_count > self.metrics.max_statements_per_function {
+            self.metrics.max_statements_per_function = self.current_function_statement_count;
+        }
+
+        log::debug!(
+            "🔍 TSC DEBUG: Function '{}' has {} statements",
+            func_name,
+            self.current_function_statement_count
+        );
+
+        // Clear function context
+        self.current_function = None;
+        self.current_function_statement_count = 0;
+    }
+
+    fn visit_stmt(&mut self, stmt: &'ast Stmt) {
+        // Only count statements if we're inside a function
+        if self.current_function.is_some() {
+            self.current_function_statement_count += 1;
+            println!(
+                "🔍 TSC DEBUG: Found statement in function '{}': {:?}",
+                self.current_function.as_ref().unwrap(),
+                stmt
+            );
+        }
+
+        // Continue visiting nested statements
+        syn::visit::visit_stmt(self, stmt);
+    }
+
+    fn visit_impl_item_fn(&mut self, item_fn: &'ast ImplItemFn) {
+        // Get function name
+        let func_name = item_fn.sig.ident.to_string();
+
+        // Set current function context
+        self.current_function = Some(func_name.clone());
+        self.current_function_statement_count = 0;
+
+        // *** THE FIX: Call the default visitor to recursively visit all nodes ***
+        syn::visit::visit_impl_item_fn(self, item_fn);
+
+        // Update metrics with the count for this function
+        self.metrics.total_statements += self.current_function_statement_count;
+        self.metrics.total_functions += 1;
+        self.metrics
+            .function_statement_counts
+            .insert(func_name.clone(), self.current_function_statement_count);
+
+        // Update max statements
+        if self.current_function_statement_count > self.metrics.max_statements_per_function {
+            self.metrics.max_statements_per_function = self.current_function_statement_count;
+        }
+
+        log::debug!(
+            "🔍 TSC DEBUG: Method '{}' has {} statements",
+            func_name,
+            self.current_function_statement_count
+        );
+
+        // Clear function context
+        self.current_function = None;
+        self.current_function_statement_count = 0;
+    }
 }
 
 #[cfg(test)]
@@ -99,132 +260,154 @@ mod tests {
 
     #[test]
     fn test_empty_content() {
-        assert_eq!(count_lines_of_code(""), 0);
+        let result = analyze_file_tsc("").unwrap();
+        assert_eq!(result.total_statements, 0);
+        assert_eq!(result.total_functions, 0);
     }
 
     #[test]
-    fn test_only_whitespace() {
-        assert_eq!(count_lines_of_code("   \n\t\n   "), 0);
-    }
-
-    #[test]
-    fn test_simple_code() {
+    fn test_simple_function() {
         let content = r#"
 fn main() {
+    let x = 5;
+    let y = 10;
     println!("Hello, world!");
 }
         "#;
-        assert_eq!(count_lines_of_code(content), 3);
+        let result = analyze_file_tsc(content).unwrap();
+        assert_eq!(result.total_statements, 3); // 3 statements in main
+        assert_eq!(result.total_functions, 1);
+        assert_eq!(result.avg_statements_per_function, 3.0);
+        assert_eq!(result.max_statements_per_function, 3);
     }
 
     #[test]
-    fn test_single_line_comments() {
+    fn test_multiple_functions() {
         let content = r#"
-fn main() { // This is a comment
-    // This is just a comment
-    println!("Hello"); // Another comment
+fn simple_function() {
+    let x = 5;
+}
+
+fn complex_function() {
+    let a = 1;
+    let b = 2;
+    let c = a + b;
+    if c > 3 {
+        println!("Large sum");
+    }
 }
         "#;
-        assert_eq!(count_lines_of_code(content), 3);
+        let result = analyze_file_tsc(content).unwrap();
+        assert_eq!(result.total_statements, 7); // 1 + 5 statements
+        assert_eq!(result.total_functions, 2);
+        assert_eq!(result.avg_statements_per_function, 3.5);
+        assert_eq!(result.max_statements_per_function, 5);
     }
 
     #[test]
-    fn test_multiline_comments() {
+    fn test_nested_blocks() {
         let content = r#"
-/* This is a
-   multi-line comment */
+fn nested_function() {
+    let x = 5;
+    if x > 0 {
+        let y = 10;
+        if y > 5 {
+            let z = 15;
+        }
+    }
+}
+        "#;
+        let result = analyze_file_tsc(content).unwrap();
+        assert_eq!(result.total_statements, 5); // 1 + 1 + 1 + 1 + 1 statements
+        assert_eq!(result.total_functions, 1);
+        assert_eq!(result.max_statements_per_function, 5);
+    }
+
+    #[test]
+    fn test_impl_methods() {
+        let content = r#"
+struct MyStruct;
+
+impl MyStruct {
+    fn method_one() {
+        let x = 1;
+        let y = 2;
+    }
+    
+    fn method_two() {
+        let a = 3;
+    }
+}
+        "#;
+        let result = analyze_file_tsc(content).unwrap();
+        assert_eq!(result.total_statements, 5); // 2 + 1 statements
+        assert_eq!(result.total_functions, 2);
+        assert_eq!(result.avg_statements_per_function, 2.5);
+        assert_eq!(result.max_statements_per_function, 2);
+    }
+
+    #[test]
+    fn test_comments_and_formatting() {
+        let content = r#"
+// This is a comment
 fn main() {
-    /* Another comment */ println!("Hello");
-    /*
-     * Block comment
-     */
-    let x = 5; /* inline comment */
-}
-        "#;
-        // Expected lines of code:
-        // 1. fn main() {
-        // 2. /* Another comment */ println!("Hello");
-        // 3. let x = 5; /* inline comment */
-        // 4. }
-        assert_eq!(count_lines_of_code(content), 4);
-    }
-
-    #[test]
-    fn test_mixed_comments() {
-        let content = r#"
-// Single line comment
-fn main() { /* multi-line start
-   continues here */ 
-    let x = 5; // inline comment
-    /* 
-     * Block comment
-     * continues
-     */ let y = 10; // another inline
-}
-        "#;
-        assert_eq!(count_lines_of_code(content), 4);
-    }
-
-    #[test]
-    fn test_comment_with_code_on_same_line() {
-        let content = r#"
-let x = 5; /* comment */ let y = 10;
-let a = /* comment */ 15;
-/* comment */ let b = 20;
-        "#;
-        assert_eq!(count_lines_of_code(content), 3);
-    }
-
-    #[test]
-    fn test_complex_rust_code() {
-        let content = r#"
-//! This is a module doc comment
-use std::collections::HashMap;
-
-/// Function documentation
-pub fn calculate_something(x: i32) -> i32 {
-    // Calculate the result
-    let mut result = x * 2; // Multiply by 2
+    /* Multi-line
+       comment */
+    let x = 5; // Inline comment
+    let y = 10;
     
-    /* 
-     * Some complex logic here
-     * that spans multiple lines
-     */
-    if result > 100 {
-        result = 100; // Cap at 100
-    }
-    
-    result // Return the result
-}
-
-#[cfg(test)]
-mod tests {
-    // Test module
-    use super::*;
-    
-    #[test]
-    fn test_basic() {
-        assert_eq!(calculate_something(50), 100);
-    }
+    // Another comment
+    println!("Hello");
 }
         "#;
-        // Expected lines of code:
-        // 1. use std::collections::HashMap;
-        // 2. pub fn calculate_something(x: i32) -> i32 {
-        // 3. let mut result = x * 2;
-        // 4. if result > 100 {
-        // 5. result = 100;
-        // 6. }
-        // 7. result
-        // 8. }
-        // 9. #[cfg(test)]
-        // 10. mod tests {
-        // 11. use super::*;
-        // 12. #[test]
-        // 13. fn test_basic() {
-        // 14. assert_eq!(calculate_something(50), 100);
-        // 15. }
-        // 16. }
-        assert_eq!(count_lines_of_code(content), 16);
+        let result = analyze_file_tsc(content).unwrap();
+        // Comments and formatting don't affect statement count
+        assert_eq!(result.total_statements, 3); // Only the 3 statements
+        assert_eq!(result.total_functions, 1);
+    }
+
+    #[test]
+    fn test_string_literals_with_comment_markers() {
+        let content = r#"
+fn url_function() {
+    let url = "http://example.com"; // This won't break AST parsing
+    let comment = "/* This is just a string, not a comment */";
+    let path = "// This is also just a string";
+}
+        "#;
+        let result = analyze_file_tsc(content).unwrap();
+        // String literals with comment markers don't affect statement count
+        assert_eq!(result.total_statements, 3); // Only the 3 statements
+        assert_eq!(result.total_functions, 1);
+    }
+
+    #[test]
+    fn test_function_statement_counts() {
+        let content = r#"
+fn short_function() {
+    let x = 1;
+}
+
+fn long_function() {
+    let a = 1;
+    let b = 2;
+    let c = 3;
+    let d = 4;
+    let e = 5;
+}
+        "#;
+        let result = analyze_file_tsc(content).unwrap();
+        assert_eq!(result.total_statements, 8); // 1 + 5 statements
+        assert_eq!(result.total_functions, 2);
+
+        // Check function-specific counts
+        assert_eq!(
+            result.function_statement_counts.get("short_function"),
+            Some(&1)
+        );
+        assert_eq!(
+            result.function_statement_counts.get("long_function"),
+            Some(&5)
+        );
     }
 }

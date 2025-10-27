@@ -1,588 +1,791 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use syn::BinOp;
-use syn::{visit::Visit, Expr, ExprBinary, ExprCall, ExprMethodCall, ItemFn, Path};
+//! Arithmetic Operation Risk Factor
+//!
+//! This module analyzes the "arithmetic attack surface" of a smart contract.
+//! It is "handler-centric," meaning it only counts high-risk arithmetic
+//! operations (*, /, %) that occur *inside* a true Anchor instruction handler.
 
-/// Metrics for arithmetic operations in Anchor handlers
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use syn::{
+    parse_file,
+    visit::{self, Visit},
+    BinOp, Expr, ExprBinary, ExprCall, ExprMethodCall, ItemFn,
+};
+
+/// Metrics for high-risk arithmetic operations in Anchor handlers
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ArithmeticMetrics {
-    // Handler statistics
+    /// Total number of instruction handlers found
+    pub total_handlers_found: u32,
+    /// Sub-factor 1: Handlers with high/medium-risk math
     pub total_math_handlers: u32,
-    pub total_arithmetic_operations: u32,
+    /// Sub-factor 2: Total high-risk ops (/, %)
+    pub high_risk_ops_count: u32,
+    /// Sub-factor 3: Total medium-risk ops (*)
+    pub medium_risk_ops_count: u32,
 
-    // Context classification
-    pub handler_arithmetic_operations: u32,
-    pub utility_arithmetic_operations: u32,
-    pub state_arithmetic_operations: u32,
-    pub math_arithmetic_operations: u32,
-    pub test_arithmetic_operations: u32,
-
-    // Operation breakdown
+    /// Breakdown of which handlers contain math
+    pub math_handlers: Vec<String>,
+    /// Breakdown of all ops found
     pub operation_breakdown: HashMap<String, u32>,
 
-    // Risk assessment
-    pub high_risk_operations: u32,
-    pub medium_risk_operations: u32,
-    pub low_risk_operations: u32,
-
-    // Context-specific operations
-    pub balance_price_operations: u32,
-    pub token_operations: u32,
-    pub fee_operations: u32,
-
-    // Complexity metrics
-    pub arithmetic_complexity_score: f64,
-    pub nested_operations: u32,
-    pub compound_expressions: u32,
-
-    // File analysis metadata
-    pub files_analyzed: u32,
-    pub files_skipped: u32,
+    /// Final Normalized Factor (0-100)
+    pub arithmetic_factor: f64,
+    /// Raw score used for normalization
+    pub raw_risk_score: f64,
 }
 
 impl ArithmeticMetrics {
     /// Convert to structured JSON object
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
+            "arithmeticFactor": self.arithmetic_factor,
+            "rawRiskScore": self.raw_risk_score,
+            "totalHandlersFound": self.total_handlers_found,
             "totalMathHandlers": self.total_math_handlers,
-            "totalArithmeticOperations": self.total_arithmetic_operations,
-            "handlerArithmeticOperations": self.handler_arithmetic_operations,
-            "utilityArithmeticOperations": self.utility_arithmetic_operations,
-            "stateArithmeticOperations": self.state_arithmetic_operations,
-            "mathArithmeticOperations": self.math_arithmetic_operations,
-            "testArithmeticOperations": self.test_arithmetic_operations,
+            "highRiskOpsCount": self.high_risk_ops_count,
+            "mediumRiskOpsCount": self.medium_risk_ops_count,
+            "mathHandlers": self.math_handlers,
             "operationBreakdown": self.operation_breakdown,
-            "highRiskOperations": self.high_risk_operations,
-            "mediumRiskOperations": self.medium_risk_operations,
-            "lowRiskOperations": self.low_risk_operations,
-            "balancePriceOperations": self.balance_price_operations,
-            "tokenOperations": self.token_operations,
-            "feeOperations": self.fee_operations,
-            "arithmeticComplexityScore": self.arithmetic_complexity_score,
-            "nestedOperations": self.nested_operations,
-            "compoundExpressions": self.compound_expressions,
-            "filesAnalyzed": self.files_analyzed,
-            "filesSkipped": self.files_skipped
         })
     }
 }
 
-/// Information about a handler with arithmetic operations
-#[derive(Debug)]
-struct HandlerArithmeticInfo {
-    name: String,
-    operation_count: u32,
-    high_risk_count: u32,
-    balance_price_count: u32,
-    has_nested_operations: bool,
+/// Pass 1: Visitor to find all mathy functions and their operations
+#[derive(Debug, Default)]
+struct MathFinderVisitor {
+    current_function_name: Option<String>,
+    math_ops_by_function: HashMap<String, (u32, u32)>, // (high_risk_ops, medium_risk_ops)
+    operation_breakdown: HashMap<String, u32>,
 }
 
-/// Visitor for detecting arithmetic operations in Anchor handlers
-#[derive(Debug)]
-struct ArithmeticVisitor {
-    handlers: Vec<HandlerArithmeticInfo>,
-    current_file_path: String,
-    current_handler: Option<String>,
-    operation_counts: HashMap<String, u32>,
-    total_operations: u32,
-
-    // Context classification counters
-    handler_arithmetic_operations: u32,
-    utility_arithmetic_operations: u32,
-    state_arithmetic_operations: u32,
-    math_arithmetic_operations: u32,
-    test_arithmetic_operations: u32,
-
-    high_risk_operations: u32,
-    medium_risk_operations: u32,
-    low_risk_operations: u32,
-    balance_price_operations: u32,
-    token_operations: u32,
-    fee_operations: u32,
-    nested_operations: u32,
-    compound_expressions: u32,
-    in_arithmetic_context: bool,
-    arithmetic_depth: u32,
+/// Pass 2: Visitor to build call graph
+#[derive(Debug, Default)]
+struct CallGraphVisitor {
+    current_function_name: Option<String>,
+    call_graph: HashMap<String, HashSet<String>>, // Maps function to functions it calls
 }
 
-impl ArithmeticVisitor {
-    fn new() -> Self {
-        Self {
-            handlers: Vec::new(),
-            current_file_path: String::new(),
-            current_handler: None,
-            operation_counts: HashMap::new(),
-            total_operations: 0,
-            handler_arithmetic_operations: 0,
-            utility_arithmetic_operations: 0,
-            state_arithmetic_operations: 0,
-            math_arithmetic_operations: 0,
-            test_arithmetic_operations: 0,
-            high_risk_operations: 0,
-            medium_risk_operations: 0,
-            low_risk_operations: 0,
-            balance_price_operations: 0,
-            token_operations: 0,
-            fee_operations: 0,
-            nested_operations: 0,
-            compound_expressions: 0,
-            in_arithmetic_context: false,
-            arithmetic_depth: 0,
-        }
+impl MathFinderVisitor {
+    /// Checks if a function/method name is a high-risk operation
+    fn is_high_risk_math_fn(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "div"
+                | "checked_div"
+                | "saturating_div"
+                | "wrapping_div"
+                | "overflowing_div"
+                | "rem"
+                | "checked_rem"
+                | "saturating_rem"
+                | "wrapping_rem"
+                | "overflowing_rem"
+                | "pow"
+                | "checked_pow"
+                | "saturating_pow"
+                | "wrapping_pow"
+                | "overflowing_pow"
+        )
     }
 
-    /// Check if a variable name suggests balance/price context
-    fn is_balance_price_context(&self, name: &str) -> bool {
-        let name_lower = name.to_lowercase();
-        name_lower.contains("amount")
-            || name_lower.contains("balance")
-            || name_lower.contains("price")
-            || name_lower.contains("rate")
-            || name_lower.contains("fee")
-            || name_lower.contains("leverage")
-            || name_lower.contains("ratio")
-            || name_lower.contains("value")
-            || name_lower.contains("cost")
-            || name_lower.contains("total")
-            || name_lower.contains("sum")
-            || name_lower.contains("diff")
-            || name_lower.contains("delta")
+    /// Checks if a function/method name is a medium-risk operation
+    fn is_medium_risk_math_fn(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "mul" | "checked_mul" | "saturating_mul" | "wrapping_mul" | "overflowing_mul"
+        )
     }
 
-    /// Check if a variable name suggests token context
-    fn is_token_context(&self, name: &str) -> bool {
-        let name_lower = name.to_lowercase();
-        name_lower.contains("token")
-            || name_lower.contains("mint")
-            || name_lower.contains("burn")
-            || name_lower.contains("supply")
-            || name_lower.contains("deposit")
-            || name_lower.contains("withdraw")
-    }
+    /// Records an operation in the current function
+    fn record_op(&mut self, op: &str, risk: &str) {
+        if let Some(ref func_name) = self.current_function_name {
+            let entry = self
+                .math_ops_by_function
+                .entry(func_name.clone())
+                .or_insert((0, 0));
+            *self.operation_breakdown.entry(op.to_string()).or_insert(0) += 1;
 
-    /// Check if a variable name suggests fee context
-    fn is_fee_context(&self, name: &str) -> bool {
-        let name_lower = name.to_lowercase();
-        name_lower.contains("fee")
-            || name_lower.contains("commission")
-            || name_lower.contains("charge")
-            || name_lower.contains("tax")
-    }
-
-    /// Get risk level for an arithmetic operation
-    fn get_operation_risk(&self, op: &BinOp) -> &'static str {
-        match op {
-            BinOp::Div(_) | BinOp::Rem(_) => "high", // Division and modulo are high risk
-            BinOp::Mul(_) => "medium",               // Multiplication is medium risk
-            BinOp::Add(_) | BinOp::Sub(_) => "low",  // Addition and subtraction are low risk
-            _ => "low",
-        }
-    }
-
-    /// Get risk level for a method call
-    fn get_method_risk(&self, method_name: &str) -> &'static str {
-        let method_lower = method_name.to_lowercase();
-        if method_lower.contains("pow") || method_lower.contains("exp") {
-            "high"
-        } else if method_lower.contains("mul")
-            || method_lower.contains("div")
-            || method_lower.contains("rem")
-        {
-            "medium"
-        } else if method_lower.contains("add") || method_lower.contains("sub") {
-            "low"
-        } else {
-            "low"
-        }
-    }
-
-    /// Helper method to get expression name (simplified)
-    fn get_expr_name(&self, expr: &Expr) -> String {
-        match expr {
-            Expr::Path(path_expr) => {
-                if let Some(segment) = path_expr.path.segments.last() {
-                    segment.ident.to_string()
-                } else {
-                    "unknown".to_string()
-                }
+            if risk == "high" {
+                entry.0 += 1;
+            } else if risk == "medium" {
+                entry.1 += 1;
             }
-            Expr::Field(field_expr) => {
-                if let Expr::Path(path_expr) = &*field_expr.base {
-                    if let Some(segment) = path_expr.path.segments.last() {
-                        format!("{}.{:?}", segment.ident, field_expr.member)
-                    } else {
-                        format!("{:?}", field_expr.member)
-                    }
-                } else {
-                    format!("{:?}", field_expr.member)
-                }
-            }
-            _ => "unknown".to_string(),
-        }
-    }
-
-    /// Helper method to check if parameter is Context<...>
-    fn has_context_parameter(&self, input: &syn::FnArg) -> bool {
-        if let syn::FnArg::Typed(pat_type) = input {
-            if let syn::Type::Path(type_path) = &*pat_type.ty {
-                if let Some(segment) = type_path.path.segments.last() {
-                    let type_name = segment.ident.to_string();
-                    return type_name.starts_with("Context");
-                }
-            }
-        }
-        false
-    }
-
-    /// Check if a function call is arithmetic-related
-    fn is_arithmetic_function(&self, path: &Path) -> bool {
-        if let Some(segment) = path.segments.last() {
-            let func_name = segment.ident.to_string().to_lowercase();
-            func_name.contains("pow")
-                || func_name.contains("sqrt")
-                || func_name.contains("log")
-                || func_name.contains("exp")
-                || func_name.contains("abs")
-                || func_name.contains("min")
-                || func_name.contains("max")
-                || func_name.contains("checked_add")
-                || func_name.contains("checked_mul")
-                || func_name.contains("checked_div")
-                || func_name.contains("saturating_add")
-                || func_name.contains("saturating_mul")
-                || func_name.contains("wrapping_add")
-                || func_name.contains("wrapping_mul")
-        } else {
-            false
-        }
-    }
-    /// Classify arithmetic operation by file context
-    fn classify_arithmetic_context(&self) -> &'static str {
-        if self.current_file_path.contains("instructions/") {
-            "handler"
-        } else if self.current_file_path.contains("utils/") {
-            "utility"
-        } else if self.current_file_path.contains("state/")
-            || self.current_file_path.ends_with("state.rs")
-        {
-            "state"
-        } else if self.current_file_path.contains("math/")
-            || self.current_file_path.contains("curve.rs")
-        {
-            "math"
-        } else if self.current_file_path.contains("tests/") {
-            "test"
-        } else {
-            "other"
-        }
-    }
-
-    /// Record an arithmetic operation with context classification
-    fn record_operation(&mut self, op_type: &str, risk_level: &str, context: &str) {
-        self.total_operations += 1;
-        *self
-            .operation_counts
-            .entry(op_type.to_string())
-            .or_insert(0) += 1;
-
-        // Classify by file context
-        match self.classify_arithmetic_context() {
-            "handler" => self.handler_arithmetic_operations += 1,
-            "utility" => self.utility_arithmetic_operations += 1,
-            "state" => self.state_arithmetic_operations += 1,
-            "math" => self.math_arithmetic_operations += 1,
-            "test" => self.test_arithmetic_operations += 1,
-            _ => self.utility_arithmetic_operations += 1, // Default to utility for other contexts
-        }
-
-        match risk_level {
-            "high" => self.high_risk_operations += 1,
-            "medium" => self.medium_risk_operations += 1,
-            "low" => self.low_risk_operations += 1,
-            _ => self.low_risk_operations += 1,
-        }
-
-        match context {
-            "balance_price" => self.balance_price_operations += 1,
-            "token" => self.token_operations += 1,
-            "fee" => self.fee_operations += 1,
-            _ => {}
-        }
-
-        if self.arithmetic_depth > 1 {
-            self.nested_operations += 1;
         }
     }
 }
 
-impl<'ast> Visit<'ast> for ArithmeticVisitor {
+impl<'ast> Visit<'ast> for MathFinderVisitor {
     fn visit_item_fn(&mut self, node: &'ast ItemFn) {
-        // Check if this is an Anchor instruction handler
-        let is_instruction = node
-            .attrs
-            .iter()
-            .any(|attr| attr.path().is_ident("instruction"));
+        // Set context for this function
+        self.current_function_name = Some(node.sig.ident.to_string());
 
-        let is_anchor_handler = if is_instruction {
-            true
-        } else {
-            // TEMPORARILY RELAXED FOR TESTING - analyze all public functions with arithmetic patterns
-            matches!(node.vis, syn::Visibility::Public(_))
-                && (node.sig.ident.to_string().starts_with("handle_")
-                    || node.sig.ident.to_string().starts_with("ix_")
-                    || node.sig.ident.to_string().contains("update")
-                    || node.sig.ident.to_string().contains("calculate")
-                    || node.sig.ident.to_string().contains("compute")
-                    || node.sig.ident.to_string().contains("math")
-                    || node.sig.ident.to_string().contains("safe_"))
-        };
+        // Visit the function body
+        visit::visit_item_fn(self, node);
 
-        if is_anchor_handler {
-            log::info!(
-                "🔍 ARITHMETIC DEBUG: Found Anchor instruction handler: {}",
-                node.sig.ident
-            );
-
-            self.current_handler = Some(node.sig.ident.to_string());
-            let handler_start_operations = self.total_operations;
-            let handler_start_high_risk = self.high_risk_operations;
-            let handler_start_balance_price = self.balance_price_operations;
-
-            // Visit the function body
-            syn::visit::visit_item_fn(self, node);
-
-            // Record handler statistics
-            let operation_count = self.total_operations - handler_start_operations;
-            let high_risk_count = self.high_risk_operations - handler_start_high_risk;
-            let balance_price_count = self.balance_price_operations - handler_start_balance_price;
-
-            if operation_count > 0 {
-                self.handlers.push(HandlerArithmeticInfo {
-                    name: self.current_handler.clone().unwrap_or_default(),
-                    operation_count,
-                    high_risk_count,
-                    balance_price_count,
-                    has_nested_operations: self.nested_operations > 0,
-                });
-            }
-
-            self.current_handler = None;
-        } else {
-            // Continue visiting for non-handler functions
-            syn::visit::visit_item_fn(self, node);
-        }
+        // Clear context
+        self.current_function_name = None;
     }
 
     fn visit_expr_binary(&mut self, node: &'ast ExprBinary) {
-        let op = &node.op;
-        let op_type = match op {
-            BinOp::Add(_) => "add",
-            BinOp::Sub(_) => "sub",
-            BinOp::Mul(_) => "mul",
-            BinOp::Div(_) => "div",
-            BinOp::Rem(_) => "rem",
-            BinOp::BitXor(_) => "bit_xor",
-            BinOp::BitAnd(_) => "bit_and",
-            BinOp::BitOr(_) => "bit_or",
-            BinOp::Shl(_) => "shl",
-            BinOp::Shr(_) => "shr",
-            _ => "other",
-        };
-
-        let risk_level = self.get_operation_risk(op);
-
-        // Check context from variable names
-        let context = if self.is_balance_price_context(&self.get_expr_name(&node.left))
-            || self.is_balance_price_context(&self.get_expr_name(&node.right))
-        {
-            "balance_price"
-        } else if self.is_token_context(&self.get_expr_name(&node.left))
-            || self.is_token_context(&self.get_expr_name(&node.right))
-        {
-            "token"
-        } else if self.is_fee_context(&self.get_expr_name(&node.left))
-            || self.is_fee_context(&self.get_expr_name(&node.right))
-        {
-            "fee"
-        } else {
-            "general"
-        };
-
-        self.record_operation(op_type, risk_level, context);
-
-        // Continue visiting
-        syn::visit::visit_expr_binary(self, node);
+        match &node.op {
+            BinOp::Div(_) => self.record_op("Div (/)", "high"),
+            BinOp::Rem(_) => self.record_op("Rem (%)", "high"),
+            BinOp::Mul(_) => self.record_op("Mul (*)", "medium"),
+            _ => {
+                // Ignored: Add, Sub, Bitwise, etc.
+            }
+        }
+        visit::visit_expr_binary(self, node);
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast ExprMethodCall) {
         let method_name = node.method.to_string();
-        let risk_level = self.get_method_risk(&method_name);
-
-        // Check if this is an arithmetic method
-        if method_name.contains("add")
-            || method_name.contains("sub")
-            || method_name.contains("mul")
-            || method_name.contains("div")
-            || method_name.contains("rem")
-            || method_name.contains("pow")
-        {
-            let context = if self.is_balance_price_context(&method_name) {
-                "balance_price"
-            } else if self.is_token_context(&method_name) {
-                "token"
-            } else if self.is_fee_context(&method_name) {
-                "fee"
-            } else {
-                "general"
-            };
-
-            self.record_operation(&format!("method_{}", method_name), risk_level, context);
+        if self.is_high_risk_math_fn(&method_name) {
+            self.record_op(&method_name, "high");
+        } else if self.is_medium_risk_math_fn(&method_name) {
+            self.record_op(&method_name, "medium");
         }
-
-        // Continue visiting
-        syn::visit::visit_expr_method_call(self, node);
+        visit::visit_expr_method_call(self, node);
     }
 
     fn visit_expr_call(&mut self, node: &'ast ExprCall) {
-        if let Expr::Path(path_expr) = &*node.func {
-            if self.is_arithmetic_function(&path_expr.path) {
-                let func_name = if let Some(segment) = path_expr.path.segments.last() {
-                    segment.ident.to_string()
-                } else {
-                    "unknown".to_string()
-                };
-
-                let risk_level = if func_name.contains("pow") || func_name.contains("exp") {
-                    "high"
-                } else if func_name.contains("mul") || func_name.contains("div") {
-                    "medium"
-                } else {
-                    "low"
-                };
-
-                self.record_operation(&format!("func_{}", func_name), risk_level, "general");
+        if let Expr::Path(expr_path) = &*node.func {
+            if let Some(segment) = expr_path.path.segments.last() {
+                let func_name = segment.ident.to_string();
+                if self.is_high_risk_math_fn(&func_name) {
+                    self.record_op(&func_name, "high");
+                } else if self.is_medium_risk_math_fn(&func_name) {
+                    self.record_op(&func_name, "medium");
+                }
             }
         }
-
-        // Continue visiting
-        syn::visit::visit_expr_call(self, node);
+        visit::visit_expr_call(self, node);
     }
 }
 
-/// Calculate arithmetic operation metrics for workspace
+impl CallGraphVisitor {
+    /// Extracts function name from a call expression
+    fn extract_function_name(&self, node: &ExprCall) -> Option<String> {
+        if let Expr::Path(expr_path) = &*node.func {
+            if let Some(segment) = expr_path.path.segments.last() {
+                return Some(segment.ident.to_string());
+            }
+        }
+        None
+    }
+
+    /// Extracts method name from a method call expression
+    fn extract_method_name(&self, node: &ExprMethodCall) -> Option<String> {
+        Some(node.method.to_string())
+    }
+}
+
+impl<'ast> Visit<'ast> for CallGraphVisitor {
+    fn visit_item_fn(&mut self, node: &'ast ItemFn) {
+        // Set context for this function
+        self.current_function_name = Some(node.sig.ident.to_string());
+
+        // Visit the function body
+        visit::visit_item_fn(self, node);
+
+        // Clear context
+        self.current_function_name = None;
+    }
+
+    fn visit_expr_call(&mut self, node: &'ast ExprCall) {
+        if let Some(ref caller_name) = self.current_function_name {
+            if let Some(called_name) = self.extract_function_name(node) {
+                self.call_graph
+                    .entry(caller_name.clone())
+                    .or_default()
+                    .insert(called_name);
+            }
+        }
+        visit::visit_expr_call(self, node);
+    }
+
+    fn visit_expr_method_call(&mut self, node: &'ast ExprMethodCall) {
+        if let Some(ref caller_name) = self.current_function_name {
+            if let Some(called_name) = self.extract_method_name(node) {
+                self.call_graph
+                    .entry(caller_name.clone())
+                    .or_default()
+                    .insert(called_name);
+            }
+        }
+        visit::visit_expr_method_call(self, node);
+    }
+}
+
+/// Performs DFS traversal to find all functions reachable from a starting function
+fn find_reachable_functions(
+    call_graph: &HashMap<String, HashSet<String>>,
+    start_function: &str,
+) -> HashSet<String> {
+    let mut visited = HashSet::new();
+    let mut stack = vec![start_function.to_string()];
+
+    while let Some(current) = stack.pop() {
+        if visited.insert(current.clone()) {
+            if let Some(callees) = call_graph.get(&current) {
+                for callee in callees {
+                    if !visited.contains(callee) {
+                        stack.push(callee.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    visited
+}
+
+/// Checks if a function is an Anchor handler
+fn is_anchor_handler(node: &ItemFn) -> bool {
+    // Robust heuristic for an Anchor handler:
+    // 1. It's public
+    // 2. Its *first* argument is `Context<...>`
+    matches!(node.vis, syn::Visibility::Public(_))
+        && node.sig.inputs.len() > 0
+        && is_context_arg(&node.sig.inputs[0])
+}
+
+/// Checks if an argument is the Anchor Context
+fn is_context_arg(arg: &syn::FnArg) -> bool {
+    if let syn::FnArg::Typed(pat_type) = arg {
+        if let syn::Type::Path(type_path) = &*pat_type.ty {
+            if let Some(segment) = type_path.path.segments.last() {
+                return segment.ident == "Context";
+            }
+        }
+    }
+    false
+}
+
+/// Main driver function to run the two-pass analysis
 pub fn calculate_workspace_arithmetic(
-    workspace_path: &std::path::PathBuf,
+    workspace_path: &PathBuf,
     selected_files: &[String],
 ) -> Result<ArithmeticMetrics, Box<dyn std::error::Error>> {
-    log::info!(
-        "🔍 ARITHMETIC DEBUG: Starting analysis for workspace: {:?}",
-        workspace_path
-    );
+    log::info!("🔍 ARITHMETIC DEBUG: Starting two-pass call graph analysis...");
 
-    let mut metrics = ArithmeticMetrics::default();
-    let mut visitor = ArithmeticVisitor::new();
-    let mut files_analyzed = 0;
-    let mut files_skipped = 0;
+    let mut math_finder = MathFinderVisitor::default();
+    let mut call_graph_builder = CallGraphVisitor::default();
+    let mut all_handlers = Vec::new();
 
     // Analyze each selected file
     for file_path in selected_files {
         let full_path = workspace_path.join(file_path);
-        if !full_path.exists() {
-            log::warn!("🔍 ARITHMETIC DEBUG: File does not exist: {:?}", full_path);
+        if !full_path.exists() || !full_path.is_file() {
             continue;
         }
 
-        // TEMPORARILY REMOVED FILE FILTERING FOR TESTING
-        // For Arithmetic Operation factor, analyze ALL files to see the difference
-        let file_path_str = file_path.to_string();
-        // let is_relevant_for_arithmetic = file_path_str.contains("instructions/")
-        //     || file_path_str.contains("ix_")
-        //     || file_path_str.ends_with("lib.rs")
-        //     || file_path_str.ends_with("state.rs")
-        //     || file_path_str.ends_with("error.rs");
-
-        // if !is_relevant_for_arithmetic {
-        //     log::info!(
-        //         "🔍 ARITHMETIC DEBUG: Skipping non-instruction file for arithmetic analysis: {:?}",
-        //         full_path
-        //     );
-        //     files_skipped += 1;
-        //     continue;
-        // }
-
-        log::info!("🔍 ARITHMETIC DEBUG: Analyzing file: {:?}", full_path);
-
         match std::fs::read_to_string(&full_path) {
-            Ok(content) => {
-                log::info!(
-                    "🔍 ARITHMETIC DEBUG: Successfully read file, content length: {}",
-                    content.len()
-                );
+            Ok(content) => match parse_file(&content) {
+                Ok(ast) => {
+                    // Pass 1: Find all mathy functions
+                    math_finder.visit_file(&ast);
 
-                // Set the current file path for the visitor
-                visitor.current_file_path = file_path.to_string();
-                files_analyzed += 1;
+                    // Pass 2: Build call graph
+                    call_graph_builder.visit_file(&ast);
 
-                match syn::parse_file(&content) {
-                    Ok(ast) => {
-                        log::info!("🔍 ARITHMETIC DEBUG: Successfully parsed AST");
-                        visitor.visit_file(&ast);
-                    }
-                    Err(e) => {
-                        log::warn!(
-                            "🔍 ARITHMETIC DEBUG: Failed to parse AST for {:?}: {}",
-                            full_path,
-                            e
-                        );
+                    // Also collect all handlers for final analysis
+                    for item in &ast.items {
+                        if let syn::Item::Fn(func) = item {
+                            if is_anchor_handler(func) {
+                                all_handlers.push(func.sig.ident.to_string());
+                            }
+                        }
                     }
                 }
-            }
+                Err(e) => {
+                    log::warn!("Failed to parse AST for {:?}: {}", full_path, e);
+                }
+            },
             Err(e) => {
-                log::warn!(
-                    "🔍 ARITHMETIC DEBUG: Failed to read file {:?}: {}",
-                    full_path,
-                    e
-                );
+                log::warn!("Failed to read file {:?}: {}", full_path, e);
             }
         }
     }
 
-    // Add file analysis metadata
-    metrics.files_analyzed = files_analyzed;
-    metrics.files_skipped = files_skipped;
+    // --- Pass 3: Call Graph Analysis ---
+    let mut metrics = ArithmeticMetrics::default();
+    metrics.total_handlers_found = all_handlers.len() as u32;
 
-    // Calculate final metrics
-    metrics.total_math_handlers = visitor.handlers.len() as u32;
-    metrics.total_arithmetic_operations = visitor.total_operations;
-    metrics.handler_arithmetic_operations = visitor.handler_arithmetic_operations;
-    metrics.utility_arithmetic_operations = visitor.utility_arithmetic_operations;
-    metrics.state_arithmetic_operations = visitor.state_arithmetic_operations;
-    metrics.math_arithmetic_operations = visitor.math_arithmetic_operations;
-    metrics.test_arithmetic_operations = visitor.test_arithmetic_operations;
-    metrics.operation_breakdown = visitor.operation_counts;
-    metrics.high_risk_operations = visitor.high_risk_operations;
-    metrics.medium_risk_operations = visitor.medium_risk_operations;
-    metrics.low_risk_operations = visitor.low_risk_operations;
-    metrics.balance_price_operations = visitor.balance_price_operations;
-    metrics.token_operations = visitor.token_operations;
-    metrics.fee_operations = visitor.fee_operations;
-    metrics.nested_operations = visitor.nested_operations;
-    metrics.compound_expressions = visitor.compound_expressions;
+    for handler_name in &all_handlers {
+        // Find all functions reachable from this handler
+        let reachable_functions =
+            find_reachable_functions(&call_graph_builder.call_graph, handler_name);
 
-    // Calculate complexity score (weighted by risk)
-    let high_risk_weight = 3.0;
-    let medium_risk_weight = 2.0;
-    let low_risk_weight = 1.0;
+        let mut handler_has_math = false;
+        let mut handler_high_risk_ops = 0;
+        let mut handler_medium_risk_ops = 0;
 
-    metrics.arithmetic_complexity_score = (visitor.high_risk_operations as f64 * high_risk_weight)
-        + (visitor.medium_risk_operations as f64 * medium_risk_weight)
-        + (visitor.low_risk_operations as f64 * low_risk_weight);
+        // Check if any reachable function contains math operations
+        for func_name in &reachable_functions {
+            if let Some((high_ops, medium_ops)) = math_finder.math_ops_by_function.get(func_name) {
+                handler_has_math = true;
+                handler_high_risk_ops += high_ops;
+                handler_medium_risk_ops += medium_ops;
+            }
+        }
+
+        if handler_has_math {
+            metrics.total_math_handlers += 1;
+            metrics.math_handlers.push(handler_name.clone());
+            metrics.high_risk_ops_count += handler_high_risk_ops;
+            metrics.medium_risk_ops_count += handler_medium_risk_ops;
+        }
+    }
+
+    // Copy operation breakdown from math finder
+    metrics.operation_breakdown = math_finder.operation_breakdown;
+
+    // --- Final Calculation and Normalization (0-100) ---
+    // 1. Calculate the Raw Score
+    let raw_risk_score = (metrics.total_math_handlers as f64 * 10.0)
+        + (metrics.high_risk_ops_count as f64 * 3.0)
+        + (metrics.medium_risk_ops_count as f64 * 1.0);
+
+    // 2. Normalize to 0-100
+    let upper_bound = 50.0; // Our 100% risk cap
+    let factor = (raw_risk_score / upper_bound) * 100.0;
+
+    metrics.arithmetic_factor = factor.min(100.0); // Cap at 100
+    metrics.raw_risk_score = raw_risk_score;
 
     log::info!(
-        "🔍 ARITHMETIC DEBUG: Analysis complete. Found {} handlers with {} total operations",
+        "🔍 ARITHMETIC DEBUG: Two-pass analysis complete. Found {} handlers, {} math handlers. Factor: {:.2}",
+        metrics.total_handlers_found,
         metrics.total_math_handlers,
-        metrics.total_arithmetic_operations
+        metrics.arithmetic_factor
     );
 
     Ok(metrics)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_high_risk_operations() {
+        let code = r#"
+            // Mock Anchor types for testing
+            struct Context<T> {
+                _phantom: std::marker::PhantomData<T>,
+            }
+            
+            struct RiskyHandler;
+            
+            type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+            pub fn risky_handler(ctx: Context<RiskyHandler>, amount: u64) -> Result<()> {
+                let result = amount / 2;  // High risk: division
+                let remainder = amount % 3;  // High risk: modulo
+                Ok(())
+            }
+        "#;
+
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("test_high_risk.rs");
+        std::fs::write(&test_file, code).unwrap();
+
+        let result = calculate_workspace_arithmetic(
+            &temp_dir,
+            &[test_file.file_name().unwrap().to_string_lossy().to_string()],
+        )
+        .unwrap();
+
+        // Should find 1 handler with 2 high-risk operations
+        assert_eq!(result.total_handlers_found, 1);
+        assert_eq!(result.total_math_handlers, 1);
+        assert_eq!(result.high_risk_ops_count, 2);
+        assert_eq!(result.medium_risk_ops_count, 0);
+        assert!(result.arithmetic_factor > 0.0);
+    }
+
+    #[test]
+    fn test_medium_risk_operations() {
+        let code = r#"
+            // Mock Anchor types for testing
+            struct Context<T> {
+                _phantom: std::marker::PhantomData<T>,
+            }
+            
+            struct MediumHandler;
+            
+            type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+            pub fn medium_handler(ctx: Context<MediumHandler>, amount: u64) -> Result<()> {
+                let result = amount * 2;  // Medium risk: multiplication
+                Ok(())
+            }
+        "#;
+
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("test_medium_risk.rs");
+        std::fs::write(&test_file, code).unwrap();
+
+        let result = calculate_workspace_arithmetic(
+            &temp_dir,
+            &[test_file.file_name().unwrap().to_string_lossy().to_string()],
+        )
+        .unwrap();
+
+        // Should find 1 handler with 1 medium-risk operation
+        assert_eq!(result.total_handlers_found, 1);
+        assert_eq!(result.total_math_handlers, 1);
+        assert_eq!(result.high_risk_ops_count, 0);
+        assert_eq!(result.medium_risk_ops_count, 1);
+        assert!(result.arithmetic_factor > 0.0);
+    }
+
+    #[test]
+    fn test_safe_operations_ignored() {
+        let code = r#"
+            // Mock Anchor types for testing
+            struct Context<T> {
+                _phantom: std::marker::PhantomData<T>,
+            }
+            
+            struct SafeHandler;
+            
+            type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+            pub fn safe_handler(ctx: Context<SafeHandler>, amount: u64) -> Result<()> {
+                let result = amount + 10;  // Low risk: addition (ignored)
+                let diff = amount - 5;     // Low risk: subtraction (ignored)
+                let shifted = amount << 2; // Low risk: bitwise (ignored)
+                Ok(())
+            }
+        "#;
+
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("test_safe_ops.rs");
+        std::fs::write(&test_file, code).unwrap();
+
+        let result = calculate_workspace_arithmetic(
+            &temp_dir,
+            &[test_file.file_name().unwrap().to_string_lossy().to_string()],
+        )
+        .unwrap();
+
+        // Should find 1 handler but NO math handlers (no high/medium risk ops)
+        assert_eq!(result.total_handlers_found, 1);
+        assert_eq!(result.total_math_handlers, 0);
+        assert_eq!(result.high_risk_ops_count, 0);
+        assert_eq!(result.medium_risk_ops_count, 0);
+        assert_eq!(result.arithmetic_factor, 0.0);
+    }
+
+    #[test]
+    fn test_non_handler_functions_ignored() {
+        let code = r#"
+            // Mock Anchor types for testing
+            struct Context<T> {
+                _phantom: std::marker::PhantomData<T>,
+            }
+            
+            type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+            // This is NOT a handler (no Context parameter)
+            pub fn utility_function(amount: u64) -> u64 {
+                amount / 2  // High risk operation, but not in a handler
+            }
+
+            // This is NOT a handler (private function)
+            fn private_function(amount: u64) -> u64 {
+                amount * 3  // Medium risk operation, but not in a handler
+            }
+        "#;
+
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("test_non_handler.rs");
+        std::fs::write(&test_file, code).unwrap();
+
+        let result = calculate_workspace_arithmetic(
+            &temp_dir,
+            &[test_file.file_name().unwrap().to_string_lossy().to_string()],
+        )
+        .unwrap();
+
+        // Should find NO handlers and NO math handlers
+        assert_eq!(result.total_handlers_found, 0);
+        assert_eq!(result.total_math_handlers, 0);
+        assert_eq!(result.high_risk_ops_count, 0);
+        assert_eq!(result.medium_risk_ops_count, 0);
+        assert_eq!(result.arithmetic_factor, 0.0);
+    }
+
+    #[test]
+    fn test_mixed_risk_operations() {
+        let code = r#"
+            // Mock Anchor types for testing
+            struct Context<T> {
+                _phantom: std::marker::PhantomData<T>,
+            }
+            
+            struct MixedHandler;
+            
+            type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+            pub fn mixed_handler(ctx: Context<MixedHandler>, amount: u64) -> Result<()> {
+                let result = amount * 2;    // Medium risk: multiplication
+                let quotient = amount / 3;  // High risk: division
+                let remainder = amount % 4; // High risk: modulo
+                Ok(())
+            }
+        "#;
+
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("test_mixed_risk.rs");
+        std::fs::write(&test_file, code).unwrap();
+
+        let result = calculate_workspace_arithmetic(
+            &temp_dir,
+            &[test_file.file_name().unwrap().to_string_lossy().to_string()],
+        )
+        .unwrap();
+
+        // Should find 1 handler with mixed risk operations
+        assert_eq!(result.total_handlers_found, 1);
+        assert_eq!(result.total_math_handlers, 1);
+        assert_eq!(result.high_risk_ops_count, 2); // division + modulo
+        assert_eq!(result.medium_risk_ops_count, 1); // multiplication
+        assert!(result.arithmetic_factor > 0.0);
+    }
+
+    #[test]
+    fn test_factor_calculation() {
+        let code = r#"
+            // Mock Anchor types for testing
+            struct Context<T> {
+                _phantom: std::marker::PhantomData<T>,
+            }
+            
+            struct Handler1;
+            struct Handler2;
+            
+            type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+            pub fn handler1(ctx: Context<Handler1>, amount: u64) -> Result<()> {
+                let result = amount / 2;  // High risk
+                Ok(())
+            }
+
+            pub fn handler2(ctx: Context<Handler2>, amount: u64) -> Result<()> {
+                let result = amount * 3;  // Medium risk
+                Ok(())
+            }
+        "#;
+
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("test_factor_calc.rs");
+        std::fs::write(&test_file, code).unwrap();
+
+        let result = calculate_workspace_arithmetic(
+            &temp_dir,
+            &[test_file.file_name().unwrap().to_string_lossy().to_string()],
+        )
+        .unwrap();
+
+        // Should have a positive factor
+        assert!(result.arithmetic_factor > 0.0);
+        assert!(result.arithmetic_factor <= 100.0);
+
+        // Should have raw risk score
+        assert!(result.raw_risk_score > 0.0);
+
+        // Should find both handlers
+        assert_eq!(result.total_handlers_found, 2);
+        assert_eq!(result.total_math_handlers, 2);
+        assert_eq!(result.math_handlers.len(), 2);
+    }
+
+    #[test]
+    fn test_delegated_arithmetic_risk() {
+        let code = r#"
+            // Mock Anchor types for testing
+            struct Context<T> {
+                _phantom: std::marker::PhantomData<T>,
+            }
+            
+            struct Swap;
+            struct Pool {
+                pub x: u64,
+                pub y: u64,
+            }
+            struct SwapResult {
+                pub amount_out: u64,
+                pub fee: u64,
+            }
+            
+            type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+            
+            const FEE_RATE: u64 = 3;
+            const FEE_DENOM: u64 = 1000;
+
+            pub fn swap(ctx: Context<Swap>, amount_in: u64) -> Result<()> {
+                // Handler delegates to helper function
+                let swap_result = internal::calculate_swap_amount(
+                    &ctx.accounts.pool, 
+                    amount_in
+                )?;
+                
+                // Update accounts...
+                Ok(())
+            }
+
+            mod internal {
+                use super::*;
+                
+                pub fn calculate_swap_amount(pool: &Pool, amount_in: u64) -> Result<SwapResult> {
+                    // All the risky math is here - delegated from handler
+                    let fee = amount_in.checked_mul(FEE_RATE)?.checked_div(FEE_DENOM)?;
+                    let amount_out = (pool.y * amount_in) / (pool.x + amount_in);
+                    
+                    Ok(SwapResult { amount_out, fee })
+                }
+            }
+        "#;
+
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("test_delegated.rs");
+        std::fs::write(&test_file, code).unwrap();
+
+        let result = calculate_workspace_arithmetic(
+            &temp_dir,
+            &[test_file.file_name().unwrap().to_string_lossy().to_string()],
+        )
+        .unwrap();
+
+        // Should find 1 handler that delegates to mathy function
+        assert_eq!(result.total_handlers_found, 1);
+        assert_eq!(result.total_math_handlers, 1);
+        assert_eq!(result.math_handlers.len(), 1);
+        assert_eq!(result.math_handlers[0], "swap");
+
+        // Should detect the delegated arithmetic operations
+        assert!(result.high_risk_ops_count > 0); // Division operations
+        assert!(result.medium_risk_ops_count > 0); // Multiplication operations
+        assert!(result.arithmetic_factor > 0.0);
+    }
+
+    #[test]
+    fn test_deep_delegation_chain() {
+        let code = r#"
+            // Mock Anchor types for testing
+            struct Context<T> {
+                _phantom: std::marker::PhantomData<T>,
+            }
+            
+            struct ComplexHandler;
+            
+            type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+            pub fn complex_handler(ctx: Context<ComplexHandler>, amount: u64) -> Result<()> {
+                // Handler calls level1, which calls level2, which has the math
+                let result = level1::process_amount(amount)?;
+                Ok(())
+            }
+
+            mod level1 {
+                use super::*;
+                
+                pub fn process_amount(amount: u64) -> Result<u64> {
+                    // Calls level2
+                    level2::calculate_result(amount)
+                }
+            }
+
+            mod level2 {
+                use super::*;
+                
+                pub fn calculate_result(amount: u64) -> Result<u64> {
+                    // Deep delegation - math is 2 levels deep
+                    let result = amount / 2;  // High risk
+                    let final_result = result * 3;  // Medium risk
+                    Ok(final_result)
+                }
+            }
+        "#;
+
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("test_deep_delegation.rs");
+        std::fs::write(&test_file, code).unwrap();
+
+        let result = calculate_workspace_arithmetic(
+            &temp_dir,
+            &[test_file.file_name().unwrap().to_string_lossy().to_string()],
+        )
+        .unwrap();
+
+        // Should find 1 handler that reaches math through delegation chain
+        assert_eq!(result.total_handlers_found, 1);
+        assert_eq!(result.total_math_handlers, 1);
+        assert_eq!(result.math_handlers.len(), 1);
+        assert_eq!(result.math_handlers[0], "complex_handler");
+
+        // Should detect the deep delegated arithmetic operations
+        assert!(result.high_risk_ops_count > 0); // Division operation
+        assert!(result.medium_risk_ops_count > 0); // Multiplication operation
+        assert!(result.arithmetic_factor > 0.0);
+    }
+
+    #[test]
+    fn test_refactoring_immunity() {
+        let code = r#"
+            // Mock Anchor types for testing
+            struct Context<T> {
+                _phantom: std::marker::PhantomData<T>,
+            }
+            
+            struct InlineHandler;
+            struct DelegatedHandler;
+            
+            type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+            // Version 1: Inline arithmetic
+            pub fn inline_handler(ctx: Context<InlineHandler>, amount: u64) -> Result<()> {
+                let result = amount / 2;  // High risk inline
+                Ok(())
+            }
+
+            // Version 2: Delegated arithmetic (same logic, different structure)
+            pub fn delegated_handler(ctx: Context<DelegatedHandler>, amount: u64) -> Result<()> {
+                let result = helper::divide_by_two(amount)?;
+                Ok(())
+            }
+
+            mod helper {
+                use super::*;
+                
+                pub fn divide_by_two(amount: u64) -> Result<u64> {
+                    Ok(amount / 2)  // Same high risk operation, but delegated
+                }
+            }
+        "#;
+
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("test_refactoring.rs");
+        std::fs::write(&test_file, code).unwrap();
+
+        let result = calculate_workspace_arithmetic(
+            &temp_dir,
+            &[test_file.file_name().unwrap().to_string_lossy().to_string()],
+        )
+        .unwrap();
+
+        // Both handlers should be detected as math handlers
+        assert_eq!(result.total_handlers_found, 2);
+        assert_eq!(result.total_math_handlers, 2);
+        assert_eq!(result.math_handlers.len(), 2);
+
+        // Both should have the same risk score (refactoring immunity)
+        assert!(result.high_risk_ops_count >= 2); // At least 2 division operations
+        assert!(result.arithmetic_factor > 0.0);
+    }
 }

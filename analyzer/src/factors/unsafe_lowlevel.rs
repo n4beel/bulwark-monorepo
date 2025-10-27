@@ -33,6 +33,9 @@ pub struct UnsafeLowLevelMetrics {
     pub unsafe_complexity_score: f64,
     pub nested_unsafe_blocks: u32,
 
+    /// Final Normalized Factor (0-100)
+    pub unsafe_factor: f64,
+
     // File analysis metadata
     pub files_analyzed: u32,
     pub files_skipped: u32,
@@ -61,6 +64,7 @@ impl UnsafeLowLevelMetrics {
             "ptrOperations": self.ptr_operations,
             "libcUsage": self.libc_usage,
             "unsafeComplexityScore": self.unsafe_complexity_score,
+            "unsafeFactor": self.unsafe_factor,
             "nestedUnsafeBlocks": self.nested_unsafe_blocks,
             "filesAnalyzed": self.files_analyzed,
             "filesSkipped": self.files_skipped
@@ -436,12 +440,17 @@ pub fn calculate_workspace_unsafe_lowlevel(
         + (metrics.bytemuck_usage as f64 * bytemuck_weight)
         + (metrics.ptr_operations as f64 * ptr_weight);
 
+    // --- NORMALIZE TO 0-100 ---
+    let upper_bound = 25.0; // Any raw score >= 25 is 100% risk
+    let factor = (metrics.unsafe_complexity_score / upper_bound) * 100.0;
+    metrics.unsafe_factor = factor.min(100.0);
+
     log::info!(
-        "🔍 UNSAFE LOW-LEVEL DEBUG: Analysis complete - {} files analyzed, {} files skipped, total unsafe operations: {}, complexity score: {:.1}",
+        "🔍 UNSAFE LOW-LEVEL DEBUG: Analysis complete - {} files analyzed, {} files skipped, total unsafe operations: {}, factor: {:.1}",
         files_analyzed,
         files_skipped,
         metrics.total_unsafe_operations,
-        metrics.unsafe_complexity_score
+        metrics.unsafe_factor
     );
 
     Ok(metrics)

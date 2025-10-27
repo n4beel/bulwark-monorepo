@@ -41,13 +41,11 @@ pub use external_integration::{
 pub use function_count::{count_functions, count_total_functions, FunctionCountMetrics};
 pub use input_constraints::{calculate_workspace_input_constraints, InputConstraintMetrics};
 pub use invariants_risk_params::{
-    calculate_workspace_invariants_risk_params, InvariantsRiskParamsMetrics,
+    calculate_workspace_constraint_density, ConstraintDensityMetrics,
 };
-pub use lines_of_code::count_lines_of_code;
+pub use lines_of_code::{analyze_file_tsc, calculate_workspace_tsc, TscMetrics};
 pub use modularity::{calculate_workspace_modularity, ModularityMetrics};
-pub use operational_security::{
-    calculate_workspace_operational_security, OperationalSecurityMetrics,
-};
+pub use operational_security::{calculate_workspace_operational_security, OpSecMetrics};
 // pub use oracle_price_feed::{calculate_workspace_oracle_price_feed, OraclePriceFeedMetrics};
 pub use pda_seeds::{calculate_workspace_pda_seeds, PdaMetrics};
 pub use privileged_roles::{calculate_workspace_privileged_roles, PrivilegedRolesMetrics};

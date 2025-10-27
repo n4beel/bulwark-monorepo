@@ -55,6 +55,7 @@ pub fn calculate_workspace_cyclomatic_complexity(
     let mut anchor_constraint_complexity_sum = 0;
     let mut max_anchor_constraint_complexity = 0;
     let mut analyzed_files = 0;
+    let mut failed_files = Vec::new();
 
     for file_path in selected_files {
         let full_file_path = workspace_path.join(file_path);
@@ -104,6 +105,7 @@ pub fn calculate_workspace_cyclomatic_complexity(
                                         file_path,
                                         e
                                     );
+                                    failed_files.push(format!("{}: {}", file_path, e));
                                     // Continue with other files instead of failing completely
                                 }
                             }
@@ -119,8 +121,24 @@ pub fn calculate_workspace_cyclomatic_complexity(
     }
 
     if analyzed_files == 0 {
-        return Err("No files were successfully analyzed for cyclomatic complexity".into());
+        let error_msg = if failed_files.is_empty() {
+            "No files were successfully analyzed for cyclomatic complexity".to_string()
+        } else {
+            format!(
+                "No files were successfully analyzed for cyclomatic complexity. Failed files: {}",
+                failed_files.join("; ")
+            )
+        };
+        log::error!("{}", error_msg);
+        return Err(error_msg.into());
     }
+
+    // Log successful analysis
+    log::info!(
+        "Successfully analyzed {} files for cyclomatic complexity ({} files failed)",
+        analyzed_files,
+        failed_files.len()
+    );
 
     let avg_complexity = if total_functions > 0 {
         complexity_sum as f64 / total_functions as f64
@@ -164,9 +182,34 @@ pub fn calculate_workspace_cyclomatic_complexity(
 
 /// Analyze cyclomatic complexity for a single file
 fn analyze_file_complexity(content: &str) -> Result<ComplexityMetrics, Box<dyn std::error::Error>> {
+    // Check if content is empty or too short
+    if content.trim().is_empty() {
+        return Err("File content is empty".into());
+    }
+
     // Parse the Rust file using syn
-    let syntax_tree: File =
-        syn::parse_file(content).map_err(|e| format!("Failed to parse Rust file: {}", e))?;
+    let syntax_tree: File = syn::parse_file(content).map_err(|e| {
+        // Provide more detailed error information
+        let error_msg = format!("Failed to parse Rust file: {}", e);
+        log::debug!("Parse error details: {}", error_msg);
+        log::debug!(
+            "File content preview (first 200 chars): {}",
+            content.chars().take(200).collect::<String>()
+        );
+
+        // Try to identify common parsing issues
+        if content.contains("```") {
+            log::debug!("File appears to contain markdown code blocks");
+        }
+        if content.contains("<!--") {
+            log::debug!("File appears to contain HTML comments");
+        }
+        if content.len() < 10 {
+            log::debug!("File is very short, might be empty or corrupted");
+        }
+
+        error_msg
+    })?;
 
     let mut complexity_visitor = ComplexityVisitor::new();
     complexity_visitor.visit_file(&syntax_tree);
@@ -589,6 +632,21 @@ impl<'ast> Visit<'ast> for ComplexityVisitor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_empty_file_handling() {
+        let result = analyze_file_complexity("");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("empty"));
+    }
+
+    #[test]
+    fn test_invalid_syntax_handling() {
+        let invalid_rust = "this is not valid rust code";
+        let result = analyze_file_complexity(invalid_rust);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to parse"));
+    }
 
     #[test]
     fn test_simple_function_complexity() {

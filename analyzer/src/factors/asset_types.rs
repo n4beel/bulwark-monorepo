@@ -1,467 +1,249 @@
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use syn::{visit::Visit, Expr, ExprCall, ItemEnum, ItemFn, ItemStruct, LitStr, UseTree};
+//! Asset Types Factor
+//!
+//! This module analyzes asset standards by focusing on identifying distinct asset
+//! standards (SPL-Token, SPL-Token-2022, Metaplex NFT, Custom) via reliable
+//! AST-based type and import detection.
 
-/// Metrics for Asset Types and Asset Handling patterns
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use syn::{visit::Visit, ExprCall, ItemEnum, ItemStruct, Type, UseTree};
+
+/// Metrics for Asset Types Factor
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AssetTypesMetrics {
-    // Token Asset Types
-    pub spl_token_usage: u32,
-    pub spl_token_2022_usage: u32,
-    pub token_account_patterns: u32,
-    pub mint_patterns: u32,
-    pub token_transfer_patterns: u32,
-    pub token_mint_patterns: u32,
-    pub token_burn_patterns: u32,
-    pub associated_token_patterns: u32,
+    /// Flags indicating presence of standards
+    pub uses_spl_token: bool,
+    pub uses_spl_token_2022: bool,
+    pub uses_metaplex_nft: bool,
+    pub custom_asset_definitions: u32, // Count of user-defined 'Asset' structs/enums
 
-    // NFT Asset Types
-    pub nft_handling_patterns: u32,
-    pub metadata_patterns: u32,
-    pub collection_patterns: u32,
-    pub nft_mint_patterns: u32,
-    pub nft_transfer_patterns: u32,
-    pub nft_burn_patterns: u32,
+    /// Final Score (0-100) based on variety
+    pub distinct_asset_standards: u32,
+    pub asset_types_factor: f64,
 
-    // Generic Asset Types
-    pub generic_asset_handling: u32,
-    pub multi_asset_operations: u32,
-    pub asset_validation_functions: u32,
-    pub asset_enum_definitions: u32,
-    pub asset_struct_definitions: u32,
-
-    // External Dependencies
-    pub external_asset_dependencies: u32,
-    pub token_program_dependencies: u32,
-    pub nft_program_dependencies: u32,
-    pub metadata_program_dependencies: u32,
-
-    // Asset Function Patterns
-    pub asset_specific_functions: u32,
-    pub asset_creation_functions: u32,
-    pub asset_destruction_functions: u32,
-    pub asset_query_functions: u32,
-    pub asset_update_functions: u32,
-
-    // Unique Asset Counts
-    pub unique_asset_types: u32,
-    pub unique_token_types: u32,
-    pub unique_nft_types: u32,
-    pub unique_generic_asset_types: u32,
-
-    // Detailed pattern breakdown (excluding string literals to avoid false positives)
-    pub asset_pattern_breakdown: HashMap<String, u32>,
-
-    // Scoring
-    pub asset_complexity_score: f64,
-    pub asset_diversity_score: f64,
-    pub asset_handling_complexity: f64,
-
-    // File analysis metadata
+    /// Auditability Helpers
+    pub detected_standard_indicators: HashMap<String, Vec<String>>, // e.g., {"SPL_TOKEN": ["token::Mint", "spl_token import"]}
     pub files_analyzed: u32,
     pub files_skipped: u32,
 }
 
 impl AssetTypesMetrics {
+    /// Convert to structured JSON object
     pub fn to_json(&self) -> serde_json::Value {
-        serde_json::to_value(self).unwrap_or(serde_json::Value::Null)
+        serde_json::json!({
+            "assetTypesFactor": self.asset_types_factor,
+            "distinctAssetStandards": self.distinct_asset_standards,
+            "usesSplToken": self.uses_spl_token,
+            "usesSplToken2022": self.uses_spl_token_2022,
+            "usesMetaplexNft": self.uses_metaplex_nft,
+            "customAssetDefinitions": self.custom_asset_definitions,
+            "detectedStandardIndicators": self.detected_standard_indicators,
+            "filesAnalyzed": self.files_analyzed,
+            "filesSkipped": self.files_skipped,
+        })
     }
 }
 
-/// Visitor for analyzing asset types and asset handling patterns
+/// Visitor for detecting asset standards via AST analysis
 struct AssetTypesVisitor {
-    current_file_path: String,
-
-    // Token counters
-    spl_token_usage: u32,
-    spl_token_2022_usage: u32,
-    token_account_patterns: u32,
-    mint_patterns: u32,
-    token_transfer_patterns: u32,
-    token_mint_patterns: u32,
-    token_burn_patterns: u32,
-    associated_token_patterns: u32,
-
-    // NFT counters
-    nft_handling_patterns: u32,
-    metadata_patterns: u32,
-    collection_patterns: u32,
-    nft_mint_patterns: u32,
-    nft_transfer_patterns: u32,
-    nft_burn_patterns: u32,
-
-    // Generic asset counters
-    generic_asset_handling: u32,
-    multi_asset_operations: u32,
-    asset_validation_functions: u32,
-    asset_enum_definitions: u32,
-    asset_struct_definitions: u32,
-
-    // External dependency counters
-    external_asset_dependencies: u32,
-    token_program_dependencies: u32,
-    nft_program_dependencies: u32,
-    metadata_program_dependencies: u32,
-
-    // Asset function counters
-    asset_specific_functions: u32,
-    asset_creation_functions: u32,
-    asset_destruction_functions: u32,
-    asset_query_functions: u32,
-    asset_update_functions: u32,
-
-    // Pattern tracking
-    asset_pattern_counts: HashMap<String, u32>,
-    unique_asset_types: HashSet<String>,
-    unique_token_types: HashSet<String>,
-    unique_nft_types: HashSet<String>,
-    unique_generic_asset_types: HashSet<String>,
+    metrics: AssetTypesMetrics,
 }
 
 impl AssetTypesVisitor {
     fn new() -> Self {
         Self {
-            current_file_path: String::new(),
-            spl_token_usage: 0,
-            spl_token_2022_usage: 0,
-            token_account_patterns: 0,
-            mint_patterns: 0,
-            token_transfer_patterns: 0,
-            token_mint_patterns: 0,
-            token_burn_patterns: 0,
-            associated_token_patterns: 0,
-            nft_handling_patterns: 0,
-            metadata_patterns: 0,
-            collection_patterns: 0,
-            nft_mint_patterns: 0,
-            nft_transfer_patterns: 0,
-            nft_burn_patterns: 0,
-            generic_asset_handling: 0,
-            multi_asset_operations: 0,
-            asset_validation_functions: 0,
-            asset_enum_definitions: 0,
-            asset_struct_definitions: 0,
-            external_asset_dependencies: 0,
-            token_program_dependencies: 0,
-            nft_program_dependencies: 0,
-            metadata_program_dependencies: 0,
-            asset_specific_functions: 0,
-            asset_creation_functions: 0,
-            asset_destruction_functions: 0,
-            asset_query_functions: 0,
-            asset_update_functions: 0,
-            asset_pattern_counts: HashMap::new(),
-            unique_asset_types: HashSet::new(),
-            unique_token_types: HashSet::new(),
-            unique_nft_types: HashSet::new(),
-            unique_generic_asset_types: HashSet::new(),
+            metrics: AssetTypesMetrics::default(),
         }
     }
 
-    /// Record an asset pattern
-    fn record_pattern(&mut self, pattern: &str) {
-        *self
-            .asset_pattern_counts
-            .entry(pattern.to_string())
-            .or_insert(0) += 1;
+    /// Record a standard indicator for auditability
+    fn record_standard_indicator(&mut self, standard: &str, indicator: &str) {
+        self.metrics
+            .detected_standard_indicators
+            .entry(standard.to_string())
+            .or_insert_with(Vec::new)
+            .push(indicator.to_string());
     }
 
-    /// Check if a function name indicates token asset handling
-    fn is_token_asset_function(&self, func_name: &str) -> bool {
-        matches!(
-            func_name,
-            "mint"
-                | "burn"
-                | "transfer"
-                | "transfer_from"
-                | "approve"
-                | "create_mint"
-                | "create_token_account"
-                | "initialize_mint"
-                | "initialize_account"
-                | "mint_to"
-                | "burn_from"
-                | "close_account"
-                | "freeze_account"
-                | "thaw_account"
-        ) || func_name.contains("token")
-            || func_name.contains("mint")
-            || func_name.contains("transfer")
-            || func_name.contains("burn")
-            || func_name.contains("approve")
+    /// Build the full path from a use tree
+    fn build_use_path(&self, node: &UseTree) -> String {
+        match node {
+            UseTree::Path(path_tree) => {
+                let mut path = path_tree.ident.to_string();
+                let sub_path = self.build_use_path(&path_tree.tree);
+                if !sub_path.is_empty() {
+                    path.push_str("::");
+                    path.push_str(&sub_path);
+                }
+                path
+            }
+            UseTree::Name(name_tree) => name_tree.ident.to_string(),
+            UseTree::Group(group_tree) => {
+                // For groups, we'll just return the first item for simplicity
+                if let Some(first) = group_tree.items.first() {
+                    self.build_use_path(first)
+                } else {
+                    String::new()
+                }
+            }
+            _ => String::new(),
+        }
     }
 
-    /// Check if a function name indicates NFT asset handling
-    fn is_nft_asset_function(&self, func_name: &str) -> bool {
-        matches!(
-            func_name,
-            "create_nft"
-                | "mint_nft"
-                | "burn_nft"
-                | "transfer_nft"
-                | "update_metadata"
-                | "create_collection"
-                | "update_collection"
-        ) || func_name.contains("nft")
-            || func_name.contains("metadata")
-            || func_name.contains("collection")
+    /// Check if a path indicates SPL Token usage
+    fn is_spl_token_path(&self, path_str: &str) -> bool {
+        path_str.contains("spl_token::")
+            || path_str.contains("anchor_spl::token::")
+            || path_str.contains("token::Mint")
+            || path_str.contains("token::TokenAccount")
+            || path_str.contains("token::TokenProgram")
     }
 
-    /// Check if a function name indicates generic asset handling
-    fn is_generic_asset_function(&self, func_name: &str) -> bool {
-        matches!(
-            func_name,
-            "handle_asset"
-                | "process_asset"
-                | "validate_asset"
-                | "check_asset"
-                | "create_asset"
-                | "destroy_asset"
-                | "update_asset"
-                | "query_asset"
-        ) || func_name.contains("asset")
-            || func_name.contains("multi_asset")
-            || func_name.contains("asset_type")
+    /// Check if a path indicates SPL Token 2022 usage
+    fn is_spl_token_2022_path(&self, path_str: &str) -> bool {
+        path_str.contains("spl_token_2022::")
+            || path_str.contains("token_2022::")
+            || path_str.contains("token_2022::Mint")
+            || path_str.contains("token_2022::TokenAccount")
     }
 
-    /// Check if a struct name indicates asset definition
-    fn is_asset_struct(&self, struct_name: &str) -> bool {
-        matches!(
-            struct_name,
-            "TokenAccount"
-                | "Mint"
-                | "TokenProgram"
-                | "NftAccount"
-                | "MetadataAccount"
-                | "CollectionAccount"
-                | "Asset"
-                | "AssetType"
-                | "AssetInfo"
-        ) || struct_name.contains("Token")
-            || struct_name.contains("Mint")
-            || struct_name.contains("Nft")
-            || struct_name.contains("Metadata")
-            || struct_name.contains("Collection")
-            || struct_name.contains("Asset")
+    /// Check if a path indicates Metaplex NFT usage
+    fn is_metaplex_nft_path(&self, path_str: &str) -> bool {
+        path_str.contains("metaplex::")
+            || path_str.contains("mpl_token_metadata::")
+            || path_str.contains("mpl_token_metadata")
+            || path_str.contains("metaplex_token_metadata")
     }
 
-    /// Check if an enum name indicates asset type definition
-    fn is_asset_enum(&self, enum_name: &str) -> bool {
-        matches!(
-            enum_name,
-            "AssetType" | "TokenType" | "NftType" | "CollectionType"
-        ) || enum_name.contains("Asset")
-            || enum_name.contains("Token")
-            || enum_name.contains("Nft")
-            || enum_name.contains("Collection")
+    /// Check if a type path indicates asset standard usage
+    fn analyze_type_path(&mut self, type_path: &syn::TypePath) {
+        let path_str = type_path
+            .path
+            .segments
+            .iter()
+            .map(|s| s.ident.to_string())
+            .collect::<Vec<_>>()
+            .join("::");
+
+        if self.is_spl_token_path(&path_str) && !self.metrics.uses_spl_token {
+            self.metrics.uses_spl_token = true;
+            self.record_standard_indicator("SPL_TOKEN", &path_str);
+        }
+
+        if self.is_spl_token_2022_path(&path_str) && !self.metrics.uses_spl_token_2022 {
+            self.metrics.uses_spl_token_2022 = true;
+            self.record_standard_indicator("SPL_TOKEN_2022", &path_str);
+        }
+
+        if self.is_metaplex_nft_path(&path_str) && !self.metrics.uses_metaplex_nft {
+            self.metrics.uses_metaplex_nft = true;
+            self.record_standard_indicator("METAPLEX_NFT", &path_str);
+        }
     }
 }
 
 impl<'ast> Visit<'ast> for AssetTypesVisitor {
-    fn visit_expr_call(&mut self, node: &'ast ExprCall) {
-        if let Expr::Path(path_expr) = &*node.func {
-            let path_str = quote::quote!(#path_expr).to_string();
-
-            // Check for token-related calls
-            if path_str.contains("mint")
-                || path_str.contains("burn")
-                || path_str.contains("transfer")
-            {
-                self.token_transfer_patterns += 1;
-                self.record_pattern("token_call");
-            }
-
-            // Check for NFT-related calls
-            if path_str.contains("nft")
-                || path_str.contains("metadata")
-                || path_str.contains("collection")
-            {
-                self.nft_handling_patterns += 1;
-                self.record_pattern("nft_call");
-            }
-
-            // Check for asset-related calls
-            if path_str.contains("asset") {
-                self.generic_asset_handling += 1;
-                self.record_pattern("asset_call");
-            }
-        }
-
-        // Continue visiting call
-        syn::visit::visit_expr_call(self, node);
-    }
-
-    fn visit_item_fn(&mut self, node: &'ast ItemFn) {
-        let func_name = node.sig.ident.to_string();
-
-        // Check for token asset functions
-        if self.is_token_asset_function(&func_name) {
-            self.asset_specific_functions += 1;
-            self.unique_token_types.insert(func_name.clone());
-            self.record_pattern(&format!("token_function_{}", func_name));
-
-            if func_name.contains("create") || func_name.contains("mint") {
-                self.asset_creation_functions += 1;
-            } else if func_name.contains("burn") || func_name.contains("destroy") {
-                self.asset_destruction_functions += 1;
-            } else if func_name.contains("query") || func_name.contains("get") {
-                self.asset_query_functions += 1;
-            } else if func_name.contains("update") || func_name.contains("modify") {
-                self.asset_update_functions += 1;
-            }
-        }
-
-        // Check for NFT asset functions
-        if self.is_nft_asset_function(&func_name) {
-            self.asset_specific_functions += 1;
-            self.unique_nft_types.insert(func_name.clone());
-            self.record_pattern(&format!("nft_function_{}", func_name));
-
-            if func_name.contains("create") || func_name.contains("mint") {
-                self.asset_creation_functions += 1;
-            } else if func_name.contains("burn") || func_name.contains("destroy") {
-                self.asset_destruction_functions += 1;
-            } else if func_name.contains("query") || func_name.contains("get") {
-                self.asset_query_functions += 1;
-            } else if func_name.contains("update") || func_name.contains("modify") {
-                self.asset_update_functions += 1;
-            }
-        }
-
-        // Check for generic asset functions
-        if self.is_generic_asset_function(&func_name) {
-            self.asset_specific_functions += 1;
-            self.unique_generic_asset_types.insert(func_name.clone());
-            self.record_pattern(&format!("generic_asset_function_{}", func_name));
-
-            if func_name.contains("multi") {
-                self.multi_asset_operations += 1;
-            }
-            if func_name.contains("validate") || func_name.contains("check") {
-                self.asset_validation_functions += 1;
-            }
-        }
-
-        // Continue visiting function body
-        syn::visit::visit_item_fn(self, node);
-    }
-
-    fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
-        let struct_name = node.ident.to_string();
-
-        if self.is_asset_struct(&struct_name) {
-            self.asset_struct_definitions += 1;
-            self.unique_asset_types.insert(struct_name.clone());
-            self.record_pattern(&format!("asset_struct_{}", struct_name));
-
-            if struct_name.contains("Token") {
-                self.unique_token_types.insert(struct_name.clone());
-            } else if struct_name.contains("Nft") || struct_name.contains("Metadata") {
-                self.unique_nft_types.insert(struct_name.clone());
-            } else if struct_name.contains("Asset") {
-                self.unique_generic_asset_types.insert(struct_name.clone());
-            }
-        }
-
-        // Continue visiting struct
-        syn::visit::visit_item_struct(self, node);
-    }
-
-    fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
-        let enum_name = node.ident.to_string();
-
-        if self.is_asset_enum(&enum_name) {
-            self.asset_enum_definitions += 1;
-            self.unique_asset_types.insert(enum_name.clone());
-            self.record_pattern(&format!("asset_enum_{}", enum_name));
-
-            if enum_name.contains("Token") {
-                self.unique_token_types.insert(enum_name.clone());
-            } else if enum_name.contains("Nft") {
-                self.unique_nft_types.insert(enum_name.clone());
-            } else if enum_name.contains("Asset") {
-                self.unique_generic_asset_types.insert(enum_name.clone());
-            }
-        }
-
-        // Continue visiting enum
-        syn::visit::visit_item_enum(self, node);
-    }
-
+    /// Detect asset standards via use statements
     fn visit_use_tree(&mut self, node: &'ast UseTree) {
-        match node {
-            UseTree::Path(path_tree) => {
-                let path_str = quote::quote!(#path_tree).to_string();
-
-                // Check for SPL Token dependencies
-                if path_str.contains("spl_token") {
-                    self.spl_token_usage += 1;
-                    self.token_program_dependencies += 1;
-                    self.external_asset_dependencies += 1;
-                    self.record_pattern("spl_token_import");
-                }
-
-                // Check for SPL Token 2022 dependencies
-                if path_str.contains("spl_token_2022") || path_str.contains("token_2022") {
-                    self.spl_token_2022_usage += 1;
-                    self.token_program_dependencies += 1;
-                    self.external_asset_dependencies += 1;
-                    self.record_pattern("spl_token_2022_import");
-                }
-
-                // Check for NFT/Metadata dependencies
-                if path_str.contains("metaplex")
-                    || path_str.contains("nft")
-                    || path_str.contains("metadata")
-                {
-                    self.nft_handling_patterns += 1;
-                    self.nft_program_dependencies += 1;
-                    self.external_asset_dependencies += 1;
-                    self.record_pattern("nft_import");
-                }
-
-                // Check for asset program dependencies
-                if path_str.contains("token_program")
-                    || path_str.contains("associated_token_program")
-                {
-                    self.token_program_dependencies += 1;
-                    self.external_asset_dependencies += 1;
-                    self.record_pattern("token_program_import");
-                }
-
-                if path_str.contains("metadata_program") {
-                    self.metadata_program_dependencies += 1;
-                    self.external_asset_dependencies += 1;
-                    self.record_pattern("metadata_program_import");
-                }
+        // Build the full path by traversing the use tree
+        let path_str = self.build_use_path(node);
+        if !path_str.is_empty() {
+            // Check for SPL Token 2022 imports (check this first to avoid false positives)
+            if (path_str.contains("spl_token_2022") || path_str.contains("token_2022"))
+                && !self.metrics.uses_spl_token_2022
+            {
+                self.metrics.uses_spl_token_2022 = true;
+                self.record_standard_indicator("SPL_TOKEN_2022", &format!("import: {}", path_str));
             }
-            UseTree::Name(name_tree) => {
-                let name_str = name_tree.ident.to_string();
-
-                // Check for asset-related imports
-                if matches!(
-                    name_str.as_str(),
-                    "TokenAccount"
-                        | "Mint"
-                        | "TokenProgram"
-                        | "NftAccount"
-                        | "MetadataAccount"
-                        | "Asset"
-                ) {
-                    self.record_pattern(&format!("asset_import_{}", name_str));
-                }
+            // Check for SPL Token imports (only if not already detected as Token 2022)
+            else if (path_str.contains("spl_token") || path_str.contains("anchor_spl::token"))
+                && !self.metrics.uses_spl_token
+            {
+                self.metrics.uses_spl_token = true;
+                self.record_standard_indicator("SPL_TOKEN", &format!("import: {}", path_str));
             }
-            _ => {}
+
+            // Check for Metaplex NFT imports
+            if (path_str.contains("metaplex") || path_str.contains("mpl_token_metadata"))
+                && !self.metrics.uses_metaplex_nft
+            {
+                self.metrics.uses_metaplex_nft = true;
+                self.record_standard_indicator("METAPLEX_NFT", &format!("import: {}", path_str));
+            }
         }
 
-        // Continue visiting use tree
+        // Continue visiting
         syn::visit::visit_use_tree(self, node);
     }
 
-    fn visit_lit_str(&mut self, node: &'ast LitStr) {
-        // Skip string literal analysis to avoid false positives from documentation comments
-        // Focus on AST-based code structure analysis instead
-        syn::visit::visit_lit_str(self, node);
+    /// Detect asset standards via struct definitions
+    fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
+        let struct_name = node.ident.to_string();
+
+        // Check for custom asset definitions
+        if struct_name == "Asset" || struct_name.contains("Asset") {
+            self.metrics.custom_asset_definitions += 1;
+            self.record_standard_indicator("CUSTOM_ASSET", &format!("struct: {}", struct_name));
+        }
+
+        // Analyze struct fields for asset standard types
+        for field in &node.fields {
+            let syn::Field { ty, .. } = field;
+            if let Type::Path(type_path) = ty {
+                self.analyze_type_path(type_path);
+            }
+        }
+
+        // Continue visiting
+        syn::visit::visit_item_struct(self, node);
+    }
+
+    /// Detect asset standards via enum definitions
+    fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
+        let enum_name = node.ident.to_string();
+
+        // Check for custom asset type definitions
+        if enum_name == "AssetType" || enum_name.contains("Asset") {
+            self.metrics.custom_asset_definitions += 1;
+            self.record_standard_indicator("CUSTOM_ASSET", &format!("enum: {}", enum_name));
+        }
+
+        // Continue visiting
+        syn::visit::visit_item_enum(self, node);
+    }
+
+    /// Detect asset standards via function calls (CPIs)
+    fn visit_expr_call(&mut self, node: &'ast ExprCall) {
+        if let syn::Expr::Path(path_expr) = &*node.func {
+            let path_str = path_expr
+                .path
+                .segments
+                .iter()
+                .map(|s| s.ident.to_string())
+                .collect::<Vec<_>>()
+                .join("::");
+
+            // Check for SPL Token CPI calls
+            if self.is_spl_token_path(&path_str) && !self.metrics.uses_spl_token {
+                self.metrics.uses_spl_token = true;
+                self.record_standard_indicator("SPL_TOKEN", &format!("cpi: {}", path_str));
+            }
+
+            // Check for SPL Token 2022 CPI calls
+            if self.is_spl_token_2022_path(&path_str) && !self.metrics.uses_spl_token_2022 {
+                self.metrics.uses_spl_token_2022 = true;
+                self.record_standard_indicator("SPL_TOKEN_2022", &format!("cpi: {}", path_str));
+            }
+
+            // Check for Metaplex NFT CPI calls
+            if self.is_metaplex_nft_path(&path_str) && !self.metrics.uses_metaplex_nft {
+                self.metrics.uses_metaplex_nft = true;
+                self.record_standard_indicator("METAPLEX_NFT", &format!("cpi: {}", path_str));
+            }
+        }
+
+        // Continue visiting
+        syn::visit::visit_expr_call(self, node);
     }
 }
 
@@ -475,7 +257,7 @@ pub fn calculate_workspace_asset_types(
         workspace_path
     );
 
-    let mut metrics = AssetTypesMetrics::default();
+    let mut visitor = AssetTypesVisitor::new();
     let mut files_analyzed = 0;
     let mut files_skipped = 0;
 
@@ -499,72 +281,49 @@ pub fn calculate_workspace_asset_types(
 
         log::info!("🔍 ASSET TYPES DEBUG: Analyzing file: {:?}", full_path);
 
-        let content = std::fs::read_to_string(&full_path)?;
-        let syntax_tree = syn::parse_file(&content)?;
-
-        let mut visitor = AssetTypesVisitor::new();
-        visitor.current_file_path = file_path.to_string();
-        visitor.visit_file(&syntax_tree);
-
-        // Accumulate metrics from this visitor
-        metrics.spl_token_usage += visitor.spl_token_usage;
-        metrics.spl_token_2022_usage += visitor.spl_token_2022_usage;
-        metrics.token_account_patterns += visitor.token_account_patterns;
-        metrics.mint_patterns += visitor.mint_patterns;
-        metrics.token_transfer_patterns += visitor.token_transfer_patterns;
-        metrics.token_mint_patterns += visitor.token_mint_patterns;
-        metrics.token_burn_patterns += visitor.token_burn_patterns;
-        metrics.associated_token_patterns += visitor.associated_token_patterns;
-        metrics.nft_handling_patterns += visitor.nft_handling_patterns;
-        metrics.metadata_patterns += visitor.metadata_patterns;
-        metrics.collection_patterns += visitor.collection_patterns;
-        metrics.nft_mint_patterns += visitor.nft_mint_patterns;
-        metrics.nft_transfer_patterns += visitor.nft_transfer_patterns;
-        metrics.nft_burn_patterns += visitor.nft_burn_patterns;
-        metrics.generic_asset_handling += visitor.generic_asset_handling;
-        metrics.multi_asset_operations += visitor.multi_asset_operations;
-        metrics.asset_validation_functions += visitor.asset_validation_functions;
-        metrics.asset_enum_definitions += visitor.asset_enum_definitions;
-        metrics.asset_struct_definitions += visitor.asset_struct_definitions;
-        metrics.external_asset_dependencies += visitor.external_asset_dependencies;
-        metrics.token_program_dependencies += visitor.token_program_dependencies;
-        metrics.nft_program_dependencies += visitor.nft_program_dependencies;
-        metrics.metadata_program_dependencies += visitor.metadata_program_dependencies;
-        metrics.asset_specific_functions += visitor.asset_specific_functions;
-        metrics.asset_creation_functions += visitor.asset_creation_functions;
-        metrics.asset_destruction_functions += visitor.asset_destruction_functions;
-        metrics.asset_query_functions += visitor.asset_query_functions;
-        metrics.asset_update_functions += visitor.asset_update_functions;
-
-        // Merge pattern breakdown
-        for (pattern, count) in visitor.asset_pattern_counts {
-            *metrics.asset_pattern_breakdown.entry(pattern).or_insert(0) += count;
+        match std::fs::read_to_string(&full_path) {
+            Ok(content) => match syn::parse_file(&content) {
+                Ok(ast) => {
+                    visitor.visit_file(&ast);
+                    files_analyzed += 1;
+                }
+                Err(e) => {
+                    log::warn!("Failed to parse AST for {:?}: {}", full_path, e);
+                    files_skipped += 1;
+                }
+            },
+            Err(e) => {
+                log::warn!("Failed to read file {:?}: {}", full_path, e);
+                files_skipped += 1;
+            }
         }
-
-        // Merge unique asset types
-        for _asset_type in visitor.unique_asset_types {
-            metrics.unique_asset_types += 1;
-        }
-        for _token_type in visitor.unique_token_types {
-            metrics.unique_token_types += 1;
-        }
-        for _nft_type in visitor.unique_nft_types {
-            metrics.unique_nft_types += 1;
-        }
-        for _generic_asset_type in visitor.unique_generic_asset_types {
-            metrics.unique_generic_asset_types += 1;
-        }
-
-        files_analyzed += 1;
     }
 
-    // Calculate complexity scores
-    metrics.asset_complexity_score = calculate_asset_complexity_score(&metrics);
-    metrics.asset_diversity_score = calculate_asset_diversity_score(&metrics);
-    metrics.asset_handling_complexity = calculate_asset_handling_complexity(&metrics);
-
+    // Calculate final metrics
+    let mut metrics = visitor.metrics;
     metrics.files_analyzed = files_analyzed;
     metrics.files_skipped = files_skipped;
+
+    // Count distinct asset standards
+    metrics.distinct_asset_standards = metrics.uses_spl_token as u32
+        + metrics.uses_spl_token_2022 as u32
+        + metrics.uses_metaplex_nft as u32
+        + if metrics.custom_asset_definitions > 0 {
+            1
+        } else {
+            0
+        };
+
+    // Calculate final factor (0-100) based on variety
+    // 0 standards = 0%, 1 = 25%, 2 = 50%, 3 = 75%, 4 = 100%
+    metrics.asset_types_factor = match metrics.distinct_asset_standards {
+        0 => 0.0,
+        1 => 25.0,
+        2 => 50.0,
+        3 => 75.0,
+        4 => 100.0,
+        _ => 100.0, // Cap at 100%
+    };
 
     log::info!(
         "🔍 ASSET TYPES DEBUG: Analysis complete. Files analyzed: {}, Files skipped: {}",
@@ -575,94 +334,251 @@ pub fn calculate_workspace_asset_types(
     Ok(metrics)
 }
 
-/// Calculate asset complexity score
-fn calculate_asset_complexity_score(metrics: &AssetTypesMetrics) -> f64 {
-    let mut score = 0.0;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    // Token asset complexity
-    score += metrics.spl_token_usage as f64;
-    score += metrics.spl_token_2022_usage as f64;
-    score += metrics.token_account_patterns as f64;
-    score += metrics.mint_patterns as f64;
-    score += metrics.token_transfer_patterns as f64;
-    score += metrics.token_mint_patterns as f64;
-    score += metrics.token_burn_patterns as f64;
-    score += metrics.associated_token_patterns as f64;
+    #[test]
+    fn test_spl_token_detection() {
+        let code = r#"
+        use anchor_spl::token::{Mint, TokenAccount};
+        
+        pub fn transfer_tokens(ctx: Context<TransferTokens>) -> Result<()> {
+            Ok(())
+        }
+        "#;
 
-    // NFT asset complexity
-    score += metrics.nft_handling_patterns as f64;
-    score += metrics.metadata_patterns as f64;
-    score += metrics.collection_patterns as f64;
-    score += metrics.nft_mint_patterns as f64;
-    score += metrics.nft_transfer_patterns as f64;
-    score += metrics.nft_burn_patterns as f64;
+        let ast = syn::parse_file(code).unwrap();
+        let mut visitor = AssetTypesVisitor::new();
+        visitor.visit_file(&ast);
 
-    // Generic asset complexity
-    score += metrics.generic_asset_handling as f64;
-    score += metrics.multi_asset_operations as f64;
-    score += metrics.asset_validation_functions as f64;
-    score += metrics.asset_enum_definitions as f64;
-    score += metrics.asset_struct_definitions as f64;
+        // Calculate final metrics
+        visitor.metrics.distinct_asset_standards = visitor.metrics.uses_spl_token as u32
+            + visitor.metrics.uses_spl_token_2022 as u32
+            + visitor.metrics.uses_metaplex_nft as u32
+            + if visitor.metrics.custom_asset_definitions > 0 {
+                1
+            } else {
+                0
+            };
 
-    // External dependency complexity
-    score += metrics.external_asset_dependencies as f64;
-    score += metrics.token_program_dependencies as f64;
-    score += metrics.nft_program_dependencies as f64;
-    score += metrics.metadata_program_dependencies as f64;
+        // Calculate final factor (0-100) based on variety
+        visitor.metrics.asset_types_factor = match visitor.metrics.distinct_asset_standards {
+            0 => 0.0,
+            1 => 25.0,
+            2 => 50.0,
+            3 => 75.0,
+            4 => 100.0,
+            _ => 100.0, // Cap at 100%
+        };
 
-    // Asset function complexity
-    score += metrics.asset_specific_functions as f64;
-    score += metrics.asset_creation_functions as f64;
-    score += metrics.asset_destruction_functions as f64;
-    score += metrics.asset_query_functions as f64;
-    score += metrics.asset_update_functions as f64;
-
-    score
-}
-
-/// Calculate asset diversity score
-fn calculate_asset_diversity_score(metrics: &AssetTypesMetrics) -> f64 {
-    let mut score = 0.0;
-
-    // Unique asset type diversity
-    score += metrics.unique_asset_types as f64 * 2.0;
-    score += metrics.unique_token_types as f64;
-    score += metrics.unique_nft_types as f64;
-    score += metrics.unique_generic_asset_types as f64;
-
-    // Asset type variety
-    if metrics.spl_token_usage > 0 {
-        score += 1.0;
-    }
-    if metrics.spl_token_2022_usage > 0 {
-        score += 1.0;
-    }
-    if metrics.nft_handling_patterns > 0 {
-        score += 1.0;
-    }
-    if metrics.generic_asset_handling > 0 {
-        score += 1.0;
+        assert!(visitor.metrics.uses_spl_token);
+        assert_eq!(visitor.metrics.distinct_asset_standards, 1);
+        assert_eq!(visitor.metrics.asset_types_factor, 25.0);
     }
 
-    score
-}
+    #[test]
+    fn test_spl_token_2022_detection() {
+        let code = r#"
+        use spl_token_2022::token_2022::Mint;
+        
+        pub fn mint_tokens(ctx: Context<MintTokens>) -> Result<()> {
+            Ok(())
+        }
+        "#;
 
-/// Calculate asset handling complexity
-fn calculate_asset_handling_complexity(metrics: &AssetTypesMetrics) -> f64 {
-    let mut score = 0.0;
+        let ast = syn::parse_file(code).unwrap();
+        let mut visitor = AssetTypesVisitor::new();
+        visitor.visit_file(&ast);
 
-    // Asset operation complexity
-    score += metrics.asset_creation_functions as f64;
-    score += metrics.asset_destruction_functions as f64;
-    score += metrics.asset_query_functions as f64;
-    score += metrics.asset_update_functions as f64;
+        // Calculate final metrics
+        visitor.metrics.distinct_asset_standards = visitor.metrics.uses_spl_token as u32
+            + visitor.metrics.uses_spl_token_2022 as u32
+            + visitor.metrics.uses_metaplex_nft as u32
+            + if visitor.metrics.custom_asset_definitions > 0 {
+                1
+            } else {
+                0
+            };
 
-    // Multi-asset handling complexity
-    score += metrics.multi_asset_operations as f64 * 2.0;
-    score += metrics.asset_validation_functions as f64;
+        // Calculate final factor (0-100) based on variety
+        visitor.metrics.asset_types_factor = match visitor.metrics.distinct_asset_standards {
+            0 => 0.0,
+            1 => 25.0,
+            2 => 50.0,
+            3 => 75.0,
+            4 => 100.0,
+            _ => 100.0, // Cap at 100%
+        };
 
-    // External integration complexity
-    score += metrics.external_asset_dependencies as f64;
+        assert!(visitor.metrics.uses_spl_token_2022);
+        assert_eq!(visitor.metrics.distinct_asset_standards, 1);
+        assert_eq!(visitor.metrics.asset_types_factor, 25.0);
+    }
 
-    score
+    #[test]
+    fn test_metaplex_nft_detection() {
+        let code = r#"
+        use mpl_token_metadata::state::Metadata;
+        
+        pub fn create_nft(ctx: Context<CreateNft>) -> Result<()> {
+            Ok(())
+        }
+        "#;
+
+        let ast = syn::parse_file(code).unwrap();
+        let mut visitor = AssetTypesVisitor::new();
+        visitor.visit_file(&ast);
+
+        // Calculate final metrics
+        visitor.metrics.distinct_asset_standards = visitor.metrics.uses_spl_token as u32
+            + visitor.metrics.uses_spl_token_2022 as u32
+            + visitor.metrics.uses_metaplex_nft as u32
+            + if visitor.metrics.custom_asset_definitions > 0 {
+                1
+            } else {
+                0
+            };
+
+        // Calculate final factor (0-100) based on variety
+        visitor.metrics.asset_types_factor = match visitor.metrics.distinct_asset_standards {
+            0 => 0.0,
+            1 => 25.0,
+            2 => 50.0,
+            3 => 75.0,
+            4 => 100.0,
+            _ => 100.0, // Cap at 100%
+        };
+
+        assert!(visitor.metrics.uses_metaplex_nft);
+        assert_eq!(visitor.metrics.distinct_asset_standards, 1);
+        assert_eq!(visitor.metrics.asset_types_factor, 25.0);
+    }
+
+    #[test]
+    fn test_custom_asset_detection() {
+        let code = r#"
+        pub struct Asset {
+            pub id: u64,
+            pub value: u64,
+        }
+        
+        pub enum AssetType {
+            Token,
+            Nft,
+        }
+        "#;
+
+        let ast = syn::parse_file(code).unwrap();
+        let mut visitor = AssetTypesVisitor::new();
+        visitor.visit_file(&ast);
+
+        // Calculate final metrics
+        visitor.metrics.distinct_asset_standards = visitor.metrics.uses_spl_token as u32
+            + visitor.metrics.uses_spl_token_2022 as u32
+            + visitor.metrics.uses_metaplex_nft as u32
+            + if visitor.metrics.custom_asset_definitions > 0 {
+                1
+            } else {
+                0
+            };
+
+        // Calculate final factor (0-100) based on variety
+        visitor.metrics.asset_types_factor = match visitor.metrics.distinct_asset_standards {
+            0 => 0.0,
+            1 => 25.0,
+            2 => 50.0,
+            3 => 75.0,
+            4 => 100.0,
+            _ => 100.0, // Cap at 100%
+        };
+
+        assert_eq!(visitor.metrics.custom_asset_definitions, 2);
+        assert_eq!(visitor.metrics.distinct_asset_standards, 1);
+        assert_eq!(visitor.metrics.asset_types_factor, 25.0);
+    }
+
+    #[test]
+    fn test_multiple_standards() {
+        let code = r#"
+        use anchor_spl::token::Mint;
+        use spl_token_2022::token_2022::Mint as Mint2022;
+        use mpl_token_metadata::state::Metadata;
+        
+        pub struct CustomAsset {
+            pub id: u64,
+        }
+        "#;
+
+        let ast = syn::parse_file(code).unwrap();
+        let mut visitor = AssetTypesVisitor::new();
+        visitor.visit_file(&ast);
+
+        // Calculate final metrics
+        visitor.metrics.distinct_asset_standards = visitor.metrics.uses_spl_token as u32
+            + visitor.metrics.uses_spl_token_2022 as u32
+            + visitor.metrics.uses_metaplex_nft as u32
+            + if visitor.metrics.custom_asset_definitions > 0 {
+                1
+            } else {
+                0
+            };
+
+        // Calculate final factor (0-100) based on variety
+        visitor.metrics.asset_types_factor = match visitor.metrics.distinct_asset_standards {
+            0 => 0.0,
+            1 => 25.0,
+            2 => 50.0,
+            3 => 75.0,
+            4 => 100.0,
+            _ => 100.0, // Cap at 100%
+        };
+
+        assert!(visitor.metrics.uses_spl_token);
+        assert!(visitor.metrics.uses_spl_token_2022);
+        assert!(visitor.metrics.uses_metaplex_nft);
+        assert_eq!(visitor.metrics.custom_asset_definitions, 1);
+        assert_eq!(visitor.metrics.distinct_asset_standards, 4);
+        assert_eq!(visitor.metrics.asset_types_factor, 100.0);
+    }
+
+    #[test]
+    fn test_no_asset_standards() {
+        let code = r#"
+        pub fn regular_function(ctx: Context<RegularFunction>) -> Result<()> {
+            Ok(())
+        }
+        "#;
+
+        let ast = syn::parse_file(code).unwrap();
+        let mut visitor = AssetTypesVisitor::new();
+        visitor.visit_file(&ast);
+
+        // Calculate final metrics
+        visitor.metrics.distinct_asset_standards = visitor.metrics.uses_spl_token as u32
+            + visitor.metrics.uses_spl_token_2022 as u32
+            + visitor.metrics.uses_metaplex_nft as u32
+            + if visitor.metrics.custom_asset_definitions > 0 {
+                1
+            } else {
+                0
+            };
+
+        // Calculate final factor (0-100) based on variety
+        visitor.metrics.asset_types_factor = match visitor.metrics.distinct_asset_standards {
+            0 => 0.0,
+            1 => 25.0,
+            2 => 50.0,
+            3 => 75.0,
+            4 => 100.0,
+            _ => 100.0, // Cap at 100%
+        };
+
+        assert!(!visitor.metrics.uses_spl_token);
+        assert!(!visitor.metrics.uses_spl_token_2022);
+        assert!(!visitor.metrics.uses_metaplex_nft);
+        assert_eq!(visitor.metrics.custom_asset_definitions, 0);
+        assert_eq!(visitor.metrics.distinct_asset_standards, 0);
+        assert_eq!(visitor.metrics.asset_types_factor, 0.0);
+    }
 }

@@ -10,12 +10,15 @@ use toml::Value;
 #[derive(Debug, Clone)]
 pub struct DependencyMetrics {
     pub total_dependencies: usize,
-    pub tier_1_count: usize,    // Solana official (safest)
-    pub tier_2_count: usize,    // Security/crypto crates
-    pub tier_3_count: usize,    // Popular ecosystem
-    pub tier_4_count: usize,    // Unknown/custom (riskiest)
-    pub dependency_factor: f64, // Unified risk factor (0-100, higher = riskier)
+    pub tier_1_count: usize,              // Solana official (safest)
+    pub tier_1_5_count: usize,            // Oracles & Bridges (integration risk)
+    pub tier_2_count: usize,              // Security/crypto crates
+    pub tier_3_count: usize,              // Popular ecosystem
+    pub tier_4_count: usize,              // Unknown/custom (riskiest)
+    pub dependency_factor: f64,           // Original 4-tier factor (0-100, higher = riskier)
+    pub external_integration_factor: f64, // New T1.5 factor (0-100, higher = riskier)
     pub tier_1_crates: Vec<String>,
+    pub tier_1_5_crates: Vec<String>, // Oracles & Bridges
     pub tier_2_crates: Vec<String>,
     pub tier_3_crates: Vec<String>,
     pub tier_4_crates: Vec<String>,
@@ -27,11 +30,14 @@ impl DependencyMetrics {
         serde_json::json!({
             "totalDependencies": self.total_dependencies,
             "tier1Dependencies": self.tier_1_count,
+            "tier1_5Dependencies": self.tier_1_5_count,
             "tier2Dependencies": self.tier_2_count,
             "tier3Dependencies": self.tier_3_count,
             "tier4Dependencies": self.tier_4_count,
             "dependencyFactor": self.dependency_factor,
+            "externalIntegrationFactor": self.external_integration_factor,
             "tier1Crates": self.tier_1_crates,
+            "tier1_5Crates": self.tier_1_5_crates,
             "tier2Crates": self.tier_2_crates,
             "tier3Crates": self.tier_3_crates,
             "tier4Crates": self.tier_4_crates
@@ -41,14 +47,16 @@ impl DependencyMetrics {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DependencyTier {
-    Tier1, // Solana official (weight: 0.1)
-    Tier2, // Security/crypto (weight: 0.3)
-    Tier3, // Popular ecosystem (weight: 0.5)
-    Tier4, // Unknown/custom (weight: 1.0)
+    Tier1,   // Solana official (weight: 0.1)
+    Tier1_5, // Oracles & Bridges (weight: 0.2)
+    Tier2,   // Security/crypto (weight: 0.3)
+    Tier3,   // Popular ecosystem (weight: 0.5)
+    Tier4,   // Unknown/custom (weight: 1.0)
 }
 
 pub struct DependencyClassifier {
     solana_official: HashSet<String>,
+    oracles_and_bridges: HashSet<String>,
     crypto_security: HashSet<String>,
     rust_ecosystem: HashSet<String>,
 }
@@ -170,8 +178,25 @@ impl DependencyClassifier {
         .map(|s| s.to_string())
         .collect();
 
+        // --- ADD ORACLES & BRIDGES LIST ---
+        let oracles_and_bridges = [
+            // Oracles
+            "pyth-sdk-solana",
+            "pyth-solana-receiver",
+            "switchboard-solana",
+            "switchboard-v2",
+            // Bridges
+            "wormhole-sdk",
+            "wormhole-anchor-sdk",
+            "wormhole-solana",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
         Self {
             solana_official,
+            oracles_and_bridges,
             crypto_security,
             rust_ecosystem,
         }
@@ -179,6 +204,11 @@ impl DependencyClassifier {
 
     pub fn classify(&self, crate_name: &str) -> DependencyTier {
         // 1. Check exact matches in curated lists first (high confidence)
+        // --- CHECK T1.5 FIRST (HIGHEST PRIORITY) ---
+        if self.oracles_and_bridges.contains(crate_name) {
+            return DependencyTier::Tier1_5;
+        }
+
         if self.solana_official.contains(crate_name) {
             return DependencyTier::Tier1;
         }
@@ -191,7 +221,15 @@ impl DependencyClassifier {
             return DependencyTier::Tier3;
         }
 
-        // 2. Pattern matching for Solana ecosystem
+        // 2. Pattern matching for Oracles & Bridges
+        if crate_name.starts_with("pyth-")
+            || crate_name.starts_with("switchboard-")
+            || crate_name.starts_with("wormhole-")
+        {
+            return DependencyTier::Tier1_5;
+        }
+
+        // 3. Pattern matching for Solana ecosystem
         if crate_name.starts_with("anchor-")
             || crate_name.starts_with("spl-")
             || crate_name.starts_with("solana-")
@@ -200,17 +238,17 @@ impl DependencyClassifier {
             return DependencyTier::Tier1;
         }
 
-        // 3. Pattern matching for crypto crates
+        // 4. Pattern matching for crypto crates
         if self.is_crypto_pattern(crate_name) {
             return DependencyTier::Tier2;
         }
 
-        // 4. Pattern matching for common Rust patterns
+        // 5. Pattern matching for common Rust patterns
         if self.is_rust_ecosystem_pattern(crate_name) {
             return DependencyTier::Tier3;
         }
 
-        // 5. Default to unknown/custom
+        // 6. Default to unknown/custom
         DependencyTier::Tier4
     }
 
@@ -242,11 +280,14 @@ impl Default for DependencyMetrics {
         Self {
             total_dependencies: 0,
             tier_1_count: 0,
+            tier_1_5_count: 0,
             tier_2_count: 0,
             tier_3_count: 0,
             tier_4_count: 0,
-            dependency_factor: 0.0, // No dependencies = no risk
+            dependency_factor: 0.0,           // No dependencies = no risk
+            external_integration_factor: 0.0, // No integrations = no risk
             tier_1_crates: Vec::new(),
+            tier_1_5_crates: Vec::new(),
             tier_2_crates: Vec::new(),
             tier_3_crates: Vec::new(),
             tier_4_crates: Vec::new(),
@@ -280,11 +321,30 @@ impl DependencyMetrics {
         self.dependency_factor = self.dependency_factor.max(0.0).min(100.0);
     }
 
+    /// Calculates the "External Integration" factor (0-100)
+    /// This factor is based *only* on the count of T1.5 dependencies.
+    /// We'll set a low upper bound: 3+ integrations is 100% risk.
+    pub fn calculate_integration_factor(&mut self) {
+        let raw_score = self.tier_1_5_count as f64;
+        let upper_bound = 3.0;
+
+        if raw_score == 0.0 {
+            self.external_integration_factor = 0.0;
+        } else {
+            let factor = (raw_score / upper_bound) * 100.0;
+            self.external_integration_factor = factor.min(100.0); // Cap at 100
+        }
+    }
+
     pub fn add_dependency(&mut self, crate_name: String, tier: DependencyTier) {
         match tier {
             DependencyTier::Tier1 => {
                 self.tier_1_count += 1;
                 self.tier_1_crates.push(crate_name);
+            }
+            DependencyTier::Tier1_5 => {
+                self.tier_1_5_count += 1;
+                self.tier_1_5_crates.push(crate_name);
             }
             DependencyTier::Tier2 => {
                 self.tier_2_count += 1;
@@ -804,16 +864,19 @@ pub fn calculate_workspace_dependencies(
     }
 
     // Calculate final scores
-    metrics.calculate_score();
+    metrics.calculate_score(); // Calculates the original dependencyFactor
+    metrics.calculate_integration_factor(); // Calculates the new externalIntegrationFactor
 
     log::info!(
-        "Dependencies analysis complete: {} total, Tier1: {}, Tier2: {}, Tier3: {}, Tier4: {}, Risk Factor: {:.1}",
+        "Dependencies analysis complete: {} total, T1: {}, T1.5: {}, T2: {}, T3: {}, T4: {}, DepFactor: {:.1}, IntFactor: {:.1}",
         metrics.total_dependencies,
         metrics.tier_1_count,
+        metrics.tier_1_5_count,
         metrics.tier_2_count,
         metrics.tier_3_count,
         metrics.tier_4_count,
-        metrics.dependency_factor
+        metrics.dependency_factor,
+        metrics.external_integration_factor
     );
 
     Ok(metrics)

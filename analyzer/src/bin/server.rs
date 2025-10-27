@@ -14,7 +14,7 @@ use amm_analyzer::factors::{
     calculate_workspace_error_handling,
     calculate_workspace_external_integration,
     calculate_workspace_input_constraints,
-    calculate_workspace_invariants_risk_params,
+    calculate_workspace_constraint_density,
     calculate_workspace_modularity,
     calculate_workspace_operational_security,
     // calculate_workspace_oracle_price_feed, // TODO: Implement oracle_price_feed module
@@ -22,8 +22,8 @@ use amm_analyzer::factors::{
     calculate_workspace_privileged_roles, // calculate_workspace_statefulness, // TODO: Implement statefulness module
     calculate_workspace_unsafe_lowlevel,
     calculate_workspace_upgradeability,
-    count_lines_of_code,
     count_total_functions,
+    lines_of_code::analyze_file_tsc,
 };
 use amm_analyzer::{analyze_repository, AnalyzerConfig};
 use axum::{
@@ -245,7 +245,9 @@ fn calculate_workspace_lines_of_code(
                 if extension == "rs" {
                     match fs::read_to_string(&full_file_path) {
                         Ok(content) => {
-                            total_lines += count_lines_of_code(&content);
+                            // Use TSC (Total Statement Count) instead of lines of code
+                            let tsc_metrics = analyze_file_tsc(&content).unwrap_or_default();
+                            total_lines += tsc_metrics.total_statements;
                         }
                         Err(_) => {
                             // Skip files that can't be read
@@ -471,17 +473,20 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             computed_factors.push("accessControl".to_string());
             notes.push(format!(
                 "Analyzed access control: {} total handlers, {} decorators, {} constraints, {} explicit checks, {} distinct patterns",
-                access_control_metrics.total_access_controlled_handlers,
-                access_control_metrics.access_control_decorators,
-                access_control_metrics.account_constraint_handlers,
-                access_control_metrics.explicit_authority_checks,
-                access_control_metrics.distinct_authority_patterns
+            access_control_metrics.gated_handler_count,
+            access_control_metrics.manual_check_count,
+            access_control_metrics.account_close_count,
+            access_control_metrics.unique_role_count,
+            access_control_metrics.access_control_factor
             ));
             log::info!(
-                "Calculated access control for workspace {}: {} total handlers, {} distinct patterns",
+                "Calculated access control for workspace {}: {} gated handlers, {} manual checks, {} account closes, {} unique roles, AC Factor: {:.2}",
                 request.workspace_id,
-                access_control_metrics.total_access_controlled_handlers,
-                access_control_metrics.distinct_authority_patterns
+                access_control_metrics.gated_handler_count,
+                access_control_metrics.manual_check_count,
+                access_control_metrics.account_close_count,
+                access_control_metrics.unique_role_count,
+                access_control_metrics.access_control_factor
             );
         }
         Err(e) => {
@@ -518,17 +523,18 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             factors_map.insert("pdaSeeds".to_string(), pda_metrics.to_json());
             computed_factors.push("pdaSeeds".to_string());
             notes.push(format!(
-                "Analyzed PDA seeds: {} total accounts, {} simple, {} complex, {} multi-seed, {} dynamic",
+                "Analyzed PDA seeds: {} total accounts, {} complexity score, PDA Factor: {:.2}, {} distinct patterns",
                 pda_metrics.total_pda_accounts,
-                pda_metrics.simple_seed_pdas,
-                pda_metrics.complex_seed_pdas,
-                pda_metrics.multi_seed_pdas,
-                pda_metrics.dynamic_seed_pdas
+                pda_metrics.total_seed_complexity_score,
+                pda_metrics.pda_complexity_factor,
+                pda_metrics.distinct_seed_patterns
             ));
             log::info!(
-                "Calculated PDA seeds for workspace {}: {} total accounts, {} distinct patterns",
+                "Calculated PDA seeds for workspace {}: {} total accounts, {} complexity score, PDA Factor: {:.2}, {} distinct patterns",
                 request.workspace_id,
                 pda_metrics.total_pda_accounts,
+                pda_metrics.total_seed_complexity_score,
+                pda_metrics.pda_complexity_factor,
                 pda_metrics.distinct_seed_patterns
             );
         }
@@ -571,14 +577,14 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 cpi_metrics.signed_cpi_calls,
                 cpi_metrics.unsigned_cpi_calls,
                 cpi_metrics.unique_programs,
-                cpi_metrics.cpi_complexity_score
+                cpi_metrics.cpi_factor
             ));
             log::info!(
                 "Calculated CPI calls for workspace {}: {} total, {} unique programs, complexity={:.1}",
                 request.workspace_id,
                 cpi_metrics.total_cpi_calls,
                 cpi_metrics.unique_programs,
-                cpi_metrics.cpi_complexity_score
+                cpi_metrics.cpi_factor
             );
         }
         Err(e) => {
@@ -618,17 +624,16 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             );
             computed_factors.push("inputConstraints".to_string());
             notes.push(format!(
-                "Analyzed input constraints: {} handlers, avg {:.1} accounts, {} numeric params, {} vector params, {} constraints",
-                input_constraint_metrics.total_handlers,
+                "Analyzed input constraints: {} handlers, avg {:.1} accounts, {} amount handlers, {} constraints",
+                input_constraint_metrics.total_handlers_found,
                 input_constraint_metrics.avg_accounts_per_handler,
-                input_constraint_metrics.total_numeric_params,
-                input_constraint_metrics.total_vector_params,
+                input_constraint_metrics.total_amount_handlers,
                 input_constraint_metrics.total_constraints
             ));
             log::info!(
                 "Calculated input constraints for workspace {}: {} handlers, {} constraints",
                 request.workspace_id,
-                input_constraint_metrics.total_handlers,
+                input_constraint_metrics.total_handlers_found,
                 input_constraint_metrics.total_constraints
             );
         }
@@ -669,20 +674,17 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             );
             computed_factors.push("arithmeticOperations".to_string());
             notes.push(format!(
-                "Analyzed arithmetic operations: {} math handlers, {} total operations, {} high-risk, {} medium-risk, {} low-risk, complexity score {:.1}",
+                "Analyzed arithmetic operations: {} math handlers, {} high-risk ops, {} medium-risk ops, factor {:.1}",
                 arithmetic_metrics.total_math_handlers,
-                arithmetic_metrics.total_arithmetic_operations,
-                arithmetic_metrics.high_risk_operations,
-                arithmetic_metrics.medium_risk_operations,
-                arithmetic_metrics.low_risk_operations,
-                arithmetic_metrics.arithmetic_complexity_score
+                arithmetic_metrics.high_risk_ops_count,
+                arithmetic_metrics.medium_risk_ops_count,
+                arithmetic_metrics.arithmetic_factor
             ));
             log::info!(
-                "Calculated arithmetic operations for workspace {}: {} handlers, {} operations, complexity {:.1}",
+                "Calculated arithmetic operations for workspace {}: {} math handlers, factor {:.1}",
                 request.workspace_id,
                 arithmetic_metrics.total_math_handlers,
-                arithmetic_metrics.total_arithmetic_operations,
-                arithmetic_metrics.arithmetic_complexity_score
+                arithmetic_metrics.arithmetic_factor
             );
         }
         Err(e) => {
@@ -702,21 +704,19 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             factors_map.insert("assetTypes".to_string(), asset_metrics.to_json());
             computed_factors.push("assetTypes".to_string());
             notes.push(format!(
-                "Analyzed asset types: {} unique asset types, {} token types, {} NFT types, {} generic asset types, complexity score {:.1}",
-                asset_metrics.unique_asset_types,
-                asset_metrics.unique_token_types,
-                asset_metrics.unique_nft_types,
-                asset_metrics.unique_generic_asset_types,
-                asset_metrics.asset_complexity_score
+                "Analyzed asset types: {} distinct standards (SPL-Token: {}, SPL-Token-2022: {}, Metaplex: {}, Custom: {}), factor {:.1}",
+                asset_metrics.distinct_asset_standards,
+                asset_metrics.uses_spl_token,
+                asset_metrics.uses_spl_token_2022,
+                asset_metrics.uses_metaplex_nft,
+                asset_metrics.custom_asset_definitions,
+                asset_metrics.asset_types_factor
             ));
             log::info!(
-                "Calculated asset types for workspace {}: {} unique asset types, {} token types, {} NFT types, {} generic asset types, complexity {:.1}",
+                "Calculated asset types for workspace {}: {} distinct standards, factor {:.1}",
                 request.workspace_id,
-                asset_metrics.unique_asset_types,
-                asset_metrics.unique_token_types,
-                asset_metrics.unique_nft_types,
-                asset_metrics.unique_generic_asset_types,
-                asset_metrics.asset_complexity_score
+                asset_metrics.distinct_asset_standards,
+                asset_metrics.asset_types_factor
             );
         }
         Err(e) => {
@@ -731,7 +731,7 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
 
     // Calculate invariants and risk parameters metrics
     log::info!("📊 PROGRESS: Starting invariants and risk parameters analysis...");
-    match calculate_workspace_invariants_risk_params(&full_path, selected_files) {
+    match calculate_workspace_constraint_density(&full_path, selected_files) {
         Ok(invariants_metrics) => {
             factors_map.insert(
                 "invariantsAndRiskParams".to_string(),
@@ -739,19 +739,17 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             );
             computed_factors.push("invariantsAndRiskParams".to_string());
             notes.push(format!(
-                "Analyzed invariants: {} require assertions, {} mathematical constraints, {} risk parameter checks, total score {:.1}",
-                invariants_metrics.require_assertions + invariants_metrics.require_eq_assertions,
-                invariants_metrics.mathematical_constraints,
-                invariants_metrics.collateral_ratio_checks + invariants_metrics.fee_rate_checks + invariants_metrics.health_factor_checks,
-                invariants_metrics.total_invariant_score
+                "Analyzed constraint density: {} total assertions, {} complexity score, factor {:.1}",
+                invariants_metrics.total_assertions,
+                invariants_metrics.total_assertion_complexity_score,
+                invariants_metrics.constraint_density_factor
             ));
             log::info!(
-                "Calculated invariants for workspace {}: {} require assertions, {} mathematical constraints, {} risk parameter checks, total score {:.1}",
+                "Calculated constraint density for workspace {}: {} total assertions, {} complexity score, factor {:.1}",
                 request.workspace_id,
-                invariants_metrics.require_assertions + invariants_metrics.require_eq_assertions,
-                invariants_metrics.mathematical_constraints,
-                invariants_metrics.collateral_ratio_checks + invariants_metrics.fee_rate_checks + invariants_metrics.health_factor_checks,
-                invariants_metrics.total_invariant_score
+                invariants_metrics.total_assertions,
+                invariants_metrics.total_assertion_complexity_score,
+                invariants_metrics.constraint_density_factor
             );
         }
         Err(e) => {
@@ -812,20 +810,17 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             );
             computed_factors.push("privilegedRoles".to_string());
             notes.push(format!(
-                "Analyzed privileged roles: {} privileged handlers, {} admin actions, {} high-impact, {} medium-impact, {} low-impact, complexity score {:.1}",
-                privileged_roles_metrics.total_privileged_handlers,
-                privileged_roles_metrics.total_admin_actions,
-                privileged_roles_metrics.high_impact_actions,
-                privileged_roles_metrics.medium_impact_actions,
-                privileged_roles_metrics.low_impact_actions,
-                privileged_roles_metrics.privileged_complexity_score
+                "Analyzed access control: {} gated handlers, {} account closes, {} manual checks, AC factor {:.1}",
+                privileged_roles_metrics.total_gated_handlers,
+                privileged_roles_metrics.total_account_closes,
+                privileged_roles_metrics.total_manual_checks,
+                privileged_roles_metrics.ac_factor
             ));
             log::info!(
-                "Calculated privileged roles for workspace {}: {} handlers, {} admin actions, complexity {:.1}",
+                "Calculated access control for workspace {}: {} handlers, AC factor {:.1}",
                 request.workspace_id,
-                privileged_roles_metrics.total_privileged_handlers,
-                privileged_roles_metrics.total_admin_actions,
-                privileged_roles_metrics.privileged_complexity_score
+                privileged_roles_metrics.total_handlers_found,
+                privileged_roles_metrics.ac_factor
             );
         }
         Err(e) => {
@@ -886,25 +881,19 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             factors_map.insert("errorHandling".to_string(), error_metrics.to_json());
             computed_factors.push("errorHandling".to_string());
             notes.push(format!(
-                "Analyzed error handling: {} require macros, {} require_eq macros, {} assert macros, {} panic calls, {} unwrap calls, {} expect calls, complexity score {:.1}",
+                "Analyzed error handling: {} require macros, {} require_eq macros, {} total invariants, factor {:.1}",
                 error_metrics.total_require_macros,
                 error_metrics.total_require_eq_macros,
-                error_metrics.total_assert_macros,
-                error_metrics.total_panic_calls,
-                error_metrics.total_unwrap_calls,
-                error_metrics.total_expect_calls,
-                error_metrics.error_handling_complexity_score
+                error_metrics.total_invariants,
+                error_metrics.error_handling_factor
             ));
             log::info!(
-                "Calculated error handling for workspace {}: {} require, {} require_eq, {} assert, {} panic, {} unwrap, {} expect, complexity {:.1}",
+                "Calculated error handling for workspace {}: {} require, {} require_eq, {} total invariants, factor {:.1}",
                 request.workspace_id,
                 error_metrics.total_require_macros,
                 error_metrics.total_require_eq_macros,
-                error_metrics.total_assert_macros,
-                error_metrics.total_panic_calls,
-                error_metrics.total_unwrap_calls,
-                error_metrics.total_expect_calls,
-                error_metrics.error_handling_complexity_score
+                error_metrics.total_invariants,
+                error_metrics.error_handling_factor
             );
         }
         Err(e) => {
@@ -1006,21 +995,17 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             factors_map.insert("composability".to_string(), composability_metrics.to_json());
             computed_factors.push("composability".to_string());
             notes.push(format!(
-                    "Analyzed composability: {} flash loan callbacks, {} cross-program flows, {} callback interfaces, {} dex integrations, complexity score {:.1}",
-                    composability_metrics.flash_loan_callbacks,
-                    composability_metrics.cross_program_instruction_sequences,
-                    composability_metrics.callback_interface_functions,
-                    composability_metrics.dex_integration_patterns,
-                    composability_metrics.composability_complexity_score
+                    "Analyzed composability: {} handlers found, {} multi-CPI handlers, composability factor {:.1}",
+                    composability_metrics.total_handlers_found,
+                    composability_metrics.multi_cpi_handlers_count,
+                    composability_metrics.composability_factor
                 ));
             log::info!(
-                    "Calculated composability for workspace {}: {} flash loan, {} cross-program, {} callbacks, {} dex, complexity {:.1}",
+                    "Calculated composability for workspace {}: {} handlers, {} multi-CPI handlers, factor {:.1}",
                     request.workspace_id,
-                    composability_metrics.flash_loan_callbacks,
-                    composability_metrics.cross_program_instruction_sequences,
-                    composability_metrics.callback_interface_functions,
-                    composability_metrics.dex_integration_patterns,
-                    composability_metrics.composability_complexity_score
+                    composability_metrics.total_handlers_found,
+                    composability_metrics.multi_cpi_handlers_count,
+                    composability_metrics.composability_factor
                 );
         }
         Err(e) => {
@@ -1083,21 +1068,21 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             factors_map.insert("dosResourceLimits".to_string(), dos_metrics.to_json());
             computed_factors.push("dosResourceLimits".to_string());
             notes.push(format!(
-                "Analyzed DOS resource limits: {} unbounded loops, {} recursive calls, {} cryptographic operations, {} large CPI sequences, complexity score {:.1}",
-                dos_metrics.unbounded_loops,
-                dos_metrics.recursive_calls,
-                dos_metrics.cryptographic_operations,
-                dos_metrics.large_cpi_sequences,
-                dos_metrics.dos_complexity_score
+                "Analyzed DOS resource limits: {} handlers found, {} with vec params, {} with loops, {} dynamic space accounts, resource factor {:.1}",
+                dos_metrics.total_handlers_found,
+                dos_metrics.handlers_with_vec_params,
+                dos_metrics.handlers_with_loops,
+                dos_metrics.dynamic_space_accounts,
+                dos_metrics.resource_factor
             ));
             log::info!(
-                "Calculated DOS resource limits for workspace {}: {} unbounded loops, {} recursive calls, {} crypto ops, {} large CPI sequences, complexity {:.1}",
+                "Calculated DOS resource limits for workspace {}: {} handlers, {} vec params, {} loops, {} dynamic space, factor {:.1}",
                 request.workspace_id,
-                dos_metrics.unbounded_loops,
-                dos_metrics.recursive_calls,
-                dos_metrics.cryptographic_operations,
-                dos_metrics.large_cpi_sequences,
-                dos_metrics.dos_complexity_score
+                dos_metrics.total_handlers_found,
+                dos_metrics.handlers_with_vec_params,
+                dos_metrics.handlers_with_loops,
+                dos_metrics.dynamic_space_accounts,
+                dos_metrics.resource_factor
             );
         }
         Err(e) => {
@@ -1123,21 +1108,19 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             );
             computed_factors.push("operationalSecurity".to_string());
             notes.push(format!(
-                "Analyzed operational security: {} pause functions, {} emergency controls, {} upgrade mechanisms, {} circuit breakers, complexity score {:.1}",
-                operational_metrics.pause_functions + operational_metrics.unpause_functions,
-                operational_metrics.emergency_admin_functions,
-                operational_metrics.program_upgrade_functions,
-                operational_metrics.circuit_breaker_patterns,
-                operational_metrics.operational_security_score
+                "Analyzed operational security: {} control handlers, {} pause checks, {} sysvar dependencies, opsec factor {:.1}",
+                operational_metrics.control_handlers,
+                operational_metrics.pause_checks,
+                operational_metrics.sysvar_dependencies,
+                operational_metrics.opsec_factor
             ));
             log::info!(
-                "Calculated operational security for workspace {}: {} pause functions, {} emergency controls, {} upgrade mechanisms, {} circuit breakers, complexity {:.1}",
+                "Calculated operational security for workspace {}: {} control handlers, {} pause checks, {} sysvar dependencies, opsec factor {:.1}",
                 request.workspace_id,
-                operational_metrics.pause_functions + operational_metrics.unpause_functions,
-                operational_metrics.emergency_admin_functions,
-                operational_metrics.program_upgrade_functions,
-                operational_metrics.circuit_breaker_patterns,
-                operational_metrics.operational_security_score
+                operational_metrics.control_handlers,
+                operational_metrics.pause_checks,
+                operational_metrics.sysvar_dependencies,
+                operational_metrics.opsec_factor
             );
         }
         Err(e) => {

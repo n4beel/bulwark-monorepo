@@ -5,44 +5,116 @@
 
 use std::collections::HashSet;
 use std::path::PathBuf;
-use syn::{visit::Visit, Attribute, Item};
+use syn::{
+    parse::{Parse, ParseStream},
+    punctuated::Punctuated,
+    visit::Visit,
+    Attribute, Expr, ExprCall, ExprField, ExprLit, ExprMethodCall, ExprPath, Ident, Item, Lit,
+    LitByteStr, LitStr, Meta, MetaList, Token,
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct PdaMetrics {
-    /// Total number of PDA accounts with seeds
+    /// Core Input 1: Base Count (N_PDA)
     pub total_pda_accounts: usize,
 
-    /// Number of PDA accounts with simple (constant) seeds
-    pub simple_seed_pdas: usize,
+    /// Core Input 2: Weighted Complexity Score (S_TotalComplexity)
+    pub total_seed_complexity_score: usize,
 
-    /// Number of PDA accounts with complex (dynamic) seeds
-    pub complex_seed_pdas: usize,
+    /// Final Output (0-100, higher = riskier)
+    pub pda_complexity_factor: f64,
 
-    /// Number of distinct seed patterns found
+    /// Secondary/Audit Metrics (Minimal Noise)
     pub distinct_seed_patterns: usize,
-
-    /// Set of unique seed patterns (for complexity assessment)
     pub seed_patterns: HashSet<String>,
-
-    /// Number of accounts with multiple seed components
-    pub multi_seed_pdas: usize,
-
-    /// Number of accounts with dynamic seed components (variables, function calls)
-    pub dynamic_seed_pdas: usize,
 }
 
 impl PdaMetrics {
     /// Convert to structured JSON object
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
+            // The final factor (main output)
+            "pdaComplexityFactor": self.pda_complexity_factor,
+
+            // The two weighted inputs (for audibility)
             "totalPdaAccounts": self.total_pda_accounts,
-            "simpleSeedPdas": self.simple_seed_pdas,
-            "complexSeedPdas": self.complex_seed_pdas,
+            "totalSeedComplexityScore": self.total_seed_complexity_score,
+
+            // Debug/Detailed fields (useful for detailed report but minimized)
             "distinctSeedPatterns": self.distinct_seed_patterns,
             "seedPatterns": self.seed_patterns.iter().collect::<Vec<_>>(),
-            "multiSeedPdas": self.multi_seed_pdas,
-            "dynamicSeedPdas": self.dynamic_seed_pdas
         })
+    }
+
+    /// Calculate the PDA Complexity Factor (0-100, higher = riskier)
+    /// Formula: min(100, (N_PDA × 5) + S_TotalComplexity)
+    pub fn calculate_pda_factor(&mut self) {
+        let weighted_sum = (self.total_pda_accounts * 5) + self.total_seed_complexity_score;
+        self.pda_complexity_factor = (weighted_sum as f64).min(100.0);
+    }
+}
+
+/// Custom parser for Anchor account attributes to extract seeds and bump
+#[derive(Debug)]
+struct SeedsParser {
+    seeds: Option<Punctuated<Expr, Token![,]>>,
+    manual_bump: Option<Expr>,
+}
+
+impl Parse for SeedsParser {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut seeds: Option<Punctuated<Expr, Token![,]>> = None;
+        let mut manual_bump: Option<Expr> = None;
+
+        // Loop through the comma-separated args inside #[account(...)]
+        while !input.is_empty() {
+            // *** THIS IS THE FIX ***
+            // Parse a full Path to handle `seeds` as well as `token::mint`, etc.
+            let key_path: syn::Path = input.parse()?;
+
+            // Get the last part of the path (e.g., "seeds" from "seeds", or "mint" from "token::mint")
+            let key = key_path.segments.last().unwrap().ident.to_string();
+
+            if key == "seeds" {
+                let _: Token![=] = input.parse()?;
+                let content;
+                syn::bracketed!(content in input);
+                seeds = Some(content.parse_terminated(Expr::parse, Token![,])?);
+            } else if key == "bump" {
+                // *** THIS IS THE FIX ***
+                // Check if an equals sign follows.
+                if input.peek(Token![=]) {
+                    // It's a manual bump (bump = ...)
+                    let _: Token![=] = input.parse()?;
+                    manual_bump = Some(input.parse()?);
+                } else {
+                    // It's a canonical bump (e.g., just `bump` or `bump,`)
+                    // Do nothing; we just acknowledge the key.
+                }
+            } else {
+                // Skip other attributes like `init`, `mut`, `close`, `space`, etc.
+                if input.peek(Token![=]) {
+                    // This is a key = value attribute
+                    let _: Token![=] = input.parse()?;
+
+                    // *** THIS IS THE FIX ***
+                    // Parse *any* valid expression as the value and discard it.
+                    // This robustly handles `space = 8 + 64`, `payer = user`,
+                    // `some_key = 123`, etc.
+                    let _: Expr = input.parse()?;
+                } else {
+                    // This is a standalone key (e.g., `init`, `mut`)
+                    // We already parsed the key (e.g., "init"), so we do nothing
+                    // and let the loop continue.
+                }
+            }
+
+            if input.peek(Token![,]) {
+                let _: Token![,] = input.parse()?;
+            }
+        }
+
+        Ok(SeedsParser { seeds, manual_bump })
     }
 }
 
@@ -76,10 +148,8 @@ pub fn calculate_workspace_pda_seeds(
                                 Ok(file_metrics) => {
                                     // Merge metrics from this file
                                     metrics.total_pda_accounts += file_metrics.total_pda_accounts;
-                                    metrics.simple_seed_pdas += file_metrics.simple_seed_pdas;
-                                    metrics.complex_seed_pdas += file_metrics.complex_seed_pdas;
-                                    metrics.multi_seed_pdas += file_metrics.multi_seed_pdas;
-                                    metrics.dynamic_seed_pdas += file_metrics.dynamic_seed_pdas;
+                                    metrics.total_seed_complexity_score +=
+                                        file_metrics.total_seed_complexity_score;
 
                                     // Merge seed patterns
                                     for pattern in file_metrics.seed_patterns {
@@ -119,11 +189,15 @@ pub fn calculate_workspace_pda_seeds(
     // Calculate distinct seed patterns
     metrics.distinct_seed_patterns = metrics.seed_patterns.len();
 
+    // Calculate the PDA Complexity Factor
+    metrics.calculate_pda_factor();
+
     log::info!(
-        "🔍 PDA SEEDS DEBUG: Analysis complete: {} files analyzed, {} total PDA accounts, {} distinct seed patterns",
+        "🔍 PDA SEEDS DEBUG: Analysis complete: {} files analyzed, {} total PDA accounts, {} distinct seed patterns, PDA Factor: {:.2}",
         analyzed_files,
         metrics.total_pda_accounts,
-        metrics.distinct_seed_patterns
+        metrics.distinct_seed_patterns,
+        metrics.pda_complexity_factor
     );
 
     Ok(metrics)
@@ -138,10 +212,16 @@ pub fn analyze_file_pda_seeds(content: &str) -> Result<PdaMetrics, Box<dyn std::
     let mut visitor = PdaSeedsVisitor::new();
     visitor.visit_file(&syntax_tree);
 
+    // Calculate distinct seed patterns
+    visitor.metrics.distinct_seed_patterns = visitor.metrics.seed_patterns.len();
+
+    // Calculate the PDA Complexity Factor
+    visitor.metrics.calculate_pda_factor();
+
     Ok(visitor.metrics)
 }
 
-/// Visitor to analyze PDA seed patterns
+/// Visitor to analyze PDA seed patterns using full AST approach
 struct PdaSeedsVisitor {
     metrics: PdaMetrics,
 }
@@ -153,28 +233,51 @@ impl PdaSeedsVisitor {
         }
     }
 
-    /// Check if an attribute contains PDA seeds
+    /// Check if an attribute contains PDA seeds using AST analysis
     fn has_pda_seeds(&self, attr: &Attribute) -> bool {
+        // Check if this is an account attribute with seeds
         let attr_str = format!("{}", quote::quote! { #attr });
         attr_str.contains("seeds") && attr_str.contains("account")
     }
 
-    /// Analyze seeds attribute to determine complexity
-    fn analyze_seeds_attribute(&self, attr: &Attribute) -> Option<SeedAnalysis> {
+    /// Analyze seeds attribute using full AST to determine complexity score
+    fn analyze_seeds_attribute(&mut self, attr: &Attribute) -> Option<usize> {
         if !self.has_pda_seeds(attr) {
             return None;
         }
 
+        // Parse the attribute using our custom AST parser
+        if let Ok(seeds_parser) = attr.parse_args_with(SeedsParser::parse) {
+            if let Some(seeds) = seeds_parser.seeds {
+                // SUCCESS! We are using the AST.
+                let mut score = self.calculate_seed_complexity_score_from_ast(&seeds);
+
+                // Add manual bump penalty if present
+                if let Some(_manual_bump) = seeds_parser.manual_bump {
+                    score += 5; // Manual bump is high risk
+                    self.metrics.seed_patterns.insert("manual_bump".to_string());
+                }
+
+                return Some(score);
+            }
+        }
+
+        // If we reach here, AST parsing failed. Log this and fall back.
+        log::warn!("Failed to parse seeds attribute with AST, falling back to string analysis.");
+        self.analyze_seeds_attribute_fallback(attr)
+    }
+
+    /// Fallback string-based analysis (for edge cases)
+    fn analyze_seeds_attribute_fallback(&mut self, attr: &Attribute) -> Option<usize> {
         let attr_str = format!("{}", quote::quote! { #attr });
 
-        // Extract seeds content from the attribute
+        // Extract seeds content from the attribute string
         if let Some(seeds_start) = attr_str.find("seeds") {
             if let Some(bracket_start) = attr_str[seeds_start..].find('[') {
                 let seeds_content = &attr_str[seeds_start + bracket_start..];
                 if let Some(bracket_end) = seeds_content.find(']') {
                     let seeds_str = &seeds_content[1..bracket_end];
-
-                    return Some(self.analyze_seeds_string(seeds_str));
+                    return Some(self.calculate_seed_complexity_score_from_string(seeds_str));
                 }
             }
         }
@@ -182,53 +285,117 @@ impl PdaSeedsVisitor {
         None
     }
 
-    /// Analyze the seeds string to determine complexity
-    fn analyze_seeds_string(&self, seeds_str: &str) -> SeedAnalysis {
-        let mut seed_count = 0;
-        let mut has_dynamic = false;
-        let mut has_variables = false;
-        let mut has_function_calls = false;
+    /// Calculate seed complexity score from AST analysis (primary method)
+    fn calculate_seed_complexity_score_from_ast(
+        &mut self,
+        seed_exprs: &syn::punctuated::Punctuated<syn::Expr, syn::token::Comma>,
+    ) -> usize {
+        let mut total_score = 0;
 
-        // Count seed components (split by comma, but be careful with nested structures)
+        for expr in seed_exprs {
+            let score = self.analyze_seed_expression(expr);
+            total_score += score;
+        }
+
+        total_score
+    }
+
+    /// Analyze a single seed expression and return its complexity score
+    fn analyze_seed_expression(&mut self, expr: &syn::Expr) -> usize {
+        // Get the actual code snippet for better auditing
+        let pattern = quote::quote! { #expr }.to_string();
+
+        match expr {
+            // Literal seeds (b"vault", "pool", etc.) - Weight: 1 (Low Risk)
+            Expr::Lit(expr_lit) => match &expr_lit.lit {
+                Lit::Str(_) | Lit::ByteStr(_) => {
+                    self.metrics.seed_patterns.insert(pattern);
+                    1
+                }
+                _ => {
+                    self.metrics.seed_patterns.insert(pattern);
+                    1
+                }
+            },
+            // Method calls (.key(), .to_bytes(), etc.) - Weight: 3 (High Risk)
+            Expr::MethodCall(_method_call) => {
+                self.metrics.seed_patterns.insert(pattern);
+                3
+            }
+            // Field access (user.key, token.mint) - Weight: 3 (High Risk)
+            Expr::Field(_field_expr) => {
+                self.metrics.seed_patterns.insert(pattern);
+                3
+            }
+            // Function calls (get_user_key(), etc.) - Weight: 3 (High Risk)
+            Expr::Call(_call_expr) => {
+                self.metrics.seed_patterns.insert(pattern);
+                3
+            }
+            // Path expressions (variables, constants) - Weight: 3 (High Risk)
+            Expr::Path(_path_expr) => {
+                self.metrics.seed_patterns.insert(pattern);
+                3
+            }
+            // Complex expressions (nested, binary ops, etc.) - Weight: 3 (High Risk)
+            _ => {
+                self.metrics.seed_patterns.insert(pattern);
+                3
+            }
+        }
+    }
+
+    /// Calculate seed complexity score from string analysis (fallback)
+    fn calculate_seed_complexity_score_from_string(&mut self, seeds_str: &str) -> usize {
+        let mut total_score = 0;
+
+        // Parse seed components (split by comma, but be careful with nested structures)
         let components = self.parse_seed_components(seeds_str);
-        seed_count = components.len();
 
         for component in &components {
             let component = component.trim();
 
-            // Check for dynamic patterns
-            if component.contains(".key()")
+            // Check for literal seeds (b"...")
+            if component.starts_with("b\"") && component.ends_with("\"") {
+                total_score += 1;
+                self.metrics
+                    .seed_patterns
+                    .insert("literal_seed".to_string());
+            }
+            // Check for method calls (.key(), .to_bytes(), etc.)
+            else if component.contains(".key()")
                 || component.contains(".to_bytes()")
                 || component.contains(".as_ref()")
-                || component.contains("&")
             {
-                has_dynamic = true;
+                total_score += 3;
+                self.metrics
+                    .seed_patterns
+                    .insert("method_call_seed".to_string());
             }
-
-            // Check for variables (not just string literals)
-            if !component.starts_with("b\"") && !component.starts_with("\"") {
-                has_variables = true;
+            // Check for field access (user.key)
+            else if component.contains(".") && !component.contains("(") {
+                total_score += 3;
+                self.metrics
+                    .seed_patterns
+                    .insert("field_access_seed".to_string());
             }
-
-            // Check for function calls
-            if component.contains("(") && component.contains(")") {
-                has_function_calls = true;
+            // Check for variable references
+            else if !component.starts_with("b\"") && !component.starts_with("\"") {
+                total_score += 3;
+                self.metrics
+                    .seed_patterns
+                    .insert("variable_seed".to_string());
+            }
+            // Other expressions (function calls, etc.)
+            else {
+                total_score += 3;
+                self.metrics
+                    .seed_patterns
+                    .insert("complex_seed".to_string());
             }
         }
 
-        let complexity = if has_dynamic || has_variables || has_function_calls {
-            SeedComplexity::Complex
-        } else {
-            SeedComplexity::Simple
-        };
-
-        SeedAnalysis {
-            count: seed_count,
-            complexity,
-            has_dynamic,
-            has_variables,
-            has_function_calls,
-        }
+        total_score
     }
 
     /// Parse seed components, handling nested structures
@@ -283,74 +450,22 @@ impl PdaSeedsVisitor {
     }
 }
 
-#[derive(Debug, Clone)]
-enum SeedComplexity {
-    Simple,
-    Complex,
-}
-
-#[derive(Debug, Clone)]
-struct SeedAnalysis {
-    count: usize,
-    complexity: SeedComplexity,
-    has_dynamic: bool,
-    has_variables: bool,
-    has_function_calls: bool,
-}
+// Removed old SeedComplexity and SeedAnalysis - replaced by direct AST analysis
 
 impl<'ast> Visit<'ast> for PdaSeedsVisitor {
     fn visit_item(&mut self, item: &'ast Item) {
         match item {
             Item::Struct(item_struct) => {
-                // Check struct fields for PDA seeds
+                // Check struct fields for PDA seeds using full AST analysis
                 for field in &item_struct.fields {
                     for attr in &field.attrs {
-                        if let Some(seed_analysis) = self.analyze_seeds_attribute(attr) {
+                        if let Some(complexity_score) = self.analyze_seeds_attribute(attr) {
                             self.metrics.total_pda_accounts += 1;
-
-                            match seed_analysis.complexity {
-                                SeedComplexity::Simple => {
-                                    self.metrics.simple_seed_pdas += 1;
-                                    self.metrics
-                                        .seed_patterns
-                                        .insert("simple_seeds".to_string());
-                                }
-                                SeedComplexity::Complex => {
-                                    self.metrics.complex_seed_pdas += 1;
-                                    self.metrics
-                                        .seed_patterns
-                                        .insert("complex_seeds".to_string());
-                                }
-                            }
-
-                            if seed_analysis.count > 1 {
-                                self.metrics.multi_seed_pdas += 1;
-                                self.metrics.seed_patterns.insert("multi_seeds".to_string());
-                            }
-
-                            if seed_analysis.has_dynamic {
-                                self.metrics.dynamic_seed_pdas += 1;
-                                self.metrics
-                                    .seed_patterns
-                                    .insert("dynamic_seeds".to_string());
-                            }
-
-                            if seed_analysis.has_variables {
-                                self.metrics
-                                    .seed_patterns
-                                    .insert("variable_seeds".to_string());
-                            }
-
-                            if seed_analysis.has_function_calls {
-                                self.metrics
-                                    .seed_patterns
-                                    .insert("function_call_seeds".to_string());
-                            }
+                            self.metrics.total_seed_complexity_score += complexity_score;
 
                             log::debug!(
-                                "🔍 PDA SEEDS DEBUG: Found PDA account with {} seeds, complexity: {:?}",
-                                seed_analysis.count,
-                                seed_analysis.complexity
+                                "🔍 PDA SEEDS DEBUG: Found PDA account with complexity score: {}",
+                                complexity_score
                             );
                         }
                     }
@@ -380,8 +495,8 @@ mod tests {
 
         let result = analyze_file_pda_seeds(code).unwrap();
         assert_eq!(result.total_pda_accounts, 1);
-        assert_eq!(result.simple_seed_pdas, 1);
-        assert_eq!(result.complex_seed_pdas, 0);
+        assert_eq!(result.total_seed_complexity_score, 1); // 1 literal seed
+        assert_eq!(result.pda_complexity_factor, 6.0); // (1 × 5) + 1 = 6
     }
 
     #[test]
@@ -396,10 +511,8 @@ mod tests {
 
         let result = analyze_file_pda_seeds(code).unwrap();
         assert_eq!(result.total_pda_accounts, 1);
-        assert_eq!(result.simple_seed_pdas, 0);
-        assert_eq!(result.complex_seed_pdas, 1);
-        assert_eq!(result.multi_seed_pdas, 1);
-        assert_eq!(result.dynamic_seed_pdas, 1);
+        assert_eq!(result.total_seed_complexity_score, 7); // 1 literal + 2 method calls = 1 + 3 + 3 = 7
+        assert_eq!(result.pda_complexity_factor, 12.0); // (1 × 5) + 7 = 12
     }
 
     #[test]
@@ -417,7 +530,56 @@ mod tests {
 
         let result = analyze_file_pda_seeds(code).unwrap();
         assert_eq!(result.total_pda_accounts, 2);
-        assert_eq!(result.simple_seed_pdas, 1);
-        assert_eq!(result.complex_seed_pdas, 1);
+        assert_eq!(result.total_seed_complexity_score, 5); // 1 literal + 1 literal + 1 method call = 1 + 1 + 3 = 5
+        assert_eq!(result.pda_complexity_factor, 15.0); // (2 × 5) + 5 = 15
+    }
+
+    #[test]
+    fn test_manual_bump_detection() {
+        let code = r#"
+            #[derive(Accounts)]
+            pub struct Initialize<'info> {
+                #[account(seeds = [b"vault"], bump = my_bump)]
+                pub vault: Account<'info, Vault>,
+            }
+        "#;
+
+        let result = analyze_file_pda_seeds(code).unwrap();
+        assert_eq!(result.total_pda_accounts, 1);
+        assert_eq!(result.total_seed_complexity_score, 6); // 1 literal + 5 manual bump penalty = 6
+        assert_eq!(result.pda_complexity_factor, 11.0); // (1 × 5) + 6 = 11
+        assert!(result.seed_patterns.contains("manual_bump"));
+    }
+
+    #[test]
+    fn test_ast_vs_string_parsing() {
+        let code = r#"
+            #[derive(Accounts)]
+            pub struct Initialize<'info> {
+                #[account(seeds = [b"vault", user.key().as_ref()], bump)]
+                pub vault: Account<'info, Vault>,
+            }
+        "#;
+
+        let result = analyze_file_pda_seeds(code).unwrap();
+        assert_eq!(result.total_pda_accounts, 1);
+        assert_eq!(result.total_seed_complexity_score, 4); // 1 literal + 1 method call = 1 + 3 = 4
+        assert_eq!(result.pda_complexity_factor, 9.0); // (1 × 5) + 4 = 9
+
+        // Verify that we're getting actual code snippets, not generic patterns
+        println!("Seed patterns: {:?}", result.seed_patterns);
+        // The AST parsing is working - we can see the patterns are being captured
+        // We should have actual code snippets, not generic patterns
+        assert!(result.seed_patterns.len() >= 2); // Should have at least 2 patterns
+                                                  // Check that we have actual code snippets (not generic "literal_seed", "variable_seed")
+        let has_actual_patterns = result
+            .seed_patterns
+            .iter()
+            .any(|p| p.contains("vault") || p.contains("user"));
+        assert!(
+            has_actual_patterns,
+            "Expected actual code snippets, got: {:?}",
+            result.seed_patterns
+        );
     }
 }

@@ -10,6 +10,9 @@ use syn::{
     Signature, Type, UseTree, Visibility,
 };
 
+// Import TSC functionality for AST-based code volume measurement
+use crate::factors::lines_of_code::analyze_file_tsc;
+
 #[derive(Debug, Clone)]
 pub struct ModularityMetrics {
     pub total_files: usize,
@@ -50,11 +53,11 @@ impl ModularityMetrics {
 #[derive(Debug, Clone)]
 struct FileAnalysis {
     path: String,
-    lines_of_code: usize,
+    total_statements: usize, // AST-based Total Statement Count (TSC)
     modules: Vec<ModuleInfo>,
     imports: Vec<ImportInfo>,
     max_depth: u32,
-    handler_count: usize, // NEW: Count of Anchor instruction handlers in this file
+    handler_count: usize, // Count of Anchor instruction handlers in this file
 }
 
 #[derive(Debug, Clone)]
@@ -84,7 +87,7 @@ pub fn calculate_workspace_modularity(
     );
 
     let mut file_analyses = Vec::new();
-    let mut total_lines = 0;
+    let mut total_statements = 0;
     let mut analyzed_files = 0;
 
     // Analyze each file
@@ -97,14 +100,14 @@ pub fn calculate_workspace_modularity(
                     match std::fs::read_to_string(&full_file_path) {
                         Ok(content) => match analyze_file_modularity(file_path, &content) {
                             Ok(file_analysis) => {
-                                total_lines += file_analysis.lines_of_code;
+                                total_statements += file_analysis.total_statements;
                                 file_analyses.push(file_analysis);
                                 analyzed_files += 1;
 
                                 log::debug!(
-                                    "File {}: {} lines, {} modules, {} imports, max depth: {}",
+                                    "File {}: {} statements, {} modules, {} imports, max depth: {}",
                                     file_path,
-                                    file_analyses.last().unwrap().lines_of_code,
+                                    file_analyses.last().unwrap().total_statements,
                                     file_analyses.last().unwrap().modules.len(),
                                     file_analyses.last().unwrap().imports.len(),
                                     file_analyses.last().unwrap().max_depth
@@ -134,8 +137,8 @@ pub fn calculate_workspace_modularity(
     // Calculate aggregate metrics
     let total_files = analyzed_files;
     let total_modules: usize = file_analyses.iter().map(|f| f.modules.len()).sum();
-    let avg_lines_per_file = if total_files > 0 {
-        total_lines as f64 / total_files as f64
+    let avg_statements_per_file = if total_files > 0 {
+        total_statements as f64 / total_files as f64
     } else {
         0.0
     };
@@ -181,7 +184,7 @@ pub fn calculate_workspace_modularity(
     let modularity_score = calculate_modularity_score(
         total_files,
         &file_analyses,
-        avg_lines_per_file,
+        avg_statements_per_file,
         max_nesting_depth,
         internal_cross_references,
     );
@@ -192,7 +195,7 @@ pub fn calculate_workspace_modularity(
     let result = ModularityMetrics {
         total_files,
         total_modules,
-        avg_lines_per_file,
+        avg_lines_per_file: avg_statements_per_file, // Using TSC as the code volume metric
         max_nesting_depth,
         total_imports,
         external_dependencies,
@@ -205,10 +208,10 @@ pub fn calculate_workspace_modularity(
     };
 
     log::info!(
-        "Modularity analysis complete: {} files, {} modules, avg {:.1} lines/file, modularity score: {:.1}, {} handlers in {} files (IHD: {:.2}), anchor modularity: {:.1}",
+        "Modularity analysis complete: {} files, {} modules, avg {:.1} statements/file, modularity score: {:.1}, {} handlers in {} files (IHD: {:.2}), anchor modularity: {:.1}",
         total_files,
         total_modules,
-        avg_lines_per_file,
+        avg_statements_per_file,
         modularity_score,
         total_instruction_handlers,
         files_with_handlers,
@@ -235,18 +238,13 @@ fn analyze_file_modularity(
     let mut handler_counter = HandlerCounter::new();
     handler_counter.visit_file(&syntax_tree);
 
-    // Count lines of code (non-empty, non-comment lines)
-    let lines_of_code = content
-        .lines()
-        .filter(|line| {
-            let trimmed = line.trim();
-            !trimmed.is_empty() && !trimmed.starts_with("//")
-        })
-        .count();
+    // Calculate AST-based Total Statement Count (TSC) for robust code volume measurement
+    let tsc_metrics = analyze_file_tsc(content).unwrap_or_default();
+    let total_statements = tsc_metrics.total_statements;
 
     Ok(FileAnalysis {
         path: file_path.to_string(),
-        lines_of_code,
+        total_statements,
         modules: visitor.modules,
         imports: visitor.imports,
         max_depth: visitor.max_nesting_depth,
@@ -258,7 +256,7 @@ fn analyze_file_modularity(
 fn calculate_modularity_score(
     total_files: usize,
     file_analyses: &[FileAnalysis],
-    _avg_lines_per_file: f64,
+    _avg_statements_per_file: f64,
     max_nesting_depth: u32,
     internal_cross_references: usize,
 ) -> f64 {
@@ -274,10 +272,11 @@ fn calculate_modularity_score(
     };
 
     // Component 2: Balanced file sizes = better organization (0-30 points)
+    // Using AST-based Total Statement Count (TSC) for robust code volume measurement
     let balance_score = if file_analyses.len() <= 1 {
         30.0 // Single file gets full points for balance
     } else {
-        let sizes: Vec<usize> = file_analyses.iter().map(|f| f.lines_of_code).collect();
+        let sizes: Vec<usize> = file_analyses.iter().map(|f| f.total_statements).collect();
         let mean = sizes.iter().sum::<usize>() as f64 / sizes.len() as f64;
         let variance = sizes
             .iter()
@@ -676,7 +675,7 @@ mod tests {
         let file_analyses = vec![
             FileAnalysis {
                 path: "file1.rs".to_string(),
-                lines_of_code: 100,
+                total_statements: 100,
                 modules: vec![],
                 imports: vec![],
                 max_depth: 0,
@@ -684,7 +683,7 @@ mod tests {
             },
             FileAnalysis {
                 path: "file2.rs".to_string(),
-                lines_of_code: 120,
+                total_statements: 120,
                 modules: vec![],
                 imports: vec![],
                 max_depth: 0,
