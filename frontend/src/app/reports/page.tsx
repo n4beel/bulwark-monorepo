@@ -64,8 +64,8 @@ export default function ReportsPage() {
                     bValue = new Date(b.createdAt.$date);
                     break;
                 case 'score':
-                    aValue = (a.scores.structural.score + a.scores.security.score + a.scores.systemic.score + a.scores.economic.score) / 4;
-                    bValue = (b.scores.structural.score + b.scores.security.score + b.scores.systemic.score + b.scores.economic.score) / 4;
+                    aValue = (a.scores.structural + a.scores.security + a.scores.systemic + a.scores.economic) / 4;
+                    bValue = (b.scores.structural + b.scores.security + b.scores.systemic + b.scores.economic) / 4;
                     break;
                 case 'repository':
                     aValue = a.repository.toLowerCase();
@@ -101,7 +101,7 @@ export default function ReportsPage() {
     };
 
     const getOverallScore = (report: StaticAnalysisReport) => {
-        return ((report.scores.structural.score + report.scores.security.score + report.scores.systemic.score + report.scores.economic.score) / 4).toFixed(1);
+        return ((report.scores.structural + report.scores.security + report.scores.systemic + report.scores.economic) / 4).toFixed(1);
     };
 
     const formatDate = (dateString: string) => {
@@ -261,8 +261,8 @@ export default function ReportsPage() {
                                                 <Layers className="w-4 h-4 text-gray-400 mr-2" />
                                                 <div>
                                                     <div className="text-sm text-gray-600">Structural</div>
-                                                    <div className={`text-sm font-medium ${getScoreColor(report.scores.structural.score).split(' ')[0]}`}>
-                                                        {report.scores.structural.score.toFixed(1)}
+                                                    <div className={`text-sm font-medium ${getScoreColor(report.scores.structural).split(' ')[0]}`}>
+                                                        {report.scores.structural.toFixed(1)}
                                                     </div>
                                                 </div>
                                             </div>
@@ -270,8 +270,8 @@ export default function ReportsPage() {
                                                 <Shield className="w-4 h-4 text-gray-400 mr-2" />
                                                 <div>
                                                     <div className="text-sm text-gray-600">Security</div>
-                                                    <div className={`text-sm font-medium ${getScoreColor(report.scores.security.score).split(' ')[0]}`}>
-                                                        {report.scores.security.score.toFixed(1)}
+                                                    <div className={`text-sm font-medium ${getScoreColor(report.scores.security).split(' ')[0]}`}>
+                                                        {report.scores.security.toFixed(1)}
                                                     </div>
                                                 </div>
                                             </div>
@@ -279,8 +279,8 @@ export default function ReportsPage() {
                                                 <Database className="w-4 h-4 text-gray-400 mr-2" />
                                                 <div>
                                                     <div className="text-sm text-gray-600">Systemic</div>
-                                                    <div className={`text-sm font-medium ${getScoreColor(report.scores.systemic.score).split(' ')[0]}`}>
-                                                        {report.scores.systemic.score.toFixed(1)}
+                                                    <div className={`text-sm font-medium ${getScoreColor(report.scores.systemic).split(' ')[0]}`}>
+                                                        {report.scores.systemic.toFixed(1)}
                                                     </div>
                                                 </div>
                                             </div>
@@ -288,8 +288,8 @@ export default function ReportsPage() {
                                                 <DollarSign className="w-4 h-4 text-gray-400 mr-2" />
                                                 <div>
                                                     <div className="text-sm text-gray-600">Economic</div>
-                                                    <div className={`text-sm font-medium ${getScoreColor(report.scores.economic.score).split(' ')[0]}`}>
-                                                        {report.scores.economic.score.toFixed(1)}
+                                                    <div className={`text-sm font-medium ${getScoreColor(report.scores.economic).split(' ')[0]}`}>
+                                                        {report.scores.economic.toFixed(1)}
                                                     </div>
                                                 </div>
                                             </div>
