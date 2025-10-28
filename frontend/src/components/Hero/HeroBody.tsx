@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Github, Upload } from "lucide-react";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
@@ -17,12 +17,30 @@ const HeroBody = ({
   onAnalyze,
 }: HeroBodyProps) => {
   const [repoInput, setRepoInput] = useState("");
+  const leftVideoRef = useRef<HTMLVideoElement>(null);
+  const bgVideoRef = useRef<HTMLVideoElement>(null);
 
   const handleAnalyze = () => {
     if (repoInput.trim()) {
       onAnalyze(repoInput);
     }
   };
+
+  // ✅ Ensures autoplay works across browsers (Chrome/Safari)
+  useEffect(() => {
+    [leftVideoRef.current, bgVideoRef.current].forEach((vid) => {
+      if (vid) {
+        vid.muted = true;
+        vid.loop = true;
+        vid.playsInline = true;
+        vid.autoplay = true;
+
+        vid.play().catch(() => {
+          vid.addEventListener("canplay", () => vid.play(), { once: true });
+        });
+      }
+    });
+  }, []);
 
   return (
     <div className="relative w-full py-0 px-6 md:px-12 bg-[var(--background)]">
@@ -32,9 +50,10 @@ const HeroBody = ({
           <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3/4 z-10">
             <div className="relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] overflow-hidden">
               <video
+                ref={leftVideoRef}
                 className="w-full h-full object-cover rounded-full"
                 autoPlay
-                loop //
+                loop
                 muted
                 playsInline
               >
@@ -48,6 +67,7 @@ const HeroBody = ({
           <div className="relative w-full max-w-4xl z-0">
             {/* Background Video - Absolute positioned */}
             <video
+              ref={bgVideoRef}
               className="absolute inset-0 w-full h-full object-cover rounded-2xl"
               autoPlay
               loop
@@ -71,7 +91,7 @@ const HeroBody = ({
                     compact={true}
                   />
                 </div>
-              </div>{" "}
+              </div>
             </div>
           </div>
         </div>

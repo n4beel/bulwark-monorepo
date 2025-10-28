@@ -49,7 +49,7 @@ export const teamItems = [
   },
   {
     title: "Protocol DAOs",
-    icon: "/images/Dao.png",
+    icon: "/icons/Dao.svg",
     description:
       "Smart re-analysis that focuses only on changed code for faster iteration cycles.",
   },
