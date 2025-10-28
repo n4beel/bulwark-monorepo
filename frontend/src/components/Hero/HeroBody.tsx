@@ -43,8 +43,8 @@ const HeroBody = ({
   }, []);
 
   return (
-    <div className="relative w-full py-0 px-6 md:px-12 bg-[var(--background)]">
-      <div className="max-w-7xl mx-auto">
+    <div className="relative w-full py-0 px-6 md:px-12 bg-[var(--background)] ">
+      <div className="w-full mx-auto">
         <div className="relative flex items-center justify-center min-h-[450px]">
           {/* Left Side: Circular Video (Half Cut) */}
           <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3/4 z-10">
@@ -64,7 +64,7 @@ const HeroBody = ({
           </div>
 
           {/* Center: Background Video with Transparent Overlay */}
-          <div className="relative w-full max-w-4xl z-0">
+          <div className="relative w-full max-w-6xl z-0">
             {/* Background Video - Absolute positioned */}
             <video
               ref={bgVideoRef}
@@ -82,7 +82,7 @@ const HeroBody = ({
             <div className="relative w-full h-[400px] rounded-2xl overflow-hidden shadow-2xl">
               {/* Transparent Overlay Box */}
               <div className="absolute inset-0 flex items-center justify-center p-4 z-10 pb-20">
-                <div className="w-full max-w-3xl bg-[var(--overlay-bg)] backdrop-blur-md rounded-2xl p-8 shadow-xl border border-[var(--overlay-border)]">
+                <div className="w-[90%]  bg-[var(--overlay-bg)] backdrop-blur-md rounded-2xl p-8  shadow-xl border border-[var(--overlay-border)]">
                   <RepoInputSection
                     onConnectGitHub={onConnectGitHub}
                     onUploadZip={onUploadZip}

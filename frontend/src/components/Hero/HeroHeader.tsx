@@ -21,7 +21,7 @@ const HeroHeader = () => {
   }, []);
 
   return (
-    <div className="relative flex flex-col items-center justify-center py-0 md:py-10">
+    <div className="relative flex w-full flex-col items-center justify-center py-0 md:py-10">
       {/* Center Section: Image + Text */}
       <div className="text-center z-10 max-w-3xl mx-auto px-4">
         <Image
@@ -41,7 +41,7 @@ const HeroHeader = () => {
       </div>
 
       {/* Right Circular Video */}
-      <div className="absolute right-0 top-1/12 -translate-y-8 translate-x-3/4">
+      <div className="absolute -right-40 top-1/12">
         <div className="relative w-[200px] h-[200px] md:w-[300px] md:h-[300px] rounded-full overflow-hidden">
           <video
             ref={rightVideoRef}

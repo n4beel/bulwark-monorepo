@@ -37,7 +37,7 @@ export default function UpgradeForensicModal({
           </svg>
         </button>
         {/* Title */}
-        <h2 className="text-center text-[28px] font-semibold doto text-black mb-10">
+        <h2 className="text-center text-[28px] font-semibold doto text-[#0F172A] mb-10">
           Upgrade to Forensic
         </h2>
 

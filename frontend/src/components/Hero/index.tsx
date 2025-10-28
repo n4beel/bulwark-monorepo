@@ -17,11 +17,11 @@ const HeroSection = ({
 }: HeroSectionProps) => {
   return (
     <section
-      className="hero-container bg-[var(--background)] overflow-hidden "
+      className="hero-container bg-[var(--background)] overflow-hidden w-full "
       id="analyze"
     >
       {/* Hero Header */}
-      <div className="max-w-7xl mx-auto px-6 md:px-12 pt-16 pb-0">
+      <div className="max-full mx-auto   pt-16 pb-0">
         <HeroHeader />
       </div>
 
