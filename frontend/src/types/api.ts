@@ -751,7 +751,7 @@ export interface AIAnalysis {
   engine: string;
   version: string;
   success: boolean;
-  error: string | null;
+  error: string | null | undefined;
   documentation_clarity: number;
   testing_coverage: number;
   financial_logic_complexity: number;

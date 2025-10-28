@@ -59,7 +59,7 @@ export default function GitHubFlowModal({
           </svg>
         </button>
 
-        <div className="relative w-full h-full bg-[var(--background)] rounded-[24px] shadow-xl overflow-hidden flex flex-col">
+        <div className="relative w-full h-full bg-[var(--background)] rounded-[24px] shadow-xl flex flex-col">
           <GitHubModalHeader
             step={
               step === GitHubFlowStep.REPO_SELECT
@@ -71,7 +71,16 @@ export default function GitHubFlowModal({
             onClose={onClose}
           />
 
-          <div className="flex-1 overflow-y-auto">
+          {/* Content area */}
+          <div
+            className={`flex-1 ${
+              step === GitHubFlowStep.REPO_SELECT
+                ? "overflow-hidden"
+                : step === GitHubFlowStep.FILE_SELECT
+                ? "overflow-y-auto"
+                : "overflow-hidden"
+            }`}
+          >
             {step === GitHubFlowStep.REPO_SELECT && (
               <div className="px-10 py-6 min-h-[520px]">
                 <RepositorySelector
@@ -83,7 +92,7 @@ export default function GitHubFlowModal({
             )}
 
             {step === GitHubFlowStep.FILE_SELECT && (
-              <div className="px-10 py-6">
+              <div className="px-10 py-6 overflow-y-auto">
                 <UploadedContractFileSelector
                   contractFiles={contractFiles}
                   onBack={onClose}
@@ -93,13 +102,15 @@ export default function GitHubFlowModal({
             )}
 
             {step === GitHubFlowStep.PROGRESS && (
-              <StepAnalysisProgress
-                onComplete={() => {
-                  onClose();
-                  onOpenResults?.(report);
-                }}
-                apiReady={apiReady}
-              />
+              <div className=" w-full h-full">
+                <StepAnalysisProgress
+                  onComplete={() => {
+                    if (onOpenResults) onOpenResults(report);
+                    onClose();
+                  }}
+                  apiReady={apiReady}
+                />
+              </div>
             )}
           </div>
         </div>
