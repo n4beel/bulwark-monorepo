@@ -40,7 +40,7 @@ const Navbar = () => {
   };
 
   return (
-    <header className="bg-[var(--background)] fixed top-0 left-0 w-full z-50 border-b border-[var(--border-color)]">
+    <header className="bg-white fixed top-0 left-0 w-full z-50 border-b border-[var(--border-color)]">
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-3 cursor-pointer">
           <StandardImage

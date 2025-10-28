@@ -52,7 +52,7 @@ export default function ComplexityCard({
 
       <div className="mt-2 flex items-end gap-1">
         <span className="text-[28px] font-normal opacity-90 text-[var(--white)]">
-          {score}
+          {score?.toFixed(2)}
         </span>
         <span className="text-sm font-normal text-[var(--white)]  opacity-60 pb-1">
           /100

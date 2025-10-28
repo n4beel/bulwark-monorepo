@@ -26,9 +26,9 @@ export default function AuditEffortCard({
   const devsText = estimate.devs?.join("–") ?? "1–2";
   const costText = Intl.NumberFormat().format(estimate.cost ?? 18000);
   const varianceText = estimate.variance ?? 20;
-
+  // border-[var(--border-color)]
   return (
-    <div className="col-span-2 p-3 rounded-lg border border-[var(--border-color)] relative w-full h-full">
+    <div className="flex flex-col justify-around p-3 rounded-lg border  border-[var(--border-color)]  relative w-full h-full">
       {/* Header */}
       <div className="flex justify-between text-xs text-[var(--text-secondary)]">
         <span>Audit Effort Units (time/resources/cost)</span>
@@ -54,7 +54,7 @@ export default function AuditEffortCard({
             height={18}
             className="mx-auto mb-1"
           />
-          <p className="font-semibold">{daysText}d</p>
+          <p className="font-normal">{daysText}d</p>
           <p className="text-[10px] text-[var(--text-secondary)]">p50 to p90</p>
         </div>
 
@@ -70,7 +70,7 @@ export default function AuditEffortCard({
             height={18}
             className="mx-auto mb-1"
           />
-          <p className="font-semibold">{devsText}</p>
+          <p className="font-normal">{devsText}</p>
           <p className="text-[10px] text-[var(--text-secondary)]">p50 to p90</p>
         </div>
 
@@ -86,7 +86,7 @@ export default function AuditEffortCard({
             height={18}
             className="mx-auto mb-1"
           />
-          <p className="font-semibold">${costText}</p>
+          <p className="font-normal">${costText}</p>
           <p className="text-[10px] text-[var(--text-secondary)]">
             ±{varianceText}% variance
           </p>

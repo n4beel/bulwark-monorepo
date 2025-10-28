@@ -16,10 +16,7 @@ const HeroSection = ({
   onAnalyze,
 }: HeroSectionProps) => {
   return (
-    <section
-      className="hero-container bg-[var(--background)] overflow-hidden w-full "
-      id="analyze"
-    >
+    <section className="hero-container  overflow-hidden w-full " id="analyze">
       {/* Hero Header */}
       <div className="max-full mx-auto   pt-16 pb-0">
         <HeroHeader />
