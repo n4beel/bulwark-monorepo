@@ -19,21 +19,12 @@ export default function ReceiptModal({
 }: Props) {
   const router = useRouter();
 
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
   if (!open || !report) return null;
 
   const oid = typeof report?._id === "string" ? report._id : report?._id?.$oid;
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center">
+    <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center overflow-hidden">
       <div className="relative w-full max-w-[720px] h-[700px]">
         {/* Close */}
         <button
@@ -80,7 +71,10 @@ export default function ReceiptModal({
             }}
           >
             <div className="px-6 py-4 flex justify-end gap-3 backdrop-blur-sm">
-              <button className="border px-4 py-2 rounded-lg bg-white/80 cursor-pointer">
+              <button
+                className="border px-4 py-2 rounded-lg bg-white/80 cursor-pointer"
+                onClick={() => router.push("/dashboard")}
+              >
                 Signup to save
               </button>
 

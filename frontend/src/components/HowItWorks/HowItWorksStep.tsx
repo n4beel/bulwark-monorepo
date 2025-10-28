@@ -18,7 +18,7 @@ export default function HowStepContainer({ step, reversed }: Props) {
   return (
     <div
       className={`bg-white rounded-3xl shadow-[0_10px_50px_rgba(0,0,0,0.06)] px-10 py-8 w-full
-     flex flex-col md:flex-row items-center justify-between gap-12 mt-12 h-150
+     flex flex-col md:flex-row items-center justify-between gap-12 mt-4 h-150
       ${reversed ? "md:flex-row-reverse" : ""}
     `}
     >

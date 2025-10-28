@@ -35,13 +35,6 @@ export default function GitHubFlowModal({
   onOpenResults,
   report,
 }: Props) {
-  useEffect(() => {
-    if (step === GitHubFlowStep.RESULTS && report) {
-      onClose();
-      onOpenResults?.(report);
-    }
-  }, [step, report, onClose, onOpenResults]);
-
   if (step === GitHubFlowStep.RESULTS) return null;
 
   // Don't show modal during AUTH step - that's handled separately
@@ -101,7 +94,10 @@ export default function GitHubFlowModal({
 
             {step === GitHubFlowStep.PROGRESS && (
               <StepAnalysisProgress
-                onComplete={completeAnalysis}
+                onComplete={() => {
+                  onClose();
+                  onOpenResults?.(report);
+                }}
                 apiReady={apiReady}
               />
             )}

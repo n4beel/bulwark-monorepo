@@ -1,22 +1,15 @@
 "use client";
 import Image from "next/image";
+import ComingSoonChip from "../ComingSoonChip";
 
 export default function AuditorMarketplace() {
   return (
-    <section className="w-full py-20 px-6">
+    <section className="w-full py-20 px-6" id="marketplace">
       <div className="max-w-7xl mx-auto bg-[#EDF3FF] rounded-3xl p-10 shadow-sm flex flex-col md:flex-row justify-between items-center gap-10">
         {/* LEFT CONTENT */}
         <div className="flex flex-col gap-4 max-w-lg">
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 text-xs bg-[#EDF3FF] text-[var(--blue-primary)] px-1 py-1 rounded-full border border-[var(--blue-light)] w-[120px]">
-            <Image
-              src="/icons/Gemini.svg" // ✅ You will replace actual icon path
-              alt="Coming soon"
-              width={14}
-              height={14}
-            />
-            Coming Soon
-          </div>
+          <ComingSoonChip />
 
           {/* Title */}
           <h2
@@ -61,7 +54,7 @@ export default function AuditorMarketplace() {
         {/* RIGHT IMAGE */}
         <div className="w-full max-w-[460px]">
           <Image
-            src="/icons/AuditorPreview.svg"
+            src="/images/AuditorPreview.png"
             alt="Auditor Marketplace Preview"
             width={460}
             height={340}

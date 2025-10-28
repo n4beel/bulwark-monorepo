@@ -20,6 +20,7 @@ import { StaticAnalysisReport } from "@/types/api";
 import { staticAnalysisApi } from "@/services/api";
 import StaticAnalysisReportDisplay from "@/components/StaticAnalysisReportDisplay";
 import ExportModal from "@/components/ExportModal";
+import { getScoreColor } from "@/utils";
 
 export default function ReportsPage() {
   const router = useRouter();
@@ -64,8 +65,8 @@ export default function ReportsPage() {
 
       switch (sortBy) {
         case "date":
-          aValue = new Date(a.createdAt.$date);
-          bValue = new Date(b.createdAt.$date);
+          aValue = new Date(a.createdAt);
+          bValue = new Date(b.createdAt);
           break;
         case "score":
           aValue =
@@ -107,23 +108,20 @@ export default function ReportsPage() {
     filterAndSortReports();
   }, [filterAndSortReports]);
 
-  const getScoreColor = (score: number) => {
-    if (score <= 20) return "text-green-600 bg-green-100";
-    if (score <= 40) return "text-yellow-600 bg-yellow-100";
-    if (score <= 60) return "text-orange-600 bg-orange-100";
-    return "text-red-600 bg-red-100";
-  };
+  const getOverallScore = (report: StaticAnalysisReport): number => {
+    const scores = report?.scores ?? {};
+    const values = [
+      scores.structural,
+      scores.security,
+      scores.systemic,
+      scores.economic,
+    ].filter((v) => typeof v === "number" && !isNaN(v));
 
-  const getOverallScore = (report: StaticAnalysisReport) => {
-    return (
-      (report.scores.structural.score +
-        report.scores.security.score +
-        report.scores.systemic.score +
-        report.scores.economic.score) /
-      4
-    ).toFixed(1);
-  };
+    if (values.length === 0) return 0; // no valid scores → return 0
 
+    const total = values.reduce((sum, v) => sum + v, 0);
+    return Number((total / values.length).toFixed(1));
+  };
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -166,7 +164,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -309,7 +307,7 @@ export default function ReportsPage() {
                               ).split(" ")[0]
                             }`}
                           >
-                            {report.scores.structural.score.toFixed(1)}
+                            {report.scores.structural.score?.toFixed(1)}
                           </div>
                         </div>
                       </div>
@@ -324,7 +322,7 @@ export default function ReportsPage() {
                               )[0]
                             }`}
                           >
-                            {report.scores.security.score.toFixed(1)}
+                            {report.scores.security.score?.toFixed(1)}
                           </div>
                         </div>
                       </div>
@@ -339,7 +337,7 @@ export default function ReportsPage() {
                               )[0]
                             }`}
                           >
-                            {report.scores.systemic.score.toFixed(1)}
+                            {report.scores.systemic.score?.toFixed(1)}
                           </div>
                         </div>
                       </div>
@@ -354,7 +352,7 @@ export default function ReportsPage() {
                               )[0]
                             }`}
                           >
-                            {report.scores.economic.score.toFixed(1)}
+                            {report.scores.economic.score?.toFixed(1)}
                           </div>
                         </div>
                       </div>
@@ -362,11 +360,11 @@ export default function ReportsPage() {
 
                     <div className="flex items-center text-sm text-gray-500">
                       <Calendar className="w-4 h-4 mr-1" />
-                      <span>Created {formatDate(report.createdAt.$date)}</span>
+                      <span>Created {formatDate(report.createdAt)}</span>
                       <Clock className="w-4 h-4 ml-4 mr-1" />
                       <span>
                         Analysis time:{" "}
-                        {(report.performance.analysisTime / 1000).toFixed(2)}s
+                        {(report.performance.analysisTime / 1000)?.toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -378,16 +376,14 @@ export default function ReportsPage() {
                       </span>
                       <div
                         className={`text-2xl font-bold ${
-                          getScoreColor(
-                            parseFloat(getOverallScore(report))
-                          ).split(" ")[0]
+                          getScoreColor(getOverallScore(report)).split(" ")[0]
                         }`}
                       >
                         {getOverallScore(report)}
                       </div>
                     </div>
                     <div className="text-sm text-gray-500">
-                      {report.analysisFactors.totalLinesOfCode.toLocaleString()}{" "}
+                      {/* {report.analysisFactors.totalLinesOfCode.toLocaleString()}{" "} */}
                       LOC
                     </div>
                   </div>

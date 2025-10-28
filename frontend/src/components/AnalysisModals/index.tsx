@@ -31,6 +31,7 @@ const AnalysisModals = ({
           onClose={() => {
             uploadFlow.resetFlow();
             uploadFlow.setOpen(false);
+            document.body.style.overflow = "auto";
           }}
           onOpenResults={(r: any) => {
             results.setReport(r);
@@ -40,6 +41,7 @@ const AnalysisModals = ({
       )}
 
       {/* GitHub Flow Modal */}
+
       <GitHubFlowModal
         step={githubFlow.step}
         accessToken={githubFlow.accessToken}
@@ -48,6 +50,7 @@ const AnalysisModals = ({
           if (typeof window !== "undefined") {
             localStorage.removeItem("github_token");
           }
+          document.body.style.overflow = "auto";
         }}
         selectedRepo={githubFlow.selectedRepo}
         contractFiles={githubFlow.contractFiles}

@@ -7,7 +7,7 @@ import { githubApi } from "@/services/api";
 
 interface RepositorySelectorProps {
   accessToken: string;
-  onSelect: (repo: GitHubRepository) => void;
+  onSelect: (repo: GitHubRepository) => Promise<void> | void;
   onBack: () => void;
 }
 
@@ -20,6 +20,7 @@ export default function RepositorySelector({
   const [filteredRepos, setFilteredRepos] = useState<GitHubRepository[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [analyzingRepoId, setAnalyzingRepoId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   const loadRepositories = useCallback(async () => {
@@ -50,9 +51,17 @@ export default function RepositorySelector({
     setFilteredRepos(filtered);
   }, [searchTerm, repositories]);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+  const handleAnalyze = async (repo: GitHubRepository) => {
+    try {
+      setAnalyzingRepoId(repo.id);
+      await onSelect(repo);
+    } finally {
+      setAnalyzingRepoId(null);
+    }
   };
+
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString();
 
   const getLanguageColor = (language: string) => {
     const colors: { [key: string]: string } = {
@@ -94,6 +103,7 @@ export default function RepositorySelector({
           </div>
         )}
 
+        {/* Search */}
         <div className="mb-6">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -107,6 +117,7 @@ export default function RepositorySelector({
           </div>
         </div>
 
+        {/* Repo List */}
         <div className="grid gap-4 max-h-96 overflow-y-auto">
           {filteredRepos.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
@@ -115,61 +126,109 @@ export default function RepositorySelector({
                 : "No repositories found."}
             </div>
           ) : (
-            filteredRepos.map((repo) => (
-              <div
-                key={repo.id}
-                className="border border-gray-300 rounded-lg p-5 hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer bg-gray-50 hover:bg-white"
-                onClick={() => onSelect(repo)}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center mb-2">
-                      <GitBranch className="w-4 h-4 text-blue-500 mr-2" />
-                      <h3 className="font-bold text-gray-900 text-lg">
-                        {repo.name}
-                      </h3>
-                      {repo.private ? (
-                        <Lock className="w-4 h-4 text-gray-500 ml-2" />
-                      ) : (
-                        <Globe className="w-4 h-4 text-gray-500 ml-2" />
-                      )}
-                    </div>
+            filteredRepos.map((repo) => {
+              const isAnalyzingThis = analyzingRepoId === repo.id;
+              const disableAll = analyzingRepoId !== null && !isAnalyzingThis;
 
-                    {repo.description && (
-                      <p className="text-gray-700 text-sm mb-3 line-clamp-2 font-medium">
-                        {repo.description}
-                      </p>
-                    )}
-
-                    <div className="flex items-center space-x-4 text-sm text-gray-700">
-                      {repo.language && (
-                        <div className="flex items-center">
-                          <div
-                            className={`w-4 h-4 rounded-full ${getLanguageColor(
-                              repo.language
-                            )} mr-2`}
-                          ></div>
-                          <span className="font-medium">{repo.language}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center">
-                        <Calendar className="w-4 h-4 mr-1 text-gray-600" />
-                        <span className="font-medium">
-                          Updated {formatDate(repo.updated_at)}
-                        </span>
+              return (
+                <div
+                  key={repo.id}
+                  className={`border border-gray-300 rounded-lg p-5 transition-all bg-gray-50 ${
+                    disableAll
+                      ? "opacity-60"
+                      : "hover:border-blue-400 hover:shadow-lg hover:bg-white"
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center mb-2">
+                        <GitBranch className="w-4 h-4 text-blue-500 mr-2" />
+                        <h3 className="font-bold text-gray-900 text-lg">
+                          {repo.name}
+                        </h3>
+                        {repo.private ? (
+                          <Lock className="w-4 h-4 text-gray-500 ml-2" />
+                        ) : (
+                          <Globe className="w-4 h-4 text-gray-500 ml-2" />
+                        )}
                       </div>
-                      <div className="font-medium">{repo.size} KB</div>
-                    </div>
-                  </div>
 
-                  <div className="ml-4">
-                    <button className="bg-blue-600 text-white px-4 py-2 rounded-md cursor-pointer hover:bg-blue-700 transition-colors">
-                      Analyze
-                    </button>
+                      {repo.description && (
+                        <p className="text-gray-700 text-sm mb-3 line-clamp-2 font-medium">
+                          {repo.description}
+                        </p>
+                      )}
+
+                      <div className="flex items-center space-x-4 text-sm text-gray-700">
+                        {repo.language && (
+                          <div className="flex items-center">
+                            <div
+                              className={`w-4 h-4 rounded-full ${getLanguageColor(
+                                repo.language
+                              )} mr-2`}
+                            ></div>
+                            <span className="font-medium">{repo.language}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center">
+                          <Calendar className="w-4 h-4 mr-1 text-gray-600" />
+                          <span className="font-medium">
+                            Updated {formatDate(repo.updated_at)}
+                          </span>
+                        </div>
+                        <div className="font-medium">{repo.size} KB</div>
+                      </div>
+                    </div>
+
+                    {/* Analyze button */}
+                    <div className="ml-4">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAnalyze(repo);
+                        }}
+                        disabled={disableAll || isAnalyzingThis}
+                        className={`px-4 py-2 rounded-md text-white flex items-center justify-center transition-colors ${
+                          isAnalyzingThis
+                            ? "bg-blue-400 cursor-wait"
+                            : disableAll
+                            ? "bg-gray-300 cursor-not-allowed"
+                            : "bg-blue-600 hover:bg-blue-700 cursor-pointer"
+                        }`}
+                      >
+                        {isAnalyzingThis ? (
+                          <>
+                            <svg
+                              className="animate-spin h-4 w-4 mr-2 text-white"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"
+                              ></path>
+                            </svg>
+                            Analyzing...
+                          </>
+                        ) : (
+                          "Analyze"
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 

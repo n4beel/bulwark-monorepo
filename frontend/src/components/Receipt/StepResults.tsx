@@ -121,15 +121,37 @@ export default function StepResults({ report }: any) {
       <div className="grid grid-cols-3 gap-3 mt-3 p-3 rounded-xl border border-[var(--border-color)] bg-[var(--background)]">
         {/* Complexity Card */}
 
-        <ComplexityCard complexityScore={complexityScore} />
+        <ComplexityCard complexityScore={Number(report?.scores?.total) || 0} />
 
         {/* Audit Effort Units */}
 
-        <AuditEffortCard estimate={report?.estimate} />
+        <AuditEffortCard
+          estimate={{
+            days: [
+              report?.result?.auditEffort?.timeRange?.minimumDays ?? 0,
+              report?.result?.auditEffort?.timeRange?.maximumDays ?? 0,
+            ],
+            devs: [
+              report?.result?.auditEffort?.resourceRange?.minimumCount ?? 0,
+              report?.result?.auditEffort?.resourceRange?.maximumCount ?? 0,
+            ],
+            cost: report?.result?.auditEffort?.totalCost ?? 0,
+            variance: 20, // or calculate dynamically if you have that info
+          }}
+        />
       </div>
 
       {/* Hotspots - Use real data if available */}
-      <HotspotsCard findings={report?.summary} />
+      <HotspotsCard
+        findings={{
+          totalFindings: report?.result?.hotspots?.totalCount || 0,
+          severityCounts: {
+            high: report?.result?.hotspots?.highRiskCount || 0,
+            medium: report?.result?.hotspots?.mediumRiskCount || 0,
+            low: report?.result?.hotspots?.lowPriorityCount || 0,
+          },
+        }}
+      />
 
       <Image
         src="/icons/Wave.svg"

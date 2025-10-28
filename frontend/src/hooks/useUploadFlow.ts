@@ -65,11 +65,11 @@ export function useUploadFlow() {
   };
 
   const resetFlow = () => {
-    setStep(UploadFlowStep.UPLOAD);
     setContractFiles([]);
     setExtractedPath(null);
     setReport(null);
     setIsAnalyzing(false);
+    setStep(UploadFlowStep.UPLOAD);
   };
 
   return {

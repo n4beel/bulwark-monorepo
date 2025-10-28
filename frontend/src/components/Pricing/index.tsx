@@ -4,7 +4,10 @@ import PaidPricingCard from "../PaidPricingCard";
 
 export default function PricingSection() {
   return (
-    <section className="w-full py-24 px-6 relative overflow-visible">
+    <section
+      className="w-full py-24 px-6 relative overflow-visible"
+      id="pricing"
+    >
       {/* ✅ RIGHT SIDE DIAMOND — OUTSIDE CARD */}
       <Image
         src={"/icons/Diamond.svg"}
@@ -16,10 +19,12 @@ export default function PricingSection() {
 
       <div className="max-w-7xl mx-auto text-center mb-12">
         <h2 className="text-4xl font-extrabold doto tracking-widest text-[var(--text-primary)]">
-          Ready to Secure Your Smart Contracts?
+          Want to go deeper for critical
+          <br /> vulnerabilities and attack vectors?
         </h2>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">
-          Start with a free pre-audit scan. No credit card required.
+          Upgrade to Bulwark Forensic™ to spot critical vulnerabilities via
+          audit agent-based code reviews
         </p>
       </div>
       {/* card sould be in center */}
@@ -55,7 +60,7 @@ export default function PricingSection() {
           </ul>
 
           <button className="mt-8 px-5 py-2 border border-[var(--blue-primary)] text-[var(--blue-primary)] cursor-pointer rounded-lg hover:bg-[var(--blue-primary)] hover:text-white transition">
-            Start free scan
+            Sign Up now
           </button>
         </div>
 

@@ -31,7 +31,7 @@ const TAB_CONFIG = [
 ];
 
 const DashboardTabs = ({ handlers }: DashboardTabsProps) => {
-  const [activeTab, setActiveTab] = useState<Tab>(Tab.ANALYZE);
+  const [activeTab, setActiveTab] = useState<Tab>(Tab.REPORTS);
 
   return (
     <div className="relative w-full max-w-7xl mx-auto px-6 min-h-[600px] pt-8">

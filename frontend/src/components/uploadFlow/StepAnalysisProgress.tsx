@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type Stage = {
   key: "parsing" | "structural" | "security" | "systemic" | "economic";
   title: string;
+  heading: string;
   weight?: string;
   iconPending: string;
   iconDone: string;
@@ -29,6 +30,7 @@ const STAGES: Stage[] = [
   {
     key: "parsing",
     title: "Parsing rust files",
+    heading: "Parsing rust files",
     iconPending: "/icons/TickMark.svg",
     iconDone: "/icons/TickMark.svg",
     subtitles: [],
@@ -36,6 +38,7 @@ const STAGES: Stage[] = [
   {
     key: "structural",
     title: "Structural Complexity",
+    heading: "Computing complexity scores",
     weight: "20/100",
     iconPending: "/icons/TickMark.svg",
     iconDone: "/icons/TickMark.svg",
@@ -52,6 +55,7 @@ const STAGES: Stage[] = [
   {
     key: "security",
     title: "Security Analysis Complexity",
+    heading: "Detecting security vulnerability hotspots",
     weight: "30/100",
     iconPending: "/icons/ShieldIconGrey.svg",
     iconDone: "/icons/TickMark.svg",
@@ -69,6 +73,7 @@ const STAGES: Stage[] = [
   {
     key: "systemic",
     title: "Systemic Analysis",
+    heading: "Calculating Audit Effort Units (AEU) ",
     weight: "20/100",
     iconPending: "/icons/GraphIconGrey.svg",
     iconDone: "/icons/TickMark.svg",
@@ -84,6 +89,7 @@ const STAGES: Stage[] = [
   {
     key: "economic",
     title: "Economic & Logical Complexity",
+    heading: "Issuing commit-bound receipt via Arcium",
     weight: "30/100",
     iconPending: "/icons/DocumentIconGrey.svg",
     iconDone: "/icons/TickMark.svg",
@@ -292,7 +298,7 @@ export default function StepAnalysisProgress({
                       : "text-[var(--text-primary)]"
                   }`}
                 >
-                  {stage.title}
+                  {stage.heading}
                   {stage.weight && (
                     <span className="text-xs text-[var(--text-secondary)] ml-2">
                       (weightage: {stage.weight})

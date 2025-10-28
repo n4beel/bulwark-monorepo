@@ -103,12 +103,12 @@ export function useGitHubFlow() {
       const [owner, repoName] = selectedRepo.full_name.split("/");
 
       // Call scoping API
-      const scopingReport = await scopingApi.generateReport({
-        owner,
-        repo: repoName,
-        accessToken: accessToken,
-        selectedFiles: selectedFiles,
-      });
+      // const scopingReport = await scopingApi.generateReport({
+      //   owner,
+      //   repo: repoName,
+      //   accessToken: accessToken,
+      //   selectedFiles: selectedFiles,
+      // });
 
       // Call static analysis API
       const staticReport = await staticAnalysisApi.analyzeRustContract({
@@ -123,65 +123,7 @@ export function useGitHubFlow() {
         },
       });
 
-      // Map to unified ReceiptReport format
-      const unifiedReport = {
-        _id: staticReport._id || `GH-${Date.now()}`,
-
-        // Source info
-        repository: selectedRepo.full_name,
-        createdAt: scopingReport.generatedAt || new Date().toISOString(),
-        language: scopingReport.repositoryInfo?.language || "Rust",
-        framework: staticReport?.framework || "Solana",
-
-        // Scores from static analysis
-        scores: {
-          structural: { score: staticReport.scores?.structural?.score || 0 },
-          security: { score: staticReport.scores?.security?.score || 0 },
-          systemic: { score: staticReport.scores?.systemic?.score || 0 },
-          economic: { score: staticReport.scores?.economic?.score || 0 },
-        },
-
-        // Summary/findings
-        summary: {
-          severityCounts: {
-            high: 0,
-            medium: 0,
-            low: 0,
-          },
-          totalFindings: 0,
-        },
-
-        // Scan metadata
-        scanMetadata: {
-          totalFiles: contractFiles.length,
-          scannedFiles: selectedFiles.length,
-          sizeKB: Math.round((scopingReport.repositoryInfo?.size || 0) / 1024),
-        },
-
-        // Audit estimate from scoping
-        estimate: {
-          days: [
-            scopingReport.auditEstimate?.duration?.min || 12,
-            scopingReport.auditEstimate?.duration?.max || 19,
-          ],
-          devs: [
-            scopingReport.auditEstimate?.resources?.juniorAuditors || 1,
-            scopingReport.auditEstimate?.resources?.seniorAuditors || 2,
-          ],
-          cost: scopingReport.auditEstimate?.cost?.min || 18000,
-          variance: 20, // Calculate: ((max - min) / min) * 100
-        },
-
-        receiptId: `GH-${Date.now().toString().slice(-6)}`,
-        commitHash: "missing",
-
-        // Extra metadata for detailed view
-        riskFactors: scopingReport.auditEstimate?.riskFactors || [],
-        specialConsiderations:
-          scopingReport.auditEstimate?.specialConsiderations || [],
-      };
-
-      setReport(unifiedReport);
+      setReport(staticReport);
       setIsAnalyzing(false);
     } catch (err) {
       console.error("Analysis error:", err);

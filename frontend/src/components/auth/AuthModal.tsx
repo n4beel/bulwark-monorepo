@@ -10,9 +10,14 @@ import { useRouter } from "next/navigation"; // ✅ correct router for app direc
 interface Props {
   open: boolean;
   onClose: () => void;
+  shouldRedirect?: boolean;
 }
 
-export default function AuthModal({ open, onClose }: Props) {
+export default function AuthModal({
+  open,
+  onClose,
+  shouldRedirect = true,
+}: Props) {
   if (!open) return null;
   const dispatch = useDispatch();
   const router = useRouter();
@@ -33,8 +38,7 @@ export default function AuthModal({ open, onClose }: Props) {
         photoURL: user.photoURL,
       })
     );
-
-    redirectToDashboard();
+    if (shouldRedirect) redirectToDashboard();
   }, [onClose]);
 
   const loginWithGithub = useCallback(async () => {
@@ -49,20 +53,8 @@ export default function AuthModal({ open, onClose }: Props) {
         photoURL: user.photoURL,
       })
     );
-
-    redirectToDashboard();
+    if (shouldRedirect) redirectToDashboard();
   }, [onClose]);
-
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "auto";
-    }
-    return () => {
-      document.body.style.overflow = "auto";
-    };
-  }, [open]);
 
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-md z-50 flex items-center justify-center">
@@ -70,7 +62,7 @@ export default function AuthModal({ open, onClose }: Props) {
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-[var(--gray-medium)] hover:text-[var(--gray-dark)] transition"
+          className="absolute top-4 cursor-pointer right-4 text-[var(--gray-medium)] hover:text-[var(--gray-dark)] transition"
         >
           ✕
         </button>

@@ -16,6 +16,7 @@ export default function ReportDetailPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    console.log("Report ID from params:", params);
     if (params.id) {
       loadReport(params.id as string);
     }
@@ -25,19 +26,12 @@ export default function ReportDetailPage() {
     try {
       setIsLoading(true);
       setError("");
-
+      console.log("Loading report with ID:", reportId);
       // Get all reports and find the one with matching ID
-      const allReports = await staticAnalysisApi.getAllReports();
+      const report = await staticAnalysisApi.getReportById(reportId);
 
-      // Try different ID matching strategies
-      const foundReport = allReports.find((r) => {
-        const rId = typeof r._id === "string" ? r._id : r._id?.$oid;
-
-        return rId === reportId;
-      });
-
-      if (foundReport) {
-        setReport(foundReport);
+      if (report) {
+        setReport(report);
       } else {
         setError("Report not found");
       }

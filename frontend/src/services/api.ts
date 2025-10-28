@@ -105,7 +105,12 @@ export const staticAnalysisApi = {
 export const authApi = {
   // Get GitHub OAuth URL
   getGitHubAuthUrl: async (): Promise<{ authUrl: string }> => {
-    const response = await api.get("/auth/github/url");
+    // send header for ngrok
+    const currentPath = window.location.pathname;
+    const response = await api.get(
+      `/auth/github/url?from=${encodeURIComponent(currentPath)}`
+    );
+    console.log("GitHub Auth URL response:", response.data);
     return response.data;
   },
 

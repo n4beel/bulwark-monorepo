@@ -29,7 +29,7 @@ const steps = [
 
 export default function HowItWorks() {
   return (
-    <div className="mt-20 w-4/5 mx-auto">
+    <div className="mt-20 w-4/5 mx-auto" id="how-it-works">
       <h1
         className="text-3xl font-bold"
         style={{
@@ -39,12 +39,7 @@ export default function HowItWorks() {
       >
         How It Works
       </h1>
-      <p
-        className="mt-2 text-sm font-medium opacity-60"
-        // style={{ color: "var(--blue-primary)" }}
-      >
-        From repo to pre-audit report in minutes
-      </p>
+
       {steps.map((s, i) => (
         <HowStepContainer
           key={i}

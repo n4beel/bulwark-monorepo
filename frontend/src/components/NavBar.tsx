@@ -9,11 +9,13 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { RootState } from "@/store/store";
 import { logout } from "@/store/slices/authSlice";
+import { useRouter } from "next/navigation";
+import ComingSoonChip from "./ComingSoonChip"; // ✅ import chip
 
 const Navbar = () => {
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
-
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -22,8 +24,13 @@ const Navbar = () => {
     dispatch(logout());
   };
 
-  const handleScrollToSection = (sectionId: string) => {
+  const handleScrollToSection = (sectionId: string, disabled?: boolean) => {
+    if (disabled) return; // 🚫 prevent clicking disabled tabs
     setActiveTab(sectionId);
+    if (sectionId === "dashboard" && user) {
+      router.push("/dashboard");
+      return;
+    }
     if (typeof window !== "undefined") {
       const section = document.getElementById(sectionId);
       if (section) {
@@ -44,22 +51,30 @@ const Navbar = () => {
           />
         </div>
 
+        {/* ✅ Tabs */}
         <div className="hidden md:flex space-x-8">
-          {Tabs.map((tab) => {
-            const tabId = tab.toLowerCase().replace(/\s+/g, "-");
-            return (
-              <button
-                key={tab}
-                onClick={() => handleScrollToSection(tabId)}
-                className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
-              >
-                {tab}
-              </button>
-            );
-          })}
+          {Tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => handleScrollToSection(tab.id, tab.disabled)}
+              disabled={tab.disabled}
+              className={`relative text-sm font-medium transition flex items-center gap-2 ${
+                tab.disabled
+                  ? "text-gray-400 cursor-not-allowed"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              {tab.label}
+              {tab.disabled && (
+                <span className="absolute -right-32 -top-2 ">
+                  <ComingSoonChip />
+                </span>
+              )}
+            </button>
+          ))}
         </div>
 
-        {/* ✅ User Info or Sign-in Button */}
+        {/* ✅ User Info / Auth */}
         <div className="flex items-center space-x-4">
           {user ? (
             <>
@@ -68,7 +83,7 @@ const Navbar = () => {
               </span>
               <button
                 onClick={handleLogout}
-                className="bg-[var(--button-primary)] cursor-pointer hover:bg-[var(--button-primary-hover)] text-white px-4 py-2 rounded-md text-sm font-medium"
+                className="bg-[var(--button-primary)] hover:bg-[var(--button-primary-hover)] text-white px-4 py-2 rounded-md text-sm font-medium cursor-pointer"
               >
                 Logout
               </button>
@@ -76,7 +91,7 @@ const Navbar = () => {
           ) : (
             <button
               onClick={() => setOpen(true)}
-              className="bg-[var(--button-primary)] cursor-pointer hover:bg-[var(--button-primary-hover)] text-white px-4 py-2 rounded-md text-sm font-medium"
+              className="bg-[var(--button-primary)] hover:bg-[var(--button-primary-hover)] text-white px-4 py-2 rounded-md text-sm font-medium cursor-pointer"
             >
               Sign In
             </button>

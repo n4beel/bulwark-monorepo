@@ -31,13 +31,7 @@ export default function UploadFlowModal({
   completeAnalysis,
   onOpenResults, // 👈 NEW
 }: Props & { onOpenResults?: (report: any) => void }) {
-  // If we reach RESULTS, close this modal and open the Results modal.
-  useEffect(() => {
-    if (step === UploadFlowStep.RESULTS && report) {
-      onClose(); // close Upload Modal
-      onOpenResults?.(report); // open Results Modal
-    }
-  }, [step, report, onClose, onOpenResults]);
+  // stop scroll
 
   if (step === UploadFlowStep.RESULTS) return null;
 
@@ -78,7 +72,10 @@ export default function UploadFlowModal({
             )}
             {step === UploadFlowStep.PROGRESS && (
               <StepAnalysisProgress
-                onComplete={completeAnalysis}
+                onComplete={() => {
+                  onClose(); // close Upload Modal
+                  onOpenResults?.(report); // open Results Modal
+                }}
                 apiReady={apiReady}
               />
             )}

@@ -7,7 +7,7 @@ import Button from "@/components/ui/Button";
 interface RepoInputSectionProps {
   onConnectGitHub: () => void;
   onUploadZip: () => void;
-  onAnalyze: (input: string) => void;
+  onAnalyze: (input: string) => Promise<void> | void;
   showStats?: boolean;
   compact?: boolean;
   className?: string;
@@ -22,19 +22,27 @@ const RepoInputSection = ({
   className = "",
 }: RepoInputSectionProps) => {
   const [repoInput, setRepoInput] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     const githubRegex =
       /^https?:\/\/(www\.)?github\.com\/([^\/]+)\/([^\/]+)(\/.*)?$/;
 
     if (githubRegex.test(repoInput.trim())) {
-      onAnalyze(repoInput.trim());
+      try {
+        setIsAnalyzing(true);
+        await onAnalyze(repoInput.trim());
+      } catch (error) {
+        console.error("Analysis failed:", error);
+      } finally {
+        setIsAnalyzing(false);
+      }
       return;
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !isAnalyzing) {
       handleAnalyze();
     }
   };
@@ -56,6 +64,7 @@ const RepoInputSection = ({
             placeholder="Paste repo URL (GitHub/GitLab) or drop .sol/.rs/.zip"
             onKeyPress={handleKeyPress}
             className="rounded-xl"
+            disabled={isAnalyzing}
           />
         </div>
 
@@ -67,6 +76,7 @@ const RepoInputSection = ({
             iconPosition="left"
             onClick={onConnectGitHub}
             className="flex-1"
+            disabled={isAnalyzing}
           >
             Connect GitHub
           </Button>
@@ -77,6 +87,7 @@ const RepoInputSection = ({
             iconPosition="left"
             onClick={onUploadZip}
             className="flex-1"
+            disabled={isAnalyzing}
           >
             Upload zip
           </Button>
@@ -84,10 +95,36 @@ const RepoInputSection = ({
           <Button
             variant="outline"
             onClick={handleAnalyze}
-            disabled={!repoInput.trim()}
-            className="flex-1"
+            disabled={!repoInput.trim() || isAnalyzing}
+            className="flex-1 relative"
           >
-            Analyze now
+            {isAnalyzing ? (
+              <div className="flex items-center justify-center gap-2">
+                <svg
+                  className="animate-spin h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Analyzing...
+              </div>
+            ) : (
+              "Analyze now"
+            )}
           </Button>
         </div>
 

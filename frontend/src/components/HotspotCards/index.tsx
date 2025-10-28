@@ -1,5 +1,7 @@
 "use client";
 
+import { getSeverityColor } from "@/utils";
+
 type SeverityCounts = {
   high?: number;
   medium?: number;
@@ -16,25 +18,22 @@ type Props = {
 function HotspotRow({
   label,
   count,
-  tone,
+  severity,
 }: {
   label: string;
   count: number;
-  tone: "danger" | "warning" | "info";
+  severity: "low" | "medium" | "high";
 }) {
-  const colors =
-    tone === "danger"
-      ? { bg: "var(--red-light)", color: "var(--red-medium)" }
-      : tone === "warning"
-      ? { bg: "var(--orange-light)", color: "var(--orange-medium)" }
-      : { bg: "var(--blue-light)", color: "var(--blue-primary)" };
+  const colorClass = getSeverityColor(severity);
 
   return (
     <div className="flex justify-between items-center mt-2">
+      {/* label stays neutral */}
       <span className="text-[var(--text-secondary)]">{label}</span>
+
+      {/* color only on count */}
       <span
-        className="px-2 py-1 rounded-md text-xs font-medium"
-        style={{ background: colors.bg, color: colors.color }}
+        className={`px-2 py-1 rounded-md text-xs font-medium ${colorClass}`}
       >
         {count}
       </span>
@@ -52,9 +51,9 @@ export default function HotspotsCard({
   const sc = findings.severityCounts ?? {};
 
   return (
-    <div className=" rounded-xl border border-[var(--border-color)] bg-[var(--background)] p-4 text-sm w-full h-full">
+    <div className="rounded-xl border border-[var(--border-color)] bg-[var(--background)] p-4 text-sm w-full h-full">
       <div className="flex justify-between items-center mb-2">
-        <span className="text-[var(--text-primary)]">Hotspots</span>
+        <span className="text-[var(--text-primary)] font-medium">Hotspots</span>
         <span className="text-xs text-[var(--text-secondary)]">
           {total} total
         </span>
@@ -63,14 +62,18 @@ export default function HotspotsCard({
       <HotspotRow
         label="High-risk hotspots"
         count={sc.high ?? 0}
-        tone="danger"
+        severity="high"
       />
       <HotspotRow
         label="Medium-risk issues"
         count={sc.medium ?? 0}
-        tone="warning"
+        severity="medium"
       />
-      <HotspotRow label="Low-priority items" count={sc.low ?? 0} tone="info" />
+      <HotspotRow
+        label="Low-priority items"
+        count={sc.low ?? 0}
+        severity="low"
+      />
     </div>
   );
 }

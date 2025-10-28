@@ -24,7 +24,10 @@ const PaidPricingCard = () => {
       </ul>
 
       <button className="mt-8 w-full inline-flex items-center justify-between gap-2 px-2 py-3 rounded-lg cursor-pointer text-white bg-[var(--button-primary)] hover:bg-[var(--button-primary-hover)] transition">
-        Contact sales
+        <div>
+          Get now<span className="opacity-50 text-xs"> (Coming Soon)</span>
+        </div>
+
         <Image
           src={"/icons/ArrowRightDotted.svg"}
           alt="arrowright"

@@ -5,6 +5,10 @@ import { useEffect, useState } from "react";
 import StaticAnalysisReportDisplay from "@/components/StaticAnalysisReportDisplay";
 import { staticAnalysisApi } from "@/services/api";
 import { StaticAnalysisReport } from "@/types/api";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store/store";
+import AuthModal from "@/components/auth/AuthModal";
+import DashboardNavbar from "@/components/Dashboard/DashboardNavBar";
 
 export default function ReportSummaryPage() {
   const { id } = useParams();
@@ -13,6 +17,7 @@ export default function ReportSummaryPage() {
   const [report, setReport] = useState<StaticAnalysisReport | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const { user } = useSelector((state: RootState) => state.auth);
   useEffect(() => {
     if (!id) return;
 
@@ -58,10 +63,20 @@ export default function ReportSummaryPage() {
   }
 
   return (
-    <StaticAnalysisReportDisplay
-      report={report}
-      onBack={() => router.push("/reports")}
-      onNewAnalysis={() => router.push("/")}
-    />
+    <>
+      <DashboardNavbar />
+      <StaticAnalysisReportDisplay
+        report={report}
+        onBack={() => router.push("/dashboard")}
+        onNewAnalysis={() => router.push("/")}
+      />
+      <AuthModal
+        open={!user}
+        onClose={() => {
+          router.push("/dashboard");
+        }}
+        shouldRedirect={false}
+      />
+    </>
   );
 }

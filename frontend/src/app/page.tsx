@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Upload } from "lucide-react";
+import Image from "next/image";
 import GitHubAuth from "@/components/GitHubAuth";
 import RepositorySelector from "@/components/RepositorySelector";
 import ContractFileSelector from "@/components/ContractFileSelector";
@@ -381,12 +382,21 @@ export default function Home() {
           }
         }}
       />
+      <div className="flex justify-center items-center w-full h-[150px]">
+        <Image
+          src="/icons/BulwarkHeading.svg"
+          alt="Bulwark Background"
+          width={800} // adjust size as needed
+          height={200}
+        />
+      </div>
+
       <BulwarkAnimated />
       <FeatureCards items={features} />
       <HowItWorks />
       <Web3TeamsSection
         title="Built for Modern Web3 Teams"
-        subtitle="Enterprise-grade features for pre-production security analysis"
+        subtitle="Serving all streams of contributors across Solana"
         items={teamItems}
       />
       <AuditorMarketplace />
@@ -394,18 +404,18 @@ export default function Home() {
       <NewsletterSection />
       <Footer />
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {currentState === "auth" && (
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-0">
+        {/* {currentState === "auth" && (
           <div>
-            <div className="max-w-4xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* GitHub Auth */}
-                <div>
+            <div className="max-w-4xl mx-auto"> */}
+        {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-8"> */}
+        {/* GitHub Auth */}
+        {/* <div>
                   <GitHubAuth />
-                </div>
+                </div> */}
 
-                {/* Upload Option */}
-                <div className="max-w-md mx-auto">
+        {/* Upload Option */}
+        {/* <div className="max-w-md mx-auto">
                   <div className="bg-white rounded-lg shadow-lg p-6">
                     <div className="text-center mb-6">
                       <Upload className="w-12 h-12 text-blue-600 mx-auto mb-4" />
@@ -432,13 +442,13 @@ export default function Home() {
                       </p>
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
+                </div> */}
+        {/* </div> */}
+        {/* </div>
           </div>
-        )}
+        )} */}
 
-        {currentState === "select" && (
+        {/* {currentState === "select" && (
           <RepositorySelector
             accessToken={accessToken}
             onSelect={handleRepoSelect}
@@ -468,8 +478,8 @@ export default function Home() {
             onBack={handleBackToUpload}
             onProceed={handleUploadedFileSelection}
           />
-        )}
-
+        )} */}
+        {/* 
         {currentState === "loading" && (
           <div className="max-w-2xl mx-auto text-center">
             <div className="bg-white rounded-lg shadow-lg p-8">
@@ -534,10 +544,10 @@ export default function Home() {
             }
             onNewAnalysis={handleNewAnalysis}
           />
-        )}
+        )} */}
 
         {/* Error Display */}
-        {error && (
+        {/* {error && (
           <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 rounded-lg p-4 max-w-md">
             <div className="flex items-start">
               <div className="flex-shrink-0">
@@ -557,11 +567,11 @@ export default function Home() {
               </button>
             </div>
           </div>
-        )}
+        )} */}
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-16">
+      {/* <footer className="bg-white border-t border-gray-200 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center text-gray-500 text-sm">
             <p>MySecurity Tool • Smart Contract Security Analysis Platform</p>
@@ -570,7 +580,7 @@ export default function Home() {
             </p>
           </div>
         </div>
-      </footer>
+      </footer> */}
       {isUploadFlowOpen && (
         <UploadFlowModal
           step={step}
