@@ -225,7 +225,7 @@ export default function StepAnalysisProgress({
   return (
     <div className="px-8 pt-4 pb-8 min-h-[520px] flex flex-col">
       {/* Top banner */}
-      <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--gray-light)]/40 p-6 mb-6">
+      <div className="rounded-2xl   p-6 mb-6">
         <div className="flex flex-col items-center">
           <p className="text-sm font-medium text-[var(--text-primary)] mb-3">
             Running encrypted analysis on Arcium
