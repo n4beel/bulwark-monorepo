@@ -360,7 +360,7 @@ export default function StaticAnalysisReportDisplay({
           </nav>
         </div>
 
-        <div className="flex flex-row">
+        <div className="flex flex-row gap-6">
           {/* Content */}
           <div className="p-6 pr-0 w-[80%]">
             {activeTab === "scores" && (
