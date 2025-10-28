@@ -1,8 +1,107 @@
+@import url('https://fonts.googleapis.com/css2?family=Doto:wght@100..900&family=Host+Grotesk:wght@300..800&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  /* Base colors */
+  --white: #ffffff;
+  --black: #000000;
+  --gray-light: #F5F7FA;
+  --gray-medium: #64748B;
+  --gray-dark: #333333;
+
+  /* Blue color palette */
+  --blue-primary: #0A58EB;
+  --blue-secondary: #4D85FE;
+  --blue-light: #8BB9FF;
+  --blue-hover: #0847C7;
+  --blue-dark: #2A5BE9;
+  --blue-deep: #06358D;
+
+  /* Green colors (for badges, success states) */
+  --green-light: #D1FAE5;
+  --green-medium: #10B981;
+  --green-dark: #059669;
+
+  /* Additional UI colors */
+  --border-color: #E5E7EB;
+  --overlay-bg: rgba(255, 255, 255, 0.1);
+  --overlay-border: rgba(255, 255, 255, 0.2);
+
+  /* Semantic colors - Light Theme */
+  --background: var(--white);
   --foreground: #171717;
+  --text-primary: var(--gray-dark);
+  --text-secondary: var(--gray-medium);
+  --text-inverse: var(--white);
+
+  /* Component specific */
+  --navbar-inactive: var(--gray-medium);
+  --navbar-active: var(--black);
+  --button-primary: var(--blue-primary);
+  --button-primary-hover: var(--blue-hover);
+  --button-secondary: var(--blue-secondary);
+  --button-secondary-hover: var(--blue-dark);
+  --input-border: var(--gray-light);
+  --input-focus: var(--blue-primary);
+  --card-accent: rgba(77, 133, 254, 0.15);
+}
+
+/* Dark Theme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+    --text-primary: #ededed;
+    --text-secondary: #94a3b8;
+    --text-inverse: var(--black);
+    --gray-light: #1e293b;
+    --gray-medium: #64748b;
+    --gray-dark: #e2e8f0;
+    --navbar-inactive: #94a3b8;
+    --navbar-active: var(--white);
+    --border-color: #374151;
+    --button-primary: var(--blue-primary);
+    --button-primary-hover: var(--blue-hover);
+    --button-secondary: var(--blue-secondary);
+    --button-secondary-hover: var(--blue-dark);
+    --input-border: #4a5568;
+    --input-focus: var(--blue-primary);
+    --green-light: #064e3b;
+    --green-medium: #10b981;
+    --green-dark: #059669;
+    --overlay-bg: rgba(0, 0, 0, 0.3);
+    --overlay-border: rgba(255, 255, 255, 0.1);
+    --card-accent: rgba(77, 133, 254, 0.15);
+    --logout-bg: #FFE2E2;
+    --user-chip-bg: rgba(77, 133, 254, 0.15);
+  }
+}
+
+/* Manual dark mode class */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --text-primary: #ededed;
+  --text-secondary: #94a3b8;
+  --text-inverse: var(--black);
+  --gray-light: #1e293b;
+  --gray-medium: #64748b;
+  --gray-dark: #e2e8f0;
+  --navbar-inactive: #94a3b8;
+  --navbar-active: var(--white);
+  --border-color: #374151;
+  --button-primary: var(--blue-primary);
+  --button-primary-hover: var(--blue-hover);
+  --button-secondary: var(--blue-secondary);
+  --button-secondary-hover: var(--blue-dark);
+  --input-border: #4a5568;
+  --input-focus: var(--blue-primary);
+  --green-light: #064e3b;
+  --green-medium: #10b981;
+  --green-dark: #059669;
+  --overlay-bg: rgba(0, 0, 0, 0.3);
+  --overlay-border: rgba(255, 255, 255, 0.1);
+  --card-accent: rgba(77, 133, 254, 0.15);
 }
 
 @theme inline {
@@ -12,15 +111,100 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Arial;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Input styles - Blue border color always */
+input,
+textarea,
+select {
+  border-color: var(--input-focus) !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Input focus styles - Blue focus color with shadow */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  border-color: var(--input-focus) !important;
+  box-shadow: 0 0 0 3px rgba(10, 88, 235, 0.1) !important;
+}
+
+/* Focus ring utility class */
+.focus\:ring-blue:focus {
+  outline: none;
+  border-color: var(--input-focus);
+  box-shadow: 0 0 0 3px rgba(10, 88, 235, 0.1);
+}
+
+/* Ensure consistent blue border across all form elements */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="url"],
+textarea,
+select {
+  border-color: var(--input-focus) !important;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="url"]:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--input-focus) !important;
+  box-shadow: 0 0 0 3px rgba(10, 88, 235, 0.1) !important;
+}
+
+/* Doto Heading Style */
+.doto {
+  font-family: "Doto" !important;
+
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Improve the Select box UI */
+.fancy-select {
+  appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg fill='none' stroke='%2364748B' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* On focus => glow */
+.fancy-select:focus {
+  border-color: var(--blue-primary);
+  box-shadow: 0 0 0 3px rgba(10, 88, 235, 0.15);
+}
+
+/* Dropdown options styling (limited browser control) */
+.fancy-option {
+  padding: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  background-color: var(--white);
+  color: var(--text-primary);
 }

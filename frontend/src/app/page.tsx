@@ -1,17 +1,44 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import { Shield, LogOut, FileText, Upload } from 'lucide-react';
-import GitHubAuth from '@/components/GitHubAuth';
-import RepositorySelector from '@/components/RepositorySelector';
-import ContractFileSelector from '@/components/ContractFileSelector';
-import FolderUpload from '@/components/FolderUpload';
-import UploadedContractFileSelector from '@/components/UploadedContractFileSelector';
-import ReportDisplay from '@/components/ReportDisplay';
-import StaticAnalysisReportDisplay from '@/components/StaticAnalysisReportDisplay';
-import { GitHubRepository, PreAuditReport, StaticAnalysisReport } from '@/types/api';
-import { scopingApi, staticAnalysisApi, uploadApi } from '@/services/api';
+import { useState, useEffect } from "react";
+import { Upload } from "lucide-react";
+import Image from "next/image";
+import GitHubAuth from "@/components/GitHubAuth";
+import RepositorySelector from "@/components/RepositorySelector";
+import ContractFileSelector from "@/components/ContractFileSelector";
+import FolderUpload from "@/components/FolderUpload";
+import UploadedContractFileSelector from "@/components/UploadedContractFileSelector";
+import ReportDisplay from "@/components/ReportDisplay";
+import StaticAnalysisReportDisplay from "@/components/StaticAnalysisReportDisplay";
+import {
+  GitHubRepository,
+  PreAuditReport,
+  StaticAnalysisReport,
+} from "@/types/api";
+import {
+  fetchRepoFilesPublic,
+  scopingApi,
+  staticAnalysisApi,
+  uploadApi,
+} from "@/services/api";
+import Navbar from "@/components/NavBar";
+import HeroSection from "@/components/Hero";
+import { handleGitHubLogin } from "@/utils/auth";
+import { useUploadFlow } from "@/hooks";
+import UploadFlowModal from "@/components/uploadFlow/UploadFlowModal";
+import ResultsModal from "@/components/Receipt/Receipt";
+import ReceiptModal from "@/components/Receipt/Receipt";
+import GitHubFlowModal from "@/components/UploadGihubFlow/GitHubModalFlow";
+import { GitHubFlowStep, useGitHubFlow } from "@/hooks/useGitHubFlow";
+import BulwarkAnimated from "@/components/BulwarkAnimated";
+import FeatureCards from "@/components/FeatureCards";
+import { features, teamItems } from "@/constants/ui";
+import HowItWorks from "@/components/HowItWorks";
+import Web3TeamsSection from "@/components/Web3TeamSection";
+import AuditorMarketplace from "@/components/AuditorMarketplace";
+import PricingSection from "@/components/Pricing";
+import Footer from "@/components/Footer";
+import NewsletterSection from "@/components/NewsLetter";
 
 interface ContractFile {
   path: string;
@@ -20,8 +47,16 @@ interface ContractFile {
   language: string;
 }
 
-type AppState = 'auth' | 'select' | 'fileSelect' | 'upload' | 'uploadFileSelect' | 'loading' | 'report' | 'staticReport';
-type AnalysisType = 'ai' | 'static';
+type AppState =
+  | "auth"
+  | "select"
+  | "fileSelect"
+  | "upload"
+  | "uploadFileSelect"
+  | "loading"
+  | "report"
+  | "staticReport";
+type AnalysisType = "ai" | "static";
 
 interface GitHubUser {
   id: number;
@@ -32,54 +67,132 @@ interface GitHubUser {
 }
 
 export default function Home() {
-  const [currentState, setCurrentState] = useState<AppState>('auth');
-  const [accessToken, setAccessToken] = useState('');
+  const {
+    step,
+    contractFiles,
+    report: finalReport,
+    isAnalyzing,
+    startFileSelect,
+    runAnalysis,
+    resetFlow,
+    goToPreviousStep,
+    completeAnalysis,
+  } = useUploadFlow();
+
+  const [isUploadFlowOpen, setUploadFlowOpen] = useState(false);
+  const [currentState, setCurrentState] = useState<AppState>("auth");
+  const [accessToken, setAccessToken] = useState("");
   const [user, setUser] = useState<GitHubUser | null>(null);
-  const [selectedRepo, setSelectedRepo] = useState<GitHubRepository | null>(null);
+  const [selectedRepo, setSelectedRepo] = useState<GitHubRepository | null>(
+    null
+  );
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [report, setReport] = useState<PreAuditReport | null>(null);
-  const [staticReport, setStaticReport] = useState<StaticAnalysisReport | null>(null);
-  const [currentAnalysisType, setCurrentAnalysisType] = useState<AnalysisType>('ai');
-  const [error, setError] = useState('');
+  const [staticReport, setStaticReport] = useState<StaticAnalysisReport | null>(
+    null
+  );
+  const [currentAnalysisType, setCurrentAnalysisType] =
+    useState<AnalysisType>("ai");
+  const [error, setError] = useState("");
   const [extractedPath, setExtractedPath] = useState<string | null>(null);
-  const [uploadedContractFiles, setUploadedContractFiles] = useState<ContractFile[]>([]);
+  const [uploadedContractFiles, setUploadedContractFiles] = useState<
+    ContractFile[]
+  >([]);
+
+  const [openResults, setOpenResults] = useState(false);
+  const [resultsReport, setResultsReport] = useState<any>(null);
+
+  const {
+    step: githubStep,
+    accessToken: githubAccessToken,
+    selectedRepo: githubSelectedRepo,
+    contractFiles: githubFiles,
+    setContractFiles,
+    report: githubReport,
+    isAnalyzing: isGithubAnalyzing,
+    handleAuthSuccess,
+    selectRepository,
+    runAnalysis: runGithubAnalysis,
+    completeAnalysis: completeGithubAnalysis,
+    resetFlow: resetGithubFlow,
+    setStep,
+  } = useGitHubFlow();
 
   // Check for existing authentication on component mount
   useEffect(() => {
-    const token = localStorage.getItem('github_token');
-    const userData = localStorage.getItem('github_user');
+    // Only run on client side to prevent hydration mismatch
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("github_token");
+      const userData = localStorage.getItem("github_user");
 
-    if (token && userData) {
-      try {
-        const user = JSON.parse(userData);
-        setAccessToken(token);
-        setUser(user);
-        setCurrentState('select');
-      } catch {
-        // Invalid user data, clear storage
-        localStorage.removeItem('github_token');
-        localStorage.removeItem('github_user');
+      if (token && userData) {
+        try {
+          const user = JSON.parse(userData);
+          setAccessToken(token);
+          setUser(user);
+          setCurrentState("select");
+        } catch {
+          // Invalid user data, clear storage
+          localStorage.removeItem("github_token");
+          localStorage.removeItem("github_user");
+        }
       }
     }
   }, []);
 
-  // Removed unused handleAuth function
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && !hasInitialized) {
+      setHasInitialized(true);
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get("token");
+      const userStr = urlParams.get("user");
+
+      if (token && userStr) {
+        try {
+          const user = JSON.parse(decodeURIComponent(userStr));
+          localStorage.setItem("github_token", token);
+          localStorage.setItem("github_user", JSON.stringify(user));
+
+          // Open GitHub flow modal and set token
+          handleAuthSuccess(token);
+
+          // Clean URL
+          window.history.replaceState({}, "", "/");
+        } catch (err) {
+          console.error("Error parsing OAuth response:", err);
+        }
+      } else {
+        // Only check saved token if no OAuth callback
+
+        const savedToken = localStorage.getItem("github_token");
+        if (savedToken) {
+          handleAuthSuccess(savedToken);
+        }
+      }
+    }
+  }, []);
 
   const handleRepoSelect = async (repo: GitHubRepository) => {
     setSelectedRepo(repo);
-    setCurrentState('fileSelect');
+    setCurrentState("fileSelect");
   };
 
-  const handleFileSelection = async (files: string[], analysisType: AnalysisType) => {
+  const handleFileSelection = async (
+    files: string[],
+    analysisType: AnalysisType
+  ) => {
     setSelectedFiles(files);
     setCurrentAnalysisType(analysisType);
-    setCurrentState('loading');
-    setError('');
+    setCurrentState("loading");
+    setError("");
 
     try {
-      const [owner, repoName] = selectedRepo!.full_name.split('/');
+      const [owner, repoName] = selectedRepo!.full_name.split("/");
 
-      if (analysisType === 'ai') {
+      if (analysisType === "ai") {
         const reportData = await scopingApi.generateReport({
           owner,
           repo: repoName,
@@ -88,7 +201,7 @@ export default function Home() {
         });
 
         setReport(reportData);
-        setCurrentState('report');
+        setCurrentState("report");
       } else {
         const staticReportData = await staticAnalysisApi.analyzeRustContract({
           owner,
@@ -98,207 +211,225 @@ export default function Home() {
           analysisOptions: {
             includeTests: false,
             includeDependencies: true,
-            depth: 'deep'
-          }
+            depth: "deep",
+          },
         });
 
         setStaticReport(staticReportData);
-        setCurrentState('staticReport');
+        setCurrentState("staticReport");
       }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to generate report. Please try again.';
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to generate report. Please try again.";
       setError(errorMessage);
-      setCurrentState('fileSelect');
+      setCurrentState("fileSelect");
     }
   };
 
-  const handleUploadSuccess = (extractedPath: string, contractFiles: ContractFile[]) => {
+  const handleUploadSuccess = (
+    extractedPath: string,
+    contractFiles: ContractFile[]
+  ) => {
     setExtractedPath(extractedPath);
     setUploadedContractFiles(contractFiles);
-    setCurrentState('uploadFileSelect');
-    setError('');
+    setCurrentState("uploadFileSelect");
+    setError("");
   };
 
-  const handleUploadedFileSelection = async (files: string[], analysisType: AnalysisType) => {
+  const handleUploadedFileSelection = async (
+    files: string[],
+    analysisType: AnalysisType
+  ) => {
     if (!extractedPath) {
-      setError('Extracted path not found. Please try uploading again.');
+      setError("Extracted path not found. Please try uploading again.");
       return;
     }
 
     setSelectedFiles(files);
     setCurrentAnalysisType(analysisType);
-    setCurrentState('loading');
-    setError('');
+    setCurrentState("loading");
+    setError("");
 
     try {
       // For uploaded files, we only support static analysis for now
       // The new API endpoint is specifically for static analysis of uploaded contracts
-      const result = await uploadApi.analyzeUploadedContracts(extractedPath, files);
+      const result = await uploadApi.analyzeUploadedContracts(
+        extractedPath,
+        files
+      );
 
       setStaticReport(result);
-      setCurrentState('staticReport');
+      setCurrentState("staticReport");
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to analyze uploaded files. Please try again.';
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to analyze uploaded files. Please try again.";
       setError(errorMessage);
-      setCurrentState('uploadFileSelect');
+      setCurrentState("uploadFileSelect");
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('github_token');
-    localStorage.removeItem('github_user');
-    setCurrentState('auth');
-    setAccessToken('');
+    localStorage.removeItem("github_token");
+    localStorage.removeItem("github_user");
+    setCurrentState("auth");
+    setAccessToken("");
     setUser(null);
     setSelectedRepo(null);
     setReport(null);
     setStaticReport(null);
-    setError('');
+    setError("");
   };
 
   const handleBackToAuth = () => {
-    setCurrentState('auth');
-    setAccessToken('');
+    setCurrentState("auth");
+    setAccessToken("");
     setUser(null);
     setSelectedRepo(null);
     setSelectedFiles([]);
     setReport(null);
     setStaticReport(null);
-    setError('');
+    setError("");
   };
 
   const handleBackToSelect = () => {
-    setCurrentState('select');
+    setCurrentState("select");
     setSelectedRepo(null);
     setSelectedFiles([]);
     setReport(null);
     setStaticReport(null);
-    setError('');
+    setError("");
   };
-
-
 
   const handleNewAnalysis = () => {
     if (user) {
-      setCurrentState('select');
+      setCurrentState("select");
     } else {
-      setCurrentState('auth');
+      setCurrentState("auth");
     }
     setSelectedRepo(null);
     setSelectedFiles([]);
     setReport(null);
     setStaticReport(null);
-    setError('');
+    setError("");
   };
 
   const handleBackToUpload = () => {
-    setCurrentState('upload');
+    setCurrentState("upload");
     setSelectedRepo(null);
     setSelectedFiles([]);
     setReport(null);
     setStaticReport(null);
     setExtractedPath(null);
     setUploadedContractFiles([]);
-    setError('');
+    setError("");
   };
 
   const handleBackToUploadFileSelect = () => {
-    setCurrentState('uploadFileSelect');
+    setCurrentState("uploadFileSelect");
     setSelectedFiles([]);
     setReport(null);
     setStaticReport(null);
-    setError('');
+    setError("");
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <Shield className="w-8 h-8 text-blue-600 mr-3" />
-              <h1 className="text-xl font-bold text-gray-900">MySecurity Tool</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              {/* Upload option - always visible */}
-              <button
-                onClick={() => setCurrentState('upload')}
-                className="flex items-center space-x-1 text-gray-600 hover:text-gray-800 text-sm px-3 py-2 rounded-md hover:bg-gray-100"
-              >
-                <Upload className="w-4 h-4" />
-                <span>Upload Folder</span>
-              </button>
+      <Navbar />
 
-              {user && (
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => window.location.href = '/reports'}
-                    className="flex items-center space-x-1 text-gray-600 hover:text-gray-800 text-sm px-3 py-2 rounded-md hover:bg-gray-100"
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span>Reports</span>
-                  </button>
-                  <div className="flex items-center space-x-2">
-                    <Image
-                      src={user.avatar_url}
-                      alt={user.name || user.login}
-                      className="w-8 h-8 rounded-full"
-                      width={32}
-                      height={32}
-                    />
-                    <span className="text-sm font-medium text-gray-900">
-                      {user.name || user.login}
-                    </span>
-                  </div>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center space-x-1 text-gray-500 hover:text-gray-700 text-sm"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>Logout</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* Hero Section - Full Width */}
+      {/* {currentState === "auth" && <HeroSection onAnalyze={()=>{}} onConnectGitHub={on} />} */}
+      <HeroSection
+        onConnectGitHub={handleGitHubLogin}
+        onUploadZip={() => setUploadFlowOpen(true)}
+        onAnalyze={async (input) => {
+          try {
+            const match = input.match(/github\.com\/([^/]+)\/([^/]+)/);
+            if (!match) throw new Error("Invalid GitHub URL format");
 
+            const owner = match[1];
+            const repo = match[2];
+
+            const result = await fetchRepoFilesPublic(owner, repo);
+            const files = result.rsFilesOnly.map((item: any) => ({
+              path: item.path,
+              name: item.path.split("/").pop()!,
+              size: 0,
+              language: "Rust",
+            }));
+            // ✅ Set GitHubFlow Repo
+            selectRepository(
+              {
+                id: 0,
+                name: repo,
+                full_name: `${owner}/${repo}`,
+                html_url: input,
+                private: false,
+              },
+              files
+            ); // IMPORTANT ✅
+
+            // ✅ Set files into GitHubFlow
+            setContractFiles(files);
+
+            // ✅ Open modal file selection UI
+            setStep(GitHubFlowStep.FILE_SELECT);
+          } catch (err) {
+            setError("❌ Repo not found or not a public repo with Rust files.");
+          }
+        }}
+      />
+      <div className="flex justify-center items-center w-full h-[150px]">
+        <Image
+          src="/icons/BulwarkHeading.svg"
+          alt="Bulwark Background"
+          width={800} // adjust size as needed
+          height={200}
+        />
+      </div>
+
+      <BulwarkAnimated />
+      <FeatureCards items={features} />
+      <HowItWorks />
+      <Web3TeamsSection
+        title="Built for Modern Web3 Teams"
+        subtitle="Serving all streams of contributors across Solana"
+        items={teamItems}
+      />
+      <AuditorMarketplace />
+      <PricingSection />
+      <NewsletterSection />
+      <Footer />
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {currentState === 'auth' && (
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-0">
+        {/* {currentState === "auth" && (
           <div>
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">
-                Smart Contract Security Analysis
-              </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Get instant pre-audit reports with cost estimates, risk assessments, and recommendations
-                for your smart contract projects.
-              </p>
-            </div>
-
-            <div className="max-w-4xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* GitHub Auth */}
-                <div>
+            <div className="max-w-4xl mx-auto"> */}
+        {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-8"> */}
+        {/* GitHub Auth */}
+        {/* <div>
                   <GitHubAuth />
-                </div>
+                </div> */}
 
-                {/* Upload Option */}
-                <div className="max-w-md mx-auto">
+        {/* Upload Option */}
+        {/* <div className="max-w-md mx-auto">
                   <div className="bg-white rounded-lg shadow-lg p-6">
                     <div className="text-center mb-6">
                       <Upload className="w-12 h-12 text-blue-600 mx-auto mb-4" />
-                      <h2 className="text-2xl font-bold text-gray-900">Upload Folder</h2>
+                      <h2 className="text-2xl font-bold text-gray-900">
+                        Upload Folder
+                      </h2>
                       <p className="text-gray-600 mt-2">
-                        Upload a zipped folder containing your smart contracts directly
+                        Upload a zipped folder containing your smart contracts
+                        directly
                       </p>
                     </div>
 
                     <button
-                      onClick={() => setCurrentState('upload')}
+                      onClick={() => setCurrentState("upload")}
                       className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center"
                     >
                       <Upload className="w-4 h-4 mr-2" />
@@ -311,13 +442,13 @@ export default function Home() {
                       </p>
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
+                </div> */}
+        {/* </div> */}
+        {/* </div>
           </div>
-        )}
+        )} */}
 
-        {currentState === 'select' && (
+        {/* {currentState === "select" && (
           <RepositorySelector
             accessToken={accessToken}
             onSelect={handleRepoSelect}
@@ -325,14 +456,14 @@ export default function Home() {
           />
         )}
 
-        {currentState === 'upload' && (
+        {currentState === "upload" && (
           <FolderUpload
             onUploadSuccess={handleUploadSuccess}
-            onBack={() => setCurrentState(user ? 'select' : 'auth')}
+            onBack={() => setCurrentState(user ? "select" : "auth")}
           />
         )}
 
-        {currentState === 'fileSelect' && selectedRepo && (
+        {currentState === "fileSelect" && selectedRepo && (
           <ContractFileSelector
             repository={selectedRepo}
             accessToken={accessToken}
@@ -341,48 +472,53 @@ export default function Home() {
           />
         )}
 
-        {currentState === 'uploadFileSelect' && extractedPath && (
+        {currentState === "uploadFileSelect" && extractedPath && (
           <UploadedContractFileSelector
             contractFiles={uploadedContractFiles}
             onBack={handleBackToUpload}
             onProceed={handleUploadedFileSelection}
           />
-        )}
-
-
-        {currentState === 'loading' && (
+        )} */}
+        {/* 
+        {currentState === "loading" && (
           <div className="max-w-2xl mx-auto text-center">
             <div className="bg-white rounded-lg shadow-lg p-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                {currentAnalysisType === 'ai' ? 'Running AI Analysis' : 'Running Static Analysis'}
+                {currentAnalysisType === "ai"
+                  ? "Running AI Analysis"
+                  : "Running Static Analysis"}
               </h3>
               <p className="text-gray-600">
-                {selectedRepo ? `${selectedRepo.full_name}` : 'Uploaded contracts'} • {selectedFiles.length} files selected • This may take a few moments...
+                {selectedRepo
+                  ? `${selectedRepo.full_name}`
+                  : "Uploaded contracts"}{" "}
+                • {selectedFiles.length} files selected • This may take a few
+                moments...
               </p>
               <div className="mt-6 space-y-2">
                 <div className="flex items-center justify-center space-x-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
                   <span className="text-sm text-gray-500">
-                    {selectedRepo ? 'Cloning repository' : 'Processing uploaded files'}
+                    {selectedRepo
+                      ? "Cloning repository"
+                      : "Processing uploaded files"}
                   </span>
                 </div>
                 <div className="flex items-center justify-center space-x-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
                   <span className="text-sm text-gray-500">
-                    {currentAnalysisType === 'ai'
-                      ? 'Analyzing selected contract files'
-                      : 'Performing static code analysis'
-                    }
+                    {currentAnalysisType === "ai"
+                      ? "Analyzing selected contract files"
+                      : "Performing static code analysis"}
                   </span>
                 </div>
                 <div className="flex items-center justify-center space-x-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
                   <span className="text-sm text-gray-500">
-                    {currentAnalysisType === 'ai'
-                      ? 'Generating audit estimates'
-                      : 'Calculating complexity metrics'
-                    }
+                    {currentAnalysisType === "ai"
+                      ? "Generating audit estimates"
+                      : "Calculating complexity metrics"}
                   </span>
                 </div>
               </div>
@@ -390,24 +526,28 @@ export default function Home() {
           </div>
         )}
 
-        {currentState === 'report' && report && (
+        {currentState === "report" && report && (
           <ReportDisplay
             report={report}
-            onBack={selectedRepo ? handleBackToSelect : handleBackToUploadFileSelect}
+            onBack={
+              selectedRepo ? handleBackToSelect : handleBackToUploadFileSelect
+            }
             onNewAnalysis={handleNewAnalysis}
           />
         )}
 
-        {currentState === 'staticReport' && staticReport && (
+        {currentState === "staticReport" && staticReport && (
           <StaticAnalysisReportDisplay
             report={staticReport}
-            onBack={selectedRepo ? handleBackToSelect : handleBackToUploadFileSelect}
+            onBack={
+              selectedRepo ? handleBackToSelect : handleBackToUploadFileSelect
+            }
             onNewAnalysis={handleNewAnalysis}
           />
-        )}
+        )} */}
 
         {/* Error Display */}
-        {error && (
+        {/* {error && (
           <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 rounded-lg p-4 max-w-md">
             <div className="flex items-start">
               <div className="flex-shrink-0">
@@ -420,25 +560,71 @@ export default function Home() {
                 <p className="text-sm text-red-700 mt-1">{error}</p>
               </div>
               <button
-                onClick={() => setError('')}
+                onClick={() => setError("")}
                 className="ml-4 text-red-400 hover:text-red-600"
               >
                 ×
               </button>
             </div>
           </div>
-        )}
+        )} */}
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-16">
+      {/* <footer className="bg-white border-t border-gray-200 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center text-gray-500 text-sm">
             <p>MySecurity Tool • Smart Contract Security Analysis Platform</p>
-            <p className="mt-1">Powered by advanced static analysis and AI-driven insights</p>
+            <p className="mt-1">
+              Powered by advanced static analysis and AI-driven insights
+            </p>
           </div>
         </div>
-      </footer>
+      </footer> */}
+      {isUploadFlowOpen && (
+        <UploadFlowModal
+          step={step}
+          contractFiles={contractFiles}
+          startFileSelect={startFileSelect}
+          runAnalysis={runAnalysis}
+          report={finalReport}
+          apiReady={!isAnalyzing}
+          goToPreviousStep={goToPreviousStep}
+          completeAnalysis={completeAnalysis}
+          onClose={() => {
+            resetFlow();
+            setUploadFlowOpen(false);
+          }}
+          onOpenResults={(r) => {
+            setResultsReport(r);
+            setOpenResults(true);
+          }}
+        />
+      )}
+      <GitHubFlowModal
+        step={githubStep}
+        accessToken={githubAccessToken}
+        onClose={() => {
+          resetGithubFlow();
+          localStorage.removeItem("github_token");
+        }}
+        selectedRepo={githubSelectedRepo}
+        contractFiles={githubFiles}
+        selectRepository={selectRepository}
+        runAnalysis={runGithubAnalysis}
+        apiReady={!isGithubAnalyzing}
+        completeAnalysis={completeGithubAnalysis}
+        onOpenResults={(report) => {
+          setResultsReport(report);
+          setOpenResults(true);
+        }}
+        report={githubReport}
+      />
+      <ReceiptModal
+        open={openResults}
+        report={resultsReport}
+        onClose={() => setOpenResults(false)}
+      />
     </div>
   );
 }
