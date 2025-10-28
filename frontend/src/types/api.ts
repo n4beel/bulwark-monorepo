@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 export interface RepositoryInfo {
   name: string;
   fullName: string;

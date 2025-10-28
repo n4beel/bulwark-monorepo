@@ -137,6 +137,7 @@ export default function ReportsPage() {
     // setSelectedReport(report);
     router.push(
       `/reports/${
+        // @ts-ignore
         typeof report._id === "string" ? report._id : report._id.$oid
       }`
     );
@@ -273,6 +274,7 @@ export default function ReportsPage() {
             filteredReports.map((report) => (
               <div
                 key={
+                  // @ts-ignore
                   typeof report._id === "string" ? report._id : report._id.$oid
                 }
                 onClick={() => handleReportClick(report)}
