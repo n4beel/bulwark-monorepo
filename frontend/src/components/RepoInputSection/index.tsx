@@ -57,7 +57,7 @@ const RepoInputSection = ({
         {/* Input Field */}
         <div className="mb-6">
           <Input
-            iconSvg="/icons/Linkicon.svg"
+            iconSvg="/icons/LinkIcon.svg"
             iconPosition="left"
             value={repoInput}
             onChange={(e) => setRepoInput(e.target.value)}

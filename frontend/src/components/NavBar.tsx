@@ -76,26 +76,12 @@ const Navbar = () => {
 
         {/* ✅ User Info / Auth */}
         <div className="flex items-center space-x-4">
-          {user ? (
-            <>
-              <span className="text-sm font-medium text-[var(--text-primary)]">
-                {user.displayName || user.email}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="bg-[var(--button-primary)] hover:bg-[var(--button-primary-hover)] text-white px-4 py-2 rounded-md text-sm font-medium cursor-pointer"
-              >
-                Logout
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => setOpen(true)}
-              className="bg-[var(--button-primary)] hover:bg-[var(--button-primary-hover)] text-white px-4 py-2 rounded-md text-sm font-medium cursor-pointer"
-            >
-              Sign In
-            </button>
-          )}
+          <button
+            onClick={() => setOpen(true)}
+            className="bg-[var(--button-primary)] hover:bg-[var(--button-primary-hover)] text-white px-4 py-2 rounded-md text-sm font-medium cursor-pointer"
+          >
+            Sign In
+          </button>
         </div>
       </div>
 

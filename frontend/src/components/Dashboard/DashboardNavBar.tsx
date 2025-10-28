@@ -17,10 +17,16 @@ export default function DashboardNavbar() {
   const user = useSelector((state: RootState) => state.auth.user);
 
   const [openUpgrade, setOpenUpgrade] = useState(false);
-
   const handleLogout = async () => {
-    await signOut(auth);
-    dispatch(logout());
+    try {
+      router.replace("/"); // replaces history so user can’t go back
+      setTimeout(async () => {
+        await signOut(auth);
+        dispatch(logout());
+      }, 1000);
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
   };
 
   return (
@@ -58,7 +64,10 @@ export default function DashboardNavbar() {
       {/* CENTER LOGO */}
       <div
         className="absolute left-1/2 -translate-x-1/2 cursor-pointer "
-        onClick={() => router.push("/")}
+        onClick={() => {
+          // router.push("/dashboard");
+          handleLogout();
+        }}
       >
         <Image src="/icons/Bulwark.svg" alt="Bulwark" width={130} height={34} />
       </div>
