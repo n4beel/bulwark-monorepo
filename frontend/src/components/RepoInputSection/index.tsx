@@ -57,7 +57,7 @@ const RepoInputSection = ({
         {/* Input Field */}
         <div className="mb-6">
           <Input
-            iconSvg="/icons/linkicon.svg"
+            iconSvg="/icons/Linkicon.svg"
             iconPosition="left"
             value={repoInput}
             onChange={(e) => setRepoInput(e.target.value)}
@@ -72,7 +72,7 @@ const RepoInputSection = ({
         <div className="flex gap-4 mb-4">
           <Button
             variant="outline"
-            icon="/icons/GithubIcon.svg"
+            icon="/icons/GitHubIcon.svg"
             iconPosition="left"
             onClick={onConnectGitHub}
             className="flex-1"

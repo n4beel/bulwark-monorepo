@@ -31,7 +31,7 @@ export default function Footer() {
               </Link>
               <Link href="#" aria-label="GitHub">
                 <Image
-                  src="/icons/GithubSmall.svg"
+                  src="/icons/GitHubSmall.svg"
                   alt="GitHub"
                   width={18}
                   height={18}
