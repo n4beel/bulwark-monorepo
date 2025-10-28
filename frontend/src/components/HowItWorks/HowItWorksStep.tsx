@@ -35,7 +35,7 @@ export default function HowStepContainer({ step, reversed }: Props) {
         </div>
 
         {/*  Heading */}
-        <h3 className="mt-4 text-3xl font-normal tracking-widest text-[var(--blue-deep)]">
+        <h3 className="mt-4 text-3xl font-normal tracking-normal text-[var(--blue-deep)]">
           {step.title}
         </h3>
 

@@ -18,10 +18,10 @@ export default function Web3TeamsSection({ title, subtitle, items }: Props) {
     <section className="w-full max-w-7xl mx-auto py-20 px-4 mt-20">
       {/* Top Heading */}
       <h2
-        className="text-center text-3xl md:text-4xl tracking-widest mb-2 font-semibold"
+        className="text-center tracking-normal mb-2 text-3xl space-x-0"
         style={{
           fontFamily: "'Doto', sans-serif",
-          //   color: "var(--blue-primary)",
+          fontWeight: "400 !important",
         }}
       >
         {title}
@@ -49,7 +49,7 @@ export default function Web3TeamsSection({ title, subtitle, items }: Props) {
             />
 
             {/* Card Title */}
-            <h3 className="text-lg font-extrabold text-[var(--black)] mb-2 doto">
+            <h3 className="text-lg font-normal text-[var(--black)] mb-2 doto">
               {item.title}
             </h3>
 

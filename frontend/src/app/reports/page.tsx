@@ -179,7 +179,7 @@ export default function ReportsPage() {
                                 Back to Analysis
                             </button> */}
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">
+                <h1 className="text-3xl font-normal text-gray-900 doto">
                   Analysis Reports
                 </h1>
                 {/* <p className="text-gray-600 mt-1">

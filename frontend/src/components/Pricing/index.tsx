@@ -8,17 +8,8 @@ export default function PricingSection() {
       className="w-full py-24 px-6 relative overflow-visible"
       id="pricing"
     >
-      {/* ✅ RIGHT SIDE DIAMOND — OUTSIDE CARD */}
-      <Image
-        src={"/icons/Diamond.svg"}
-        alt="Diamond"
-        width={420}
-        height={420}
-        className="hidden md:block absolute -right-0 top-[20%] blur-[3px] pointer-events-none select-none z-30"
-      />
-
       <div className="max-w-7xl mx-auto text-center mb-12">
-        <h2 className="text-4xl font-extrabold doto tracking-widest text-[var(--text-primary)]">
+        <h2 className="text-4xl font-normal doto  text-[var(--text-primary)] tracking-normal">
           Want to go deeper for critical
           <br /> vulnerabilities and attack vectors?
         </h2>
@@ -65,21 +56,37 @@ export default function PricingSection() {
         </div>
 
         {/* ✅ FORENSIC CARD */}
-        <div
-          className="relative bg-white rounded-2xl border border-[#DDE3F7] p-8 shadow-sm h-full
-"
-        >
-          <span className="inline-flex items-center gap-2 text-xs bg-[var(--blue-primary)] text-white px-3 py-1 rounded-full">
-            Forensic{" "}
-            <Image
-              src={"/icons/DiamondSmall.svg"}
-              alt="arrowright"
-              width={25}
-              height={25}
-            />
-          </span>
+        <div className="relative z-10">
+          {/* 💎 Diamond — behind but *outside* the blurred box */}
+          <Image
+            src="/icons/Diamond.svg"
+            alt="Diamond"
+            width={420}
+            height={420}
+            className="hidden md:block absolute -right-64 top-0 opacity-70 pointer-events-none select-none z-0"
+          />
 
-          <PaidPricingCard />
+          {/* 💠 Blurred Card (Blue glass effect) */}
+          <div
+            className="relative bg-transparent border border-[var(--blue-primary)] 
+               backdrop-blur-[40px] shadow-lg rounded-2xl p-8 z-10"
+          >
+            <span
+              className="inline-flex items-center gap-2 text-xs 
+                     bg-[var(--blue-primary)] text-white 
+                     px-3 py-1 rounded-full"
+            >
+              Forensic
+              <Image
+                src="/icons/DiamondSmall.svg"
+                alt="arrowright"
+                width={25}
+                height={25}
+              />
+            </span>
+
+            <PaidPricingCard />
+          </div>
         </div>
       </div>
 

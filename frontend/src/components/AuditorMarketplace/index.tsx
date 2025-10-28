@@ -13,7 +13,7 @@ export default function AuditorMarketplace() {
 
           {/* Title */}
           <h2
-            className="text-4xl doto tracking-widest"
+            className="text-4xl doto tracking-normal"
             style={{ color: "var(--black)" }}
           >
             Auditor Marketplace

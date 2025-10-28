@@ -165,8 +165,12 @@ select:focus {
 @font-face {
   font-family: "Doto";
   src: url("/fonts/Doto-Regular.ttf") format("truetype");
-  font-weight: normal;
+  font-weight: 400;
   font-style: normal;
+}
+
+* {
+  letter-spacing: 0 !important;
 }
 
 /* Doto Heading Style */
@@ -215,4 +219,11 @@ select:focus {
   cursor: pointer;
   background-color: var(--white);
   color: var(--text-primary);
+}
+
+.paidPricingCad {
+  border-radius: 24px;
+  border: 1px solid var(--blue-primary);
+  background: rgba(255, 255, 255, 0.50);
+  backdrop-filter: blur(17px) !important;
 }

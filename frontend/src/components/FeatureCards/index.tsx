@@ -29,7 +29,7 @@ export default function FeatureCards({ items }: Props) {
             {/* Title — left aligned, dotted font */}
             <div className="flex flex-row justify-between items-center">
               <h3
-                className="mt-4 font-bold text-lg uppercase tracking-widest mb-6 max-w-2/3"
+                className="mt-4 font-normal text-lg uppercase tracking-normal mb-6 max-w-2/3"
                 style={{
                   fontFamily: "'Doto', sans-serif",
                   letterSpacing: "3px",

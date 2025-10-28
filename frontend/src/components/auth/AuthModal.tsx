@@ -69,7 +69,7 @@ export default function AuthModal({
 
         {/* Logo */}
         <Image
-          src="/icons/BulwarkAuth.svg"
+          src="/images/SigninImage.png"
           width={256}
           height={200}
           alt="Bulwark logo"

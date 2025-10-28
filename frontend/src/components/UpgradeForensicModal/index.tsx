@@ -48,7 +48,7 @@ export default function UpgradeForensicModal({
             {/* Icon */}
 
             <Image
-              src="/icons/ForensicDiamond.svg"
+              src="/images/ForensicBox.png"
               alt="Forensic Diamond"
               width={300}
               height={200}

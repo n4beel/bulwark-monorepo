@@ -31,7 +31,7 @@ export default function HowItWorks() {
   return (
     <div className="mt-20 w-4/5 mx-auto" id="how-it-works">
       <h1
-        className="text-3xl font-bold"
+        className="text-3xl font-normal"
         style={{
           fontFamily: '"Doto", sans-serif',
           color: "var(--black-primary)",
