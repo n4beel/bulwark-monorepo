@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Doto:wght@100..900&family=Host+Grotesk:wght@300..800&display=swap');
+/* @import url('https://fonts.googleapis.com/css2?family=Doto:wght@100..900&family=Host+Grotesk:wght@300..800&display=swap'); */
 @import "tailwindcss";
 
 :root {
@@ -162,9 +162,17 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(10, 88, 235, 0.1) !important;
 }
 
+@font-face {
+  font-family: "Doto";
+  src: url("/fonts/Doto-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
 /* Doto Heading Style */
 .doto {
   font-family: "Doto" !important;
+  color: #0F172A !important;
 
 }
 

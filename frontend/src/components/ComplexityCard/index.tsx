@@ -34,22 +34,29 @@ export default function ComplexityCard({
       : 0;
 
   return (
-    <div className="rounded-lg p-3 border border-[var(--blue-primary)] bg-[#E8F0FF] relative w-full h-full">
+    <div className="rounded-lg p-3 border border-[var(--blue-primary)] bg-[var(--blue-primary)] relative w-full h-full">
       <div className="flex flex-row items-center justify-between gap-1">
-        <p className="text-[11px] text-[var(--blue-primary)] font-medium">
+        <p className="text-md  text-[var(--white)] font-normal">
           Complexity Score
         </p>
 
         <Tooltip text="A 0–100 composite across Structural (20), Security (30), Systemic (20), Economic & Logical (30).">
-          <Image src="/icons/InfoIcon.svg" alt="i" width={14} height={14} />
+          <Image
+            src="/icons/InfoIconWhite.svg"
+            alt="i"
+            width={14}
+            height={14}
+          />
         </Tooltip>
       </div>
 
       <div className="mt-2 flex items-end gap-1">
-        <span className="text-[28px] font-bold text-[var(--text-primary)]">
+        <span className="text-[28px] font-normal opacity-90 text-[var(--white)]">
           {score}
         </span>
-        <span className="text-xs text-[var(--text-secondary)] pb-1">/100</span>
+        <span className="text-sm font-normal text-[var(--white)]  opacity-60 pb-1">
+          /100
+        </span>
       </div>
 
       <div className="mt-3 flex w-full rounded-full overflow-hidden border border-[var(--border-color)] h-2 bg-white">
