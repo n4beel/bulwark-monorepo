@@ -25,37 +25,37 @@ export const features: FeatureCardItem[] = [
 export const teamItems = [
   {
     title: "Founders",
-    icon: "/icons/Founder.svg",
+    icon: "/images/Founder.png",
     description:
       "Specialized analysis for Solidity, Vyper, Rust, Move, and Cairo with framework-specific checks.",
   },
   {
     title: "Auditors",
-    icon: "/icons/Auditor.svg",
+    icon: "/images/Auditors.png",
     description:
       "Standardized vulnerability classification aligned with industry best practices.",
   },
   {
     title: "Security Researchers",
-    icon: "/icons/Security.svg",
+    icon: "/images/Security.png",
     description:
       "Get accurate audit cost ranges and duration estimates based on your codebase complexity.",
   },
   {
     title: "Devs",
-    icon: "/icons/Dev.svg",
+    icon: "/images/Dev.png",
     description:
       "Seamlessly connect with vetted auditors when you're ready for a full professional audit.",
   },
   {
     title: "Protocol DAOs",
-    icon: "/icons/Dao.svg",
+    icon: "/images/Dao.png",
     description:
       "Smart re-analysis that focuses only on changed code for faster iteration cycles.",
   },
   {
     title: "VCs & Analysts",
-    icon: "/icons/Vc.svg",
+    icon: "/images/Vc.png",
     description:
       "OAuth integration and signed URLs ensure your proprietary code stays secure.",
   },
