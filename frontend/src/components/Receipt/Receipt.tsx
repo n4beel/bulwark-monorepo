@@ -82,7 +82,7 @@ export default function ReceiptModal({
                 onClick={() =>
                   oid &&
                   (onViewDetailed?.(oid) ??
-                    router.push(`/report-summary/${oid}`))
+                    router.push(`/dashboard?report=${oid}`))
                 }
                 className="px-6 py-2 text-white bg-[var(--blue-primary)] rounded-lg cursor-pointer"
               >

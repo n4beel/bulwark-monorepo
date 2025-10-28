@@ -1,6 +1,7 @@
 "use client";
 
 import { getSeverityColor } from "@/utils";
+import Image from "next/image";
 
 type SeverityCounts = {
   high?: number;
@@ -53,7 +54,16 @@ export default function HotspotsCard({
   return (
     <div className="rounded-xl border border-[var(--border-color)] bg-[var(--background)] p-4 text-sm w-full h-full">
       <div className="flex justify-between items-center mb-2">
-        <span className="text-[var(--text-primary)] font-medium">Hotspots</span>
+        <span className="flex items-center  text-[var(--text-primary)] font-medium">
+          <Image
+            src={"/icons/AnalyzerBrain.svg"}
+            alt="analyzerBrain"
+            width={25}
+            height={25}
+            className="mr-1"
+          />{" "}
+          Hotspots
+        </span>
         <span className="text-xs text-[var(--text-secondary)]">
           {total} total
         </span>

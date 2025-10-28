@@ -8,16 +8,18 @@ import { useAnalysisFlows } from "@/hooks/useAnalysisFlow";
 import AnalysisModals from "@/components/AnalysisModals";
 import DashboardTabs from "../DashboardTabs";
 
-const DashboardHero = () => {
+const DashboardHero = ({
+  initialReportId,
+}: {
+  initialReportId: string | undefined;
+}) => {
   // ALL state and logic is in the hook - no duplicates!
   const { uploadFlow, githubFlow, results, handlers } = useAnalysisFlows();
 
   return (
     <>
-      <DashboardHeroHeader />
-
       {/* Tabs Component */}
-      <DashboardTabs handlers={handlers} />
+      <DashboardTabs handlers={handlers} initialReportId={initialReportId} />
 
       {/* All Modals - hook manages everything */}
       <AnalysisModals

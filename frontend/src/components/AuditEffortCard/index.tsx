@@ -44,49 +44,49 @@ export default function AuditEffortCard({
       </div>
 
       {/* Three sections */}
-      <div className="flex justify-between text-center mt-2">
-        {/* Days */}
-        <div className="flex-1">
+      <div className="flex items-start justify-between">
+        {/* Time */}
+        <div className="flex-1 flex flex-col items-start text-left">
           <Image
             src="/icons/Clock.svg"
             alt="time"
             width={18}
             height={18}
-            className="mx-auto mb-1"
+            className="mb-1"
           />
-          <p className="font-normal">{daysText}d</p>
+          <p className="font-normal text-3xl">{daysText}d</p>
           <p className="text-[10px] text-[var(--text-secondary)]">p50 to p90</p>
         </div>
 
         {/* Divider */}
-        <div className="w-px bg-[var(--border-color)] mx-3" />
+        <div className="h-10 w-px bg-[var(--border-color)] mx-3 opacity-60" />
 
         {/* Devs */}
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col items-start text-left">
           <Image
             src="/icons/Peoples.svg"
             alt="team"
             width={18}
             height={18}
-            className="mx-auto mb-1"
+            className="mb-1"
           />
-          <p className="font-normal">{devsText}</p>
+          <p className="font-normal text-3xl">{devsText}</p>
           <p className="text-[10px] text-[var(--text-secondary)]">p50 to p90</p>
         </div>
 
         {/* Divider */}
-        <div className="w-px bg-[var(--border-color)] mx-3" />
+        <div className="h-10 w-px bg-[var(--border-color)] mx-3 opacity-100" />
 
         {/* Cost */}
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col items-start text-left pl-2">
           <Image
             src="/icons/CurrencyCircleDollar.svg"
             alt="cost"
             width={18}
             height={18}
-            className="mx-auto mb-1"
+            className="mb-1"
           />
-          <p className="font-normal">${costText}</p>
+          <p className="font-normal text-3xl">${costText}</p>
           <p className="text-[10px] text-[var(--text-secondary)]">
             ±{varianceText}% variance
           </p>

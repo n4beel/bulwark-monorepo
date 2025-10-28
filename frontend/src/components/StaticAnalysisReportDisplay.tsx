@@ -34,7 +34,7 @@ export default function StaticAnalysisReportDisplay({
 }: StaticAnalysisReportDisplayProps) {
   console.log({ report });
   const [activeTab, setActiveTab] = useState<
-    "scores" | "factors" | "rust" | "ai"
+    "scores" | "vulnerability" | "rust" | "ai"
   >("scores");
 
   // Utility functions for Rust analysis
@@ -281,15 +281,19 @@ export default function StaticAnalysisReportDisplay({
   };
 
   const tabs = [
-    { id: "scores", label: "Summary", icon: BarChart3 },
+    { id: "scores", label: "Summary", icon: BarChart3, disabled: false },
     ...(report.rust_analysis
-      ? [{ id: "rust", label: "Component Details", icon: Cpu }]
+      ? [{ id: "rust", label: "Component Details", icon: Cpu, disabled: false }]
       : []),
-    { id: "factors", label: "Analysis Factors", icon: Code2 },
-
     ...(report.ai_analysis
-      ? [{ id: "ai", label: "AI Analysis", icon: Brain }]
+      ? [{ id: "ai", label: "AI Analysis", icon: Brain, disabled: false }]
       : []),
+    {
+      id: "vulnerability",
+      label: "Vulnerability Assessment ",
+      icon: Cpu,
+      disabled: true,
+    },
   ];
 
   return (
@@ -327,14 +331,23 @@ export default function StaticAnalysisReportDisplay({
           <nav className="flex space-x-8 px-6">
             {tabs.map((tab) => {
               const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              const isDisabled = tab.disabled;
+
               return (
                 <button
                   key={tab.id}
                   onClick={() =>
-                    setActiveTab(tab.id as "scores" | "factors" | "rust" | "ai")
+                    !isDisabled &&
+                    setActiveTab(
+                      tab.id as "scores" | "vulnerability" | "rust" | "ai"
+                    )
                   }
-                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center cursor-pointer space-x-2 ${
-                    activeTab === tab.id
+                  disabled={isDisabled}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center cursor-pointer space-x-2 transition-all ${
+                    isDisabled
+                      ? "opacity-50 border-blue-500 text-blue-600 cursor-not-allowed"
+                      : isActive
                       ? "border-blue-500 text-blue-600"
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                   }`}
@@ -346,6 +359,7 @@ export default function StaticAnalysisReportDisplay({
             })}
           </nav>
         </div>
+
         <div className="flex flex-row">
           {/* Content */}
           <div className="p-6 pr-0 w-[80%]">
@@ -404,7 +418,7 @@ export default function StaticAnalysisReportDisplay({
               </div>
             )}
 
-            {activeTab === "factors" && (
+            {activeTab === "vulnerability" && (
               <div className="bg-white rounded-lg border border-gray-200">
                 <div className="px-6 py-4 border-b border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-900">
@@ -964,338 +978,18 @@ export default function StaticAnalysisReportDisplay({
               </div>
             )}
 
-            {activeTab === "ai" &&
-              report.ai_analysis &&
-              (() => {
-                const aiAnalysis = report.ai_analysis;
-                return (
-                  <div className="space-y-6">
-                    {/* AI Analysis Header */}
-                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center">
-                          <Brain className="w-8 h-8 text-purple-600 mr-3" />
-                          <h3 className="text-2xl font-bold text-gray-900">
-                            AI Analysis
-                          </h3>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm text-gray-600">
-                            Engine: {aiAnalysis.engine}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Version: {aiAnalysis.version}
-                          </p>
-                          <div className="flex items-center mt-1">
-                            {aiAnalysis.success ? (
-                              <CheckCircle className="w-4 h-4 text-green-500 mr-1" />
-                            ) : (
-                              <XCircle className="w-4 h-4 text-red-500 mr-1" />
-                            )}
-                            <span
-                              className={`text-sm font-medium ${
-                                aiAnalysis.success
-                                  ? "text-green-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {aiAnalysis.success ? "Success" : "Failed"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Error Display */}
-                      {!aiAnalysis.success && aiAnalysis.error && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
-                          <div className="flex items-center">
-                            <XCircle className="w-5 h-5 text-red-500 mr-2" />
-                            <span className="text-red-700 font-medium">
-                              Analysis Error
-                            </span>
-                          </div>
-                          <p className="text-red-600 mt-2">
-                            {aiAnalysis.error}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* AI Analysis Summary Scores */}
-                    {aiAnalysis.success && (
-                      <div className="bg-white rounded-lg border border-gray-200">
-                        <div className="px-6 py-4 border-b border-gray-200">
-                          <h3 className="text-lg font-semibold text-gray-900">
-                            AI Analysis Summary
-                          </h3>
-                          <p className="text-sm text-gray-600 mt-1">
-                            Overall assessment scores from AI analysis
-                          </p>
-                        </div>
-                        <div className="p-6">
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            <div className="text-center p-4 bg-blue-50 rounded-lg">
-                              <div className="text-2xl font-bold text-blue-600">
-                                {aiAnalysis.documentation_clarity}
-                              </div>
-                              <div className="text-sm text-gray-600">
-                                Documentation Clarity
-                              </div>
-                            </div>
-                            <div className="text-center p-4 bg-green-50 rounded-lg">
-                              <div className="text-2xl font-bold text-green-600">
-                                {aiAnalysis.testing_coverage}
-                              </div>
-                              <div className="text-sm text-gray-600">
-                                Testing Coverage
-                              </div>
-                            </div>
-                            <div className="text-center p-4 bg-purple-50 rounded-lg">
-                              <div className="text-2xl font-bold text-purple-600">
-                                {aiAnalysis.financial_logic_complexity}
-                              </div>
-                              <div className="text-sm text-gray-600">
-                                Financial Logic Complexity
-                              </div>
-                            </div>
-                            <div className="text-center p-4 bg-red-50 rounded-lg">
-                              <div className="text-2xl font-bold text-red-600">
-                                {aiAnalysis.attack_vector_risk}
-                              </div>
-                              <div className="text-sm text-gray-600">
-                                Attack Vector Risk
-                              </div>
-                            </div>
-                            <div className="text-center p-4 bg-orange-50 rounded-lg">
-                              <div className="text-2xl font-bold text-orange-600">
-                                {aiAnalysis.value_at_risk}
-                              </div>
-                              <div className="text-sm text-gray-600">
-                                Value at Risk
-                              </div>
-                            </div>
-                            <div className="text-center p-4 bg-indigo-50 rounded-lg">
-                              <div className="text-2xl font-bold text-indigo-600">
-                                {aiAnalysis.game_theory_complexity}
-                              </div>
-                              <div className="text-sm text-gray-600">
-                                Game Theory Complexity
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* AI Analysis Factors - Dynamic Sections */}
-                    {aiAnalysis.success && aiAnalysis.analysisFactors && (
-                      <div className="space-y-6">
-                        {/* Dynamic Sections - Render all AI analysis categories */}
-                        {Object.entries(aiAnalysis.analysisFactors).map(
-                          ([sectionKey, sectionData]) => {
-                            if (
-                              typeof sectionData !== "object" ||
-                              sectionData === null
-                            ) {
-                              return null;
-                            }
-
-                            const color = getSectionColor(sectionKey);
-                            const title = getSectionTitle(sectionKey);
-                            const description =
-                              getSectionDescription(sectionKey);
-
-                            return (
-                              <div
-                                key={sectionKey}
-                                className="bg-white rounded-lg border border-gray-200"
-                              >
-                                <div className="px-6 py-4 border-b border-gray-200">
-                                  <h3 className="text-lg font-semibold text-gray-900">
-                                    {title}
-                                  </h3>
-                                  <p className="text-sm text-gray-600 mt-1">
-                                    {description}
-                                  </p>
-                                </div>
-                                <div className="p-6">
-                                  {/* Render score cards if any score-like properties exist */}
-                                  {typeof sectionData === "object" &&
-                                  sectionData !== null &&
-                                  !Array.isArray(sectionData)
-                                    ? renderScoreCards(
-                                        sectionData as Record<string, unknown>,
-                                        color
-                                      )
-                                    : null}
-
-                                  {/* Render regular properties */}
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                                    {typeof sectionData === "object" &&
-                                    sectionData !== null &&
-                                    !Array.isArray(sectionData)
-                                      ? Object.entries(
-                                          sectionData as Record<string, unknown>
-                                        ).map(([key, value]) => {
-                                          // Skip arrays, score properties, and findings (handled separately)
-                                          if (
-                                            Array.isArray(value) ||
-                                            key
-                                              .toLowerCase()
-                                              .includes("score") ||
-                                            key === "findings" ||
-                                            key === "confidence"
-                                          ) {
-                                            return null;
-                                          }
-
-                                          // Handle nested objects
-                                          if (
-                                            typeof value === "object" &&
-                                            value !== null
-                                          ) {
-                                            return (
-                                              <div
-                                                key={key}
-                                                className="col-span-full"
-                                              >
-                                                <div className="py-2 border-b border-gray-100">
-                                                  <h4 className="text-sm font-semibold text-gray-900 mb-2">
-                                                    {formatRustAnalysisKey(key)}
-                                                  </h4>
-                                                  <div
-                                                    className={`p-3 bg-${color}-50 border border-${color}-200 rounded-lg`}
-                                                  >
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
-                                                      {Object.entries(
-                                                        value
-                                                      ).map(
-                                                        ([
-                                                          nestedKey,
-                                                          nestedValue,
-                                                        ]) => (
-                                                          <div
-                                                            key={nestedKey}
-                                                            className="flex justify-between text-sm"
-                                                          >
-                                                            <span className="font-medium text-gray-700">
-                                                              {formatRustAnalysisKey(
-                                                                nestedKey
-                                                              )}
-                                                              :
-                                                            </span>
-                                                            <span className="text-gray-900">
-                                                              {formatRustAnalysisValue(
-                                                                nestedValue
-                                                              )}
-                                                            </span>
-                                                          </div>
-                                                        )
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            );
-                                          }
-
-                                          return (
-                                            <div
-                                              key={key}
-                                              className="flex justify-between py-2 border-b border-gray-100"
-                                            >
-                                              <span className="text-sm font-medium text-gray-700">
-                                                {formatRustAnalysisKey(key)}
-                                              </span>
-                                              <span className="text-sm font-semibold text-gray-900">
-                                                {formatRustAnalysisValue(value)}
-                                              </span>
-                                            </div>
-                                          );
-                                        })
-                                      : null}
-                                  </div>
-
-                                  {/* Render findings as special content */}
-                                  {typeof sectionData === "object" &&
-                                  sectionData !== null &&
-                                  !Array.isArray(sectionData) &&
-                                  "findings" in sectionData &&
-                                  Array.isArray(sectionData.findings) &&
-                                  sectionData.findings.length > 0 ? (
-                                    <div className="mt-6">
-                                      <h4 className="text-sm font-semibold text-gray-900 mb-3">
-                                        Key Findings
-                                      </h4>
-                                      <div className="space-y-2">
-                                        {sectionData.findings.map(
-                                          (finding: string, index: number) => (
-                                            <div
-                                              key={index}
-                                              className={`p-3 bg-${color}-50 border border-${color}-200 rounded-lg`}
-                                            >
-                                              <p className="text-sm text-gray-700">
-                                                {finding}
-                                              </p>
-                                            </div>
-                                          )
-                                        )}
-                                      </div>
-                                    </div>
-                                  ) : null}
-
-                                  {/* Render confidence score if available */}
-                                  {typeof sectionData === "object" &&
-                                  sectionData !== null &&
-                                  !Array.isArray(sectionData) &&
-                                  "confidence" in sectionData &&
-                                  typeof sectionData.confidence === "number" ? (
-                                    <div className="mt-4 flex items-center justify-end">
-                                      <span className="text-sm text-gray-600 mr-2">
-                                        Confidence:
-                                      </span>
-                                      <span
-                                        className={`px-2 py-1 rounded text-sm font-medium ${
-                                          sectionData.confidence >= 80
-                                            ? "bg-green-100 text-green-800"
-                                            : sectionData.confidence >= 60
-                                            ? "bg-yellow-100 text-yellow-800"
-                                            : "bg-red-100 text-red-800"
-                                        }`}
-                                      >
-                                        {sectionData.confidence}%
-                                      </span>
-                                    </div>
-                                  ) : null}
-                                </div>
-                              </div>
-                            );
-                          }
-                        )}
-
-                        {/* AI Analysis Interpretation Note */}
-                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-                          <div className="flex items-center mb-3">
-                            <Brain className="w-5 h-5 text-purple-600 mr-2" />
-                            <h4 className="text-lg font-semibold text-[var(--black)]">
-                              AI Analysis Interpretation
-                            </h4>
-                          </div>
-                          <p className="text-purple-800 text-sm leading-relaxed">
-                            This AI analysis provides insights into code
-                            quality, security risks, and economic factors using
-                            advanced language models. The findings are based on
-                            pattern recognition and should be used in
-                            conjunction with manual code review and security
-                            audits. Confidence scores indicate the AI&apos;s
-                            certainty in its assessments.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+            {activeTab === "ai" && (
+              // show image
+              <div className=" h-full">
+                <Image
+                  src="/icons/AiAnalysis.svg"
+                  alt="ai"
+                  width={800}
+                  height={80}
+                  className="w-[100%] h-auto mx-auto"
+                />
+              </div>
+            )}
 
             {activeTab === "rust" &&
               report.rust_analysis &&
