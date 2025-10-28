@@ -141,30 +141,36 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
 
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2">
         <div className="relative isolate inline-flex rounded-full overflow-hidden">
-          <video
-            className="absolute inset-0 w-full h-full object-cover opacity-50 z-0 pointer-events-none"
-            autoPlay
-            loop
-            muted
-            playsInline
-          >
-            <source src="/videos/BulwarkSearchBg.webm" type="video/webm" />
-            <source src="/videos/BulwarkSearchBg.mp4" type="video/mp4" />
-          </video>
+          {/* ✅ GIF BACKGROUND */}
 
-          <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-blue-500/10" />
-
+          {/* Optional gradient tint overlay */}
+          <div className="absolute  z-10 pointer-events-none bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-blue-500/10" />
+          <img
+            src="/videos/DockNavGif.gif" // your GIF path here
+            alt="Animated background"
+            className="absolute w-full h-full object-cover  z-0 pointer-events-none"
+          />
+          {/* Buttons (content stays same) */}
           <div className="relative z-20 flex gap-2 rounded-full p-2 bg-white/40 backdrop-blur-md">
             {TAB_CONFIG.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-6 py-3 rounded-full font-normal cursor-pointer transition-all ${
-                  activeTab === tab.id ||
-                  (activeTab === Tab.REPORT_DETAIL && tab.id === Tab.REPORTS)
-                    ? "bg-[var(--blue-primary)] text-white"
-                    : "text-[var(--gray-medium)]"
-                }`}
+                onClick={() => {
+                  if (tab.id !== Tab.MARKETPLACE) setActiveTab(tab.id);
+                }}
+                disabled={tab.id === Tab.MARKETPLACE}
+                className={`px-6 py-3 rounded-full font-normal transition-all 
+    ${
+      tab.id === Tab.MARKETPLACE
+        ? "cursor-not-allowed opacity-50 text-[var(--gray-medium)]"
+        : "cursor-pointer"
+    } 
+    ${
+      activeTab === tab.id ||
+      (activeTab === Tab.REPORT_DETAIL && tab.id === Tab.REPORTS)
+        ? "bg-[var(--blue-primary)] text-white"
+        : "text-[var(--gray-medium)]"
+    }`}
               >
                 <div className="flex items-center gap-2">
                   {tab.icon && (
@@ -174,7 +180,7 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
                       width={20}
                       height={20}
                       className={
-                        activeTab === tab.id ? "invert text-white " : ""
+                        activeTab === tab.id ? "invert text-white" : ""
                       }
                     />
                   )}
