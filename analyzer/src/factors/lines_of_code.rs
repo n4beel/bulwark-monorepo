@@ -29,6 +29,10 @@ pub struct TscMetrics {
 
     /// Statement count distribution by function
     pub function_statement_counts: HashMap<String, usize>,
+
+    /// LOC Factor (0-100) based on total statements
+    /// 0 = 500 LOC or less, 100 = 10,000 LOC or more
+    pub loc_factor: f64,
 }
 
 impl TscMetrics {
@@ -40,7 +44,23 @@ impl TscMetrics {
             "avgStatementsPerFunction": self.avg_statements_per_function,
             "maxStatementsPerFunction": self.max_statements_per_function,
             "functionStatementCounts": self.function_statement_counts,
+            "locFactor": self.loc_factor,
         })
+    }
+
+    /// Calculate LOC Factor based on total statements
+    /// 0 = 500 LOC or less, 100 = 10,000 LOC or more
+    /// Linear mapping between 500 and 10,000
+    fn calculate_loc_factor(total_statements: usize) -> f64 {
+        if total_statements <= 500 {
+            return 0.0;
+        }
+        if total_statements >= 10000 {
+            return 100.0;
+        }
+        // Linear mapping between 500 and 10,000
+        let factor = ((total_statements - 500) as f64 / (10000 - 500) as f64) * 100.0;
+        (factor * 100.0).round() / 100.0 // Round to 2 decimal places
     }
 }
 
@@ -120,12 +140,16 @@ pub fn calculate_workspace_tsc(
             metrics.total_statements as f64 / metrics.total_functions as f64;
     }
 
+    // Calculate LOC Factor
+    metrics.loc_factor = TscMetrics::calculate_loc_factor(metrics.total_statements);
+
     log::info!(
-        "🔍 TSC DEBUG: Analysis complete: {} files analyzed, {} total statements, {} total functions, avg: {:.2} statements/function",
+        "🔍 TSC DEBUG: Analysis complete: {} files analyzed, {} total statements, {} total functions, avg: {:.2} statements/function, LOC factor: {:.2}",
         analyzed_files,
         metrics.total_statements,
         metrics.total_functions,
-        metrics.avg_statements_per_function
+        metrics.avg_statements_per_function,
+        metrics.loc_factor
     );
 
     Ok(metrics)
@@ -145,6 +169,9 @@ pub fn analyze_file_tsc(content: &str) -> Result<TscMetrics, Box<dyn std::error:
         visitor.metrics.avg_statements_per_function =
             visitor.metrics.total_statements as f64 / visitor.metrics.total_functions as f64;
     }
+
+    // Calculate LOC Factor
+    visitor.metrics.loc_factor = TscMetrics::calculate_loc_factor(visitor.metrics.total_statements);
 
     Ok(visitor.metrics)
 }
@@ -409,5 +436,41 @@ fn long_function() {
             result.function_statement_counts.get("long_function"),
             Some(&5)
         );
+    }
+
+    #[test]
+    fn test_loc_factor_calculation() {
+        // Test edge cases and linear mapping
+
+        // Test LOC <= 500 (should be 0)
+        let content_small = r#"
+fn small_function() {
+    let x = 1;
+}
+        "#;
+        let result_small = analyze_file_tsc(content_small).unwrap();
+        assert_eq!(result_small.loc_factor, 0.0);
+
+        // Test LOC between 500 and 10,000 (should be linear)
+        // For example, 5,250 statements should be ~50
+        // (5250 - 500) / (10000 - 500) * 100 = 4750 / 9500 * 100 = 50
+        let factor_mid = TscMetrics::calculate_loc_factor(5250);
+        assert_eq!(factor_mid, 50.0);
+
+        // Test LOC >= 10,000 (should be 100)
+        let factor_large = TscMetrics::calculate_loc_factor(15000);
+        assert_eq!(factor_large, 100.0);
+
+        // Test exact boundaries
+        let factor_500 = TscMetrics::calculate_loc_factor(500);
+        assert_eq!(factor_500, 0.0);
+
+        let factor_10000 = TscMetrics::calculate_loc_factor(10000);
+        assert_eq!(factor_10000, 100.0);
+
+        // Test linear mapping at 1/4 point (2,875)
+        // (2875 - 500) / (10000 - 500) * 100 = 2375 / 9500 * 100 = 25
+        let factor_quarter = TscMetrics::calculate_loc_factor(2875);
+        assert_eq!(factor_quarter, 25.0);
     }
 }

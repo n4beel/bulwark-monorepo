@@ -17,6 +17,10 @@ pub struct ComplexityMetrics {
     pub anchor_instruction_handlers: usize,
     pub avg_anchor_constraint_complexity: f64,
     pub max_anchor_constraint_complexity: u32,
+
+    /// Complexity Factor (0-100) based on cyclomatic complexity
+    /// Weighted: 70% Max CC (50 = 100%), 30% Avg CC (15 = 100%)
+    pub complexity_factor: f64,
 }
 
 impl ComplexityMetrics {
@@ -30,8 +34,30 @@ impl ComplexityMetrics {
             "maxCognitiveComplexity": self.max_cognitive_complexity,
             "anchorInstructionHandlers": self.anchor_instruction_handlers,
             "avgAnchorConstraintComplexity": self.avg_anchor_constraint_complexity,
-            "maxAnchorConstraintComplexity": self.max_anchor_constraint_complexity
+            "maxAnchorConstraintComplexity": self.max_anchor_constraint_complexity,
+            "complexityFactor": self.complexity_factor,
         })
+    }
+
+    /// Calculate Complexity Factor based on cyclomatic complexity
+    /// Normalize Max CC to [0, 100] where 50 is mapped to 100 and capped
+    /// Normalize Avg CC to [0, 100] where 15 is mapped to 100 and capped
+    /// Weighted sum: 70% Max CC, 30% Avg CC
+    pub fn calculate_complexity_factor(
+        max_cyclomatic_complexity: u32,
+        avg_cyclomatic_complexity: f64,
+    ) -> f64 {
+        // Normalize Max CC to [0, 100] where 50 is mapped to 100 and capped
+        let max_cc_score = ((max_cyclomatic_complexity as f64 / 50.0) * 100.0).min(100.0);
+
+        // Normalize Avg CC to [0, 100] where 15 is mapped to 100 and capped
+        let avg_cc_score = ((avg_cyclomatic_complexity / 15.0) * 100.0).min(100.0);
+
+        // Weighted sum: 70% Max CC, 30% Avg CC
+        let complexity_factor = 0.7 * max_cc_score + 0.3 * avg_cc_score;
+
+        // Round to two decimal places for clean reporting
+        (complexity_factor * 100.0).round() / 100.0
     }
 }
 
@@ -158,6 +184,10 @@ pub fn calculate_workspace_cyclomatic_complexity(
         0.0
     };
 
+    // Calculate complexity factor
+    let complexity_factor =
+        ComplexityMetrics::calculate_complexity_factor(max_complexity, avg_complexity);
+
     let result = ComplexityMetrics {
         avg_complexity,
         max_complexity,
@@ -167,14 +197,16 @@ pub fn calculate_workspace_cyclomatic_complexity(
         anchor_instruction_handlers,
         avg_anchor_constraint_complexity,
         max_anchor_constraint_complexity,
+        complexity_factor,
     };
 
     log::info!(
-        "Cyclomatic complexity analysis complete: {} files analyzed, {} total functions, avg complexity: {:.2}, max complexity: {}",
+        "Cyclomatic complexity analysis complete: {} files analyzed, {} total functions, avg complexity: {:.2}, max complexity: {}, complexity factor: {:.2}",
         analyzed_files,
         total_functions,
         avg_complexity,
-        max_complexity
+        max_complexity,
+        complexity_factor
     );
 
     Ok(result)
@@ -263,6 +295,10 @@ fn analyze_file_complexity(content: &str) -> Result<ComplexityMetrics, Box<dyn s
         0.0
     };
 
+    // Calculate complexity factor
+    let complexity_factor =
+        ComplexityMetrics::calculate_complexity_factor(max_complexity, avg_complexity);
+
     Ok(ComplexityMetrics {
         avg_complexity,
         max_complexity,
@@ -272,6 +308,7 @@ fn analyze_file_complexity(content: &str) -> Result<ComplexityMetrics, Box<dyn s
         anchor_instruction_handlers,
         avg_anchor_constraint_complexity,
         max_anchor_constraint_complexity,
+        complexity_factor,
     })
 }
 
@@ -930,5 +967,46 @@ mod tests {
         let result = analyze_file_complexity(code).unwrap();
         assert_eq!(result.total_functions, 2); // anchor_handler + validate
         assert_eq!(result.anchor_instruction_handlers, 2); // Both should be detected due to Context parameter
+    }
+
+    #[test]
+    fn test_complexity_factor_calculation() {
+        // Test edge cases and weighted calculation
+
+        // Test with max=50, avg=15 (should be 100 for both, weighted = 100)
+        let factor_max = ComplexityMetrics::calculate_complexity_factor(50, 15.0);
+        assert_eq!(factor_max, 100.0);
+
+        // Test with max=100, avg=30 (should be capped at 100 for both)
+        let factor_capped = ComplexityMetrics::calculate_complexity_factor(100, 30.0);
+        assert_eq!(factor_capped, 100.0);
+
+        // Test with max=25, avg=7.5 (should be 50% for both)
+        // max_score = (25/50)*100 = 50
+        // avg_score = (7.5/15)*100 = 50
+        // weighted = 0.7*50 + 0.3*50 = 50
+        let factor_mid = ComplexityMetrics::calculate_complexity_factor(25, 7.5);
+        assert_eq!(factor_mid, 50.0);
+
+        // Test with max=0, avg=0 (should be 0)
+        let factor_zero = ComplexityMetrics::calculate_complexity_factor(0, 0.0);
+        assert_eq!(factor_zero, 0.0);
+
+        // Test weighted calculation: max=50 (100%), avg=0 (0%)
+        // weighted = 0.7*100 + 0.3*0 = 70
+        let factor_max_only = ComplexityMetrics::calculate_complexity_factor(50, 0.0);
+        assert_eq!(factor_max_only, 70.0);
+
+        // Test weighted calculation: max=0 (0%), avg=15 (100%)
+        // weighted = 0.7*0 + 0.3*100 = 30
+        let factor_avg_only = ComplexityMetrics::calculate_complexity_factor(0, 15.0);
+        assert_eq!(factor_avg_only, 30.0);
+
+        // Test with realistic values: max=10, avg=5
+        // max_score = (10/50)*100 = 20
+        // avg_score = (5/15)*100 = 33.33
+        // weighted = 0.7*20 + 0.3*33.33 = 14 + 10 = 24
+        let factor_realistic = ComplexityMetrics::calculate_complexity_factor(10, 5.0);
+        assert_eq!(factor_realistic, 24.0);
     }
 }

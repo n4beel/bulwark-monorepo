@@ -22,6 +22,10 @@ pub struct FunctionCountMetrics {
 
     /// Free functions (top-level functions, not in impl blocks)
     pub free_functions: usize,
+
+    /// Function Factor (0-100) based on total functions
+    /// 0 = 5 functions or less, 100 = 300 functions or more
+    pub function_factor: f64,
 }
 
 impl FunctionCountMetrics {
@@ -32,8 +36,24 @@ impl FunctionCountMetrics {
             "publicFunctions": self.public_functions,
             "privateFunctions": self.private_functions,
             "associatedFunctions": self.associated_functions,
-            "freeFunctions": self.free_functions
+            "freeFunctions": self.free_functions,
+            "functionFactor": self.function_factor,
         })
+    }
+
+    /// Calculate Function Factor based on total functions
+    /// 0 = 5 functions or less, 100 = 300 functions or more
+    /// Linear mapping between 5 and 300
+    pub fn calculate_function_factor(total_functions: usize) -> f64 {
+        if total_functions <= 5 {
+            return 0.0;
+        }
+        if total_functions >= 300 {
+            return 100.0;
+        }
+        // Linear mapping between 5 and 300
+        let factor = ((total_functions - 5) as f64 / (300 - 5) as f64) * 100.0;
+        (factor * 100.0).round() / 100.0 // Round to 2 decimal places
     }
 }
 
@@ -58,6 +78,10 @@ pub fn count_functions(content: &str) -> Result<FunctionCountMetrics, String> {
 
     // Traverse the AST and count functions
     count_functions_in_items(&syntax_tree.items, &mut metrics, false);
+
+    // Calculate function factor
+    metrics.function_factor =
+        FunctionCountMetrics::calculate_function_factor(metrics.total_functions);
 
     Ok(metrics)
 }
@@ -276,5 +300,41 @@ mod tests {
         "#;
 
         assert_eq!(count_total_functions(content), 2);
+    }
+
+    #[test]
+    fn test_function_factor_calculation() {
+        // Test edge cases and linear mapping
+
+        // Test functions <= 5 (should be 0)
+        let content_small = r#"
+            fn function1() {}
+            fn function2() {}
+        "#;
+        let result_small = count_functions(content_small).unwrap();
+        assert_eq!(result_small.function_factor, 0.0);
+
+        // Test functions between 5 and 300 (should be linear)
+        // For example, 152.5 functions should be ~50
+        // (152.5 - 5) / (300 - 5) * 100 = 147.5 / 295 * 100 = 50
+        let factor_mid = FunctionCountMetrics::calculate_function_factor(152);
+        // 152 gives us (152-5)/(300-5)*100 = 147/295*100 = 49.83
+        assert!((factor_mid - 49.83).abs() < 0.1);
+
+        // Test functions >= 300 (should be 100)
+        let factor_large = FunctionCountMetrics::calculate_function_factor(500);
+        assert_eq!(factor_large, 100.0);
+
+        // Test exact boundaries
+        let factor_5 = FunctionCountMetrics::calculate_function_factor(5);
+        assert_eq!(factor_5, 0.0);
+
+        let factor_300 = FunctionCountMetrics::calculate_function_factor(300);
+        assert_eq!(factor_300, 100.0);
+
+        // Test linear mapping at 1/4 point (78.75 ~= 79)
+        // (79 - 5) / (300 - 5) * 100 = 74 / 295 * 100 = 25.08
+        let factor_quarter = FunctionCountMetrics::calculate_function_factor(79);
+        assert!((factor_quarter - 25.08).abs() < 0.1);
     }
 }

@@ -7,6 +7,7 @@ use amm_analyzer::factors::{
     calculate_workspace_arithmetic,
     calculate_workspace_asset_types,
     calculate_workspace_composability,
+    calculate_workspace_constraint_density,
     calculate_workspace_cpi_calls,
     calculate_workspace_cyclomatic_complexity,
     calculate_workspace_dependencies,
@@ -14,7 +15,6 @@ use amm_analyzer::factors::{
     calculate_workspace_error_handling,
     calculate_workspace_external_integration,
     calculate_workspace_input_constraints,
-    calculate_workspace_constraint_density,
     calculate_workspace_modularity,
     calculate_workspace_operational_security,
     // calculate_workspace_oracle_price_feed, // TODO: Implement oracle_price_feed module
@@ -23,7 +23,7 @@ use amm_analyzer::factors::{
     calculate_workspace_unsafe_lowlevel,
     calculate_workspace_upgradeability,
     count_total_functions,
-    lines_of_code::analyze_file_tsc,
+    lines_of_code::{analyze_file_tsc, calculate_workspace_tsc},
 };
 use amm_analyzer::{analyze_repository, AnalyzerConfig};
 use axum::{
@@ -47,6 +47,9 @@ struct AnalysisRequest {
 
     /// Analysis options
     options: Option<AnalysisOptions>,
+
+    /// Solana RPC URL for on-chain analysis (optional)
+    rpc_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -120,6 +123,8 @@ struct AugmentRequest {
     workspace_id: String,
     selected_files: Option<Vec<String>>,
     api_version: Option<String>,
+    /// Solana RPC URL for on-chain analysis (optional)
+    rpc_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -229,45 +234,15 @@ async fn test_direct(Json(request): Json<DirectTestRequest>) -> ResponseJson<Dir
     })
 }
 
-/// Helper function to calculate lines of code for workspace files
-fn calculate_workspace_lines_of_code(
-    workspace_path: &PathBuf,
-    selected_files: &[String],
-) -> Result<usize, Box<dyn std::error::Error>> {
-    let mut total_lines = 0;
-
-    for file_path in selected_files {
-        let full_file_path = workspace_path.join(file_path);
-
-        // Check if the file exists and is a Rust file
-        if full_file_path.exists() && full_file_path.is_file() {
-            if let Some(extension) = full_file_path.extension() {
-                if extension == "rs" {
-                    match fs::read_to_string(&full_file_path) {
-                        Ok(content) => {
-                            // Use TSC (Total Statement Count) instead of lines of code
-                            let tsc_metrics = analyze_file_tsc(&content).unwrap_or_default();
-                            total_lines += tsc_metrics.total_statements;
-                        }
-                        Err(_) => {
-                            // Skip files that can't be read
-                            continue;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(total_lines)
-}
-
-/// Helper function to calculate total functions for workspace files
+/// Helper function to calculate function metrics for workspace files
 fn calculate_workspace_functions(
     workspace_path: &PathBuf,
     selected_files: &[String],
-) -> Result<usize, Box<dyn std::error::Error>> {
-    let mut total_functions = 0;
+) -> Result<amm_analyzer::factors::function_count::FunctionCountMetrics, Box<dyn std::error::Error>>
+{
+    use amm_analyzer::factors::function_count::FunctionCountMetrics;
+
+    let mut aggregated_metrics = FunctionCountMetrics::default();
 
     for file_path in selected_files {
         let full_file_path = workspace_path.join(file_path);
@@ -278,7 +253,16 @@ fn calculate_workspace_functions(
                 if extension == "rs" {
                     match fs::read_to_string(&full_file_path) {
                         Ok(content) => {
-                            total_functions += count_total_functions(&content);
+                            if let Ok(metrics) =
+                                amm_analyzer::factors::function_count::count_functions(&content)
+                            {
+                                aggregated_metrics.total_functions += metrics.total_functions;
+                                aggregated_metrics.public_functions += metrics.public_functions;
+                                aggregated_metrics.private_functions += metrics.private_functions;
+                                aggregated_metrics.associated_functions +=
+                                    metrics.associated_functions;
+                                aggregated_metrics.free_functions += metrics.free_functions;
+                            }
                         }
                         Err(_) => {
                             // Skip files that can't be read
@@ -290,7 +274,11 @@ fn calculate_workspace_functions(
         }
     }
 
-    Ok(total_functions)
+    // Calculate function factor for the aggregated metrics
+    aggregated_metrics.function_factor =
+        FunctionCountMetrics::calculate_function_factor(aggregated_metrics.total_functions);
+
+    Ok(aggregated_metrics)
 }
 
 /// Augmentation endpoint: calculates actual factor values from workspace files
@@ -312,23 +300,36 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
     let mut computed_factors = Vec::new();
     let mut notes = Vec::new();
 
-    // Calculate actual lines of code from workspace files
+    // Calculate actual lines of code from workspace files using TSC metrics
     let selected_files = request.selected_files.as_deref().unwrap_or(&[]);
-    match calculate_workspace_lines_of_code(&full_path, selected_files) {
-        Ok(total_lines) => {
+    match calculate_workspace_tsc(&full_path, selected_files) {
+        Ok(tsc_metrics) => {
+            // Add totalLinesOfCode (total statements)
             factors_map.insert(
                 "totalLinesOfCode".to_string(),
-                serde_json::json!(total_lines),
+                serde_json::json!(tsc_metrics.total_statements),
             );
             computed_factors.push("totalLinesOfCode".to_string());
+
+            // Add locFactor (normalized 0-100 score)
+            factors_map.insert(
+                "locFactor".to_string(),
+                serde_json::json!(tsc_metrics.loc_factor),
+            );
+            computed_factors.push("locFactor".to_string());
+
+            // Add all TSC metrics for reference
+            factors_map.insert("tscMetrics".to_string(), tsc_metrics.to_json());
+
             notes.push(format!(
-                "Calculated {} lines of code from workspace files",
-                total_lines
+                "Calculated {} statements (LOC) from workspace files, LOC factor: {:.2}",
+                tsc_metrics.total_statements, tsc_metrics.loc_factor
             ));
             log::info!(
-                "Calculated {} lines of code for workspace: {}",
-                total_lines,
-                request.workspace_id
+                "Calculated {} statements (LOC) for workspace {}, LOC factor: {:.2}",
+                tsc_metrics.total_statements,
+                request.workspace_id,
+                tsc_metrics.loc_factor
             );
         }
         Err(e) => {
@@ -337,29 +338,47 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 request.workspace_id,
                 e
             );
-            // Fallback to a reasonable default instead of 0.1
+            // Fallback to reasonable defaults
             factors_map.insert("totalLinesOfCode".to_string(), serde_json::json!(100));
+            factors_map.insert("locFactor".to_string(), serde_json::json!(0.0));
             computed_factors.push("totalLinesOfCode".to_string());
-            notes.push(format!("Fallback value used due to error: {}", e));
+            computed_factors.push("locFactor".to_string());
+            notes.push(format!("Fallback values used due to error: {}", e));
         }
     }
 
     // Calculate actual function count from workspace files
     match calculate_workspace_functions(&full_path, selected_files) {
-        Ok(total_functions) => {
+        Ok(function_metrics) => {
+            // Add numFunctions (total function count)
             factors_map.insert(
                 "numFunctions".to_string(),
-                serde_json::json!(total_functions),
+                serde_json::json!(function_metrics.total_functions),
             );
             computed_factors.push("numFunctions".to_string());
+
+            // Add functionFactor (normalized 0-100 score)
+            factors_map.insert(
+                "functionFactor".to_string(),
+                serde_json::json!(function_metrics.function_factor),
+            );
+            computed_factors.push("functionFactor".to_string());
+
+            // Add all function count metrics for reference
+            factors_map.insert(
+                "functionCountMetrics".to_string(),
+                function_metrics.to_json(),
+            );
+
             notes.push(format!(
-                "Calculated {} functions from workspace files",
-                total_functions
+                "Calculated {} functions from workspace files, function factor: {:.2}",
+                function_metrics.total_functions, function_metrics.function_factor
             ));
             log::info!(
-                "Calculated {} functions for workspace: {}",
-                total_functions,
-                request.workspace_id
+                "Calculated {} functions for workspace {}, function factor: {:.2}",
+                function_metrics.total_functions,
+                request.workspace_id,
+                function_metrics.function_factor
             );
         }
         Err(e) => {
@@ -368,9 +387,11 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 request.workspace_id,
                 e
             );
-            // Fallback to a reasonable default
+            // Fallback to reasonable defaults
             factors_map.insert("numFunctions".to_string(), serde_json::json!(10));
+            factors_map.insert("functionFactor".to_string(), serde_json::json!(0.0));
             computed_factors.push("numFunctions".to_string());
+            computed_factors.push("functionFactor".to_string());
             notes.push(format!("Function count fallback used due to error: {}", e));
         }
     }
@@ -378,20 +399,31 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
     // Calculate cyclomatic complexity from workspace files
     match calculate_workspace_cyclomatic_complexity(&full_path, selected_files) {
         Ok(complexity_metrics) => {
+            // Add full complexity metrics object
             factors_map.insert("complexity".to_string(), complexity_metrics.to_json());
             computed_factors.push("complexity".to_string());
+
+            // Add complexityFactor as a top-level property for easy access
+            factors_map.insert(
+                "complexityFactor".to_string(),
+                serde_json::json!(complexity_metrics.complexity_factor),
+            );
+            computed_factors.push("complexityFactor".to_string());
+
             notes.push(format!(
-                "Calculated cyclomatic complexity: avg={:.2}, max={}, functions={}",
+                "Calculated cyclomatic complexity: avg={:.2}, max={}, functions={}, complexity factor={:.2}",
                 complexity_metrics.avg_complexity,
                 complexity_metrics.max_complexity,
-                complexity_metrics.total_functions
+                complexity_metrics.total_functions,
+                complexity_metrics.complexity_factor
             ));
             log::info!(
-                "Calculated cyclomatic complexity for workspace {}: avg={:.2}, max={}, functions={}",
+                "Calculated cyclomatic complexity for workspace {}: avg={:.2}, max={}, functions={}, complexity factor={:.2}",
                 request.workspace_id,
                 complexity_metrics.avg_complexity,
                 complexity_metrics.max_complexity,
-                complexity_metrics.total_functions
+                complexity_metrics.total_functions,
+                complexity_metrics.complexity_factor
             );
         }
         Err(e) => {
@@ -906,36 +938,54 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
         }
     }
 
-    // Calculate upgradeability and governance control metrics
+    // Calculate upgradeability and governance control metrics (2-phase hybrid analysis)
     log::info!(
         "🔍 SERVER DEBUG: About to analyze upgradeability for workspace: {:?}",
         full_path
     );
-    match calculate_workspace_upgradeability(&full_path, selected_files) {
+    match calculate_workspace_upgradeability(&full_path, selected_files, request.rpc_url.as_deref())
+    {
         Ok(upgradeability_metrics) => {
             factors_map.insert(
                 "upgradeability".to_string(),
                 upgradeability_metrics.to_json(),
             );
+            // Add governance factor as top-level property
+            factors_map.insert(
+                "governanceFactor".to_string(),
+                serde_json::Value::Number(
+                    serde_json::Number::from_f64(upgradeability_metrics.governance_factor).unwrap(),
+                ),
+            );
             computed_factors.push("upgradeability".to_string());
-            notes.push(format!(
-                "Analyzed upgradeability: {} upgradeable programs, {} single key authorities, {} governance authorities, {} timelocked authorities, risk score {:.1}, governance maturity {:.1}",
-                upgradeability_metrics.total_upgradeable_programs,
-                upgradeability_metrics.single_key_authorities,
-                upgradeability_metrics.governance_authorities,
-                upgradeability_metrics.timelocked_authorities,
-                upgradeability_metrics.upgradeability_risk_score,
-                upgradeability_metrics.governance_maturity_score
-            ));
+            computed_factors.push("governanceFactor".to_string());
+
+            let status_msg = if upgradeability_metrics.on_chain_analysis_performed {
+                format!(
+                    "Governance analysis complete: Program ID {}, Status: {}, Factor: {:.1}",
+                    upgradeability_metrics
+                        .program_id
+                        .as_deref()
+                        .unwrap_or("N/A"),
+                    upgradeability_metrics.governance_status,
+                    upgradeability_metrics.governance_factor
+                )
+            } else {
+                format!("Governance analysis skipped: Program ID {}, Status: {}, Factor: {:.1} (RPC: {})", 
+                    upgradeability_metrics.program_id.as_deref().unwrap_or("N/A"),
+                    upgradeability_metrics.governance_status,
+                    upgradeability_metrics.governance_factor,
+                    if request.rpc_url.is_some() { "provided but failed" } else { "not provided" })
+            };
+
+            notes.push(status_msg);
             log::info!(
-                "Calculated upgradeability for workspace {}: {} upgradeable programs, {} single key, {} governance, {} timelocked, risk {:.1}, governance {:.1}",
+                "Calculated upgradeability for workspace {}: Program ID: {:?}, Status: {}, Factor: {:.1}, On-chain: {}",
                 request.workspace_id,
-                upgradeability_metrics.total_upgradeable_programs,
-                upgradeability_metrics.single_key_authorities,
-                upgradeability_metrics.governance_authorities,
-                upgradeability_metrics.timelocked_authorities,
-                upgradeability_metrics.upgradeability_risk_score,
-                upgradeability_metrics.governance_maturity_score
+                upgradeability_metrics.program_id,
+                upgradeability_metrics.governance_status,
+                upgradeability_metrics.governance_factor,
+                upgradeability_metrics.on_chain_analysis_performed
             );
         }
         Err(e) => {

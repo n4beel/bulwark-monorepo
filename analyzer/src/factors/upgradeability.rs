@@ -1,516 +1,492 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use syn::{visit::Visit, Expr, ItemFn, Path};
+use syn::{visit::Visit, Item, ItemMacro, LitStr};
 
 /// Metrics for upgradeability and governance control patterns
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct UpgradeabilityMetrics {
-    // Upgradeability detection
-    pub total_upgradeable_programs: u32,
-    pub upgradeable_loader_usage: u32,
-    pub anchor_upgradeable_patterns: u32,
-    pub program_upgrade_calls: u32,
+    /// Program ID extracted from declare_id! macro
+    pub program_id: Option<String>,
 
-    // Authority patterns
-    pub single_key_authorities: u32,
-    pub multisig_authorities: u32,
-    pub governance_authorities: u32,
-    pub timelocked_authorities: u32,
-    pub unknown_authorities: u32,
-    pub total_upgrade_authorities: u32,
+    /// Governance status determined from on-chain analysis
+    /// Possible values: "no_data", "immutable", "locked", "single_wallet", "governance"
+    pub governance_status: String,
 
-    // Governance integration
-    pub governance_program_calls: u32,
-    pub timelock_detection: u32,
-    pub upgrade_delay_patterns: u32,
-    pub governance_voting_patterns: u32,
+    /// Governance complexity factor (0-100)
+    /// Based on governance mechanism complexity and attack surface
+    pub governance_factor: f64,
 
-    // Control mechanisms
-    pub upgrade_control_functions: u32,
-    pub authority_transfer_functions: u32,
-    pub emergency_upgrade_functions: u32,
-    pub upgrade_pause_functions: u32,
+    /// Raw complexity score before normalization
+    pub raw_governance_score: f64,
 
-    // Detailed pattern breakdown
-    pub upgradeability_pattern_breakdown: HashMap<String, u32>,
+    /// Whether on-chain analysis was performed
+    pub on_chain_analysis_performed: bool,
 
-    // Risk assessment
-    pub upgradeability_risk_score: f64,
-    pub governance_maturity_score: f64,
-    pub upgrade_control_score: f64,
-
-    // File analysis metadata
-    pub files_analyzed: u32,
-    pub files_skipped: u32,
+    /// Error message if on-chain analysis failed
+    pub on_chain_analysis_error: Option<String>,
 }
 
 impl UpgradeabilityMetrics {
     /// Convert to structured JSON object
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
-            "totalUpgradeablePrograms": self.total_upgradeable_programs,
-            "upgradeableLoaderUsage": self.upgradeable_loader_usage,
-            "anchorUpgradeablePatterns": self.anchor_upgradeable_patterns,
-            "programUpgradeCalls": self.program_upgrade_calls,
-            "singleKeyAuthorities": self.single_key_authorities,
-            "multisigAuthorities": self.multisig_authorities,
-            "governanceAuthorities": self.governance_authorities,
-            "timelockedAuthorities": self.timelocked_authorities,
-            "unknownAuthorities": self.unknown_authorities,
-            "totalUpgradeAuthorities": self.total_upgrade_authorities,
-            "governanceProgramCalls": self.governance_program_calls,
-            "timelockDetection": self.timelock_detection,
-            "upgradeDelayPatterns": self.upgrade_delay_patterns,
-            "governanceVotingPatterns": self.governance_voting_patterns,
-            "upgradeControlFunctions": self.upgrade_control_functions,
-            "authorityTransferFunctions": self.authority_transfer_functions,
-            "emergencyUpgradeFunctions": self.emergency_upgrade_functions,
-            "upgradePauseFunctions": self.upgrade_pause_functions,
-            "upgradeabilityPatternBreakdown": self.upgradeability_pattern_breakdown,
-            "upgradeabilityRiskScore": self.upgradeability_risk_score,
-            "governanceMaturityScore": self.governance_maturity_score,
-            "upgradeControlScore": self.upgrade_control_score,
-            "filesAnalyzed": self.files_analyzed,
-            "filesSkipped": self.files_skipped
+            "programId": self.program_id,
+            "governanceStatus": self.governance_status,
+            "governanceFactor": self.governance_factor,
+            "rawGovernanceScore": self.raw_governance_score,
+            "onChainAnalysisPerformed": self.on_chain_analysis_performed,
+            "onChainAnalysisError": self.on_chain_analysis_error,
         })
     }
-}
 
-/// Visitor for detecting upgradeability and governance patterns
-#[derive(Debug)]
-struct UpgradeabilityVisitor {
-    current_file_path: String,
-
-    // Pattern counters
-    upgradeable_loader_usage: u32,
-    anchor_upgradeable_patterns: u32,
-    program_upgrade_calls: u32,
-
-    // Authority detection
-    single_key_authorities: u32,
-    multisig_authorities: u32,
-    governance_authorities: u32,
-    timelocked_authorities: u32,
-    unknown_authorities: u32,
-
-    // Governance integration
-    governance_program_calls: u32,
-    timelock_detection: u32,
-    upgrade_delay_patterns: u32,
-    governance_voting_patterns: u32,
-
-    // Control mechanisms
-    upgrade_control_functions: u32,
-    authority_transfer_functions: u32,
-    emergency_upgrade_functions: u32,
-    upgrade_pause_functions: u32,
-
-    // Pattern tracking
-    upgradeability_pattern_counts: HashMap<String, u32>,
-}
-
-impl UpgradeabilityVisitor {
-    fn new() -> Self {
-        Self {
-            current_file_path: String::new(),
-            upgradeable_loader_usage: 0,
-            anchor_upgradeable_patterns: 0,
-            program_upgrade_calls: 0,
-            single_key_authorities: 0,
-            multisig_authorities: 0,
-            governance_authorities: 0,
-            timelocked_authorities: 0,
-            unknown_authorities: 0,
-            governance_program_calls: 0,
-            timelock_detection: 0,
-            upgrade_delay_patterns: 0,
-            governance_voting_patterns: 0,
-            upgrade_control_functions: 0,
-            authority_transfer_functions: 0,
-            emergency_upgrade_functions: 0,
-            upgrade_pause_functions: 0,
-            upgradeability_pattern_counts: HashMap::new(),
-        }
-    }
-
-    /// Record an upgradeability pattern
-    fn record_pattern(&mut self, pattern: &str) {
-        *self
-            .upgradeability_pattern_counts
-            .entry(pattern.to_string())
-            .or_insert(0) += 1;
-    }
-
-    /// Check if a path represents upgradeable loader usage
-    fn is_upgradeable_loader(&self, path: &Path) -> bool {
-        if let Some(segment) = path.segments.last() {
-            let name = segment.ident.to_string();
-            matches!(
-                name.as_str(),
-                "upgradeable_loader"
-                    | "BPFLoaderUpgradeable"
-                    | "deploy_program"
-                    | "upgrade_program"
-                    | "set_upgrade_authority"
-            )
-        } else {
-            false
-        }
-    }
-
-    /// Check if a path represents governance program
-    fn is_governance_program(&self, path: &Path) -> bool {
-        if let Some(segment) = path.segments.last() {
-            let name = segment.ident.to_string();
-            matches!(
-                name.as_str(),
-                "governance"
-                    | "spl_governance"
-                    | "governance_program"
-                    | "create_proposal"
-                    | "cast_vote"
-                    | "execute_proposal"
-            )
-        } else {
-            false
-        }
-    }
-
-    /// Check if a method call is upgrade-related
-    fn is_upgrade_method(&self, method_name: &str) -> bool {
-        matches!(
-            method_name,
-            "upgrade"
-                | "set_upgrade_authority"
-                | "transfer_upgrade_authority"
-                | "deploy"
-                | "upgrade_program"
-                | "set_authority"
-        )
-    }
-
-    /// Check if a method call is governance-related
-    fn is_governance_method(&self, method_name: &str) -> bool {
-        matches!(
-            method_name,
-            "create_proposal"
-                | "cast_vote"
-                | "execute_proposal"
-                | "cancel_proposal"
-                | "finalize_vote"
-                | "withdraw_vote"
-        )
-    }
-
-    /// Check if a method call is timelock-related
-    fn is_timelock_method(&self, method_name: &str) -> bool {
-        matches!(
-            method_name,
-            "set_delay"
-                | "execute_delayed"
-                | "cancel_delayed"
-                | "queue_transaction"
-                | "execute_transaction"
-                | "cancel_transaction"
-        )
-    }
-
-    /// Check if a function name indicates upgrade control
-    fn is_upgrade_control_function(&self, func_name: &str) -> bool {
-        matches!(
-            func_name,
-            "upgrade_program"
-                | "set_upgrade_authority"
-                | "transfer_upgrade_authority"
-                | "pause_upgrades"
-                | "resume_upgrades"
-                | "emergency_upgrade"
-                | "governance_upgrade"
-        )
-    }
-
-    /// Check if a function name indicates authority transfer
-    fn is_authority_transfer_function(&self, func_name: &str) -> bool {
-        matches!(
-            func_name,
-            "transfer_authority"
-                | "set_authority"
-                | "change_authority"
-                | "delegate_authority"
-                | "revoke_authority"
-        )
-    }
-
-    /// Check if a function name indicates emergency upgrade
-    fn is_emergency_upgrade_function(&self, func_name: &str) -> bool {
-        matches!(
-            func_name,
-            "emergency_upgrade"
-                | "emergency_pause"
-                | "emergency_stop"
-                | "force_upgrade"
-                | "immediate_upgrade"
-        )
-    }
-
-    /// Check if a function name indicates upgrade pause
-    fn is_upgrade_pause_function(&self, func_name: &str) -> bool {
-        matches!(
-            func_name,
-            "pause_upgrades"
-                | "resume_upgrades"
-                | "freeze_upgrades"
-                | "disable_upgrades"
-                | "enable_upgrades"
-        )
-    }
-
-    /// Analyze authority type from context
-    fn analyze_authority_type(&mut self, context: &str) {
-        if context.contains("multisig") || context.contains("multi_sig") {
-            self.multisig_authorities += 1;
-            self.record_pattern("multisig_authority");
-        } else if context.contains("governance") || context.contains("spl_governance") {
-            self.governance_authorities += 1;
-            self.record_pattern("governance_authority");
-        } else if context.contains("timelock") || context.contains("delay") {
-            self.timelocked_authorities += 1;
-            self.record_pattern("timelocked_authority");
-        } else if context.contains("single")
-            || context.contains("owner")
-            || context.contains("admin")
-        {
-            self.single_key_authorities += 1;
-            self.record_pattern("single_key_authority");
-        } else {
-            self.unknown_authorities += 1;
-            self.record_pattern("unknown_authority");
+    /// Calculate governance factor based on status
+    /// Returns complexity score based on governance mechanism
+    pub fn calculate_governance_factor(status: &str) -> f64 {
+        match status {
+            "no_data" => 0.0,               // No Program ID found
+            "immutable" | "locked" => 50.0, // Simple, fixed state
+            "single_wallet" => 75.0,        // Adds single attack vector
+            "governance" => 100.0,          // Highest complexity
+            _ => 0.0,                       // Unknown status
         }
     }
 }
 
-impl<'ast> Visit<'ast> for UpgradeabilityVisitor {
-    fn visit_expr(&mut self, node: &'ast Expr) {
-        match node {
-            Expr::Call(call_expr) => {
-                if let Expr::Path(path_expr) = &*call_expr.func {
-                    // Check for upgradeable loader usage
-                    if self.is_upgradeable_loader(&path_expr.path) {
-                        self.upgradeable_loader_usage += 1;
-                        self.record_pattern("upgradeable_loader");
-                    }
+/// Phase 1: Visitor to extract Program ID from declare_id! macro
+#[derive(Debug, Default)]
+struct ProgramIdVisitor {
+    /// The extracted program ID (base58 string)
+    pub program_id: Option<String>,
+}
 
-                    // Check for governance program calls
-                    if self.is_governance_program(&path_expr.path) {
-                        self.governance_program_calls += 1;
-                        self.record_pattern("governance_program");
-                    }
-                }
+impl ProgramIdVisitor {
+    // No helper methods needed - we use syn's parse_body directly
+}
+
+impl<'ast> Visit<'ast> for ProgramIdVisitor {
+    fn visit_item_macro(&mut self, node: &'ast ItemMacro) {
+        // 1. Check if it's the declare_id! macro
+        if node.mac.path.is_ident("declare_id") {
+            // 2. Robustly parse the macro's content as a String Literal using AST-First approach
+            if let Ok(lit) = node.mac.parse_body::<LitStr>() {
+                // 3. Get the value from the literal
+                let program_id = lit.value();
+                log::info!("🔍 Found Program ID via declare_id!: {}", program_id);
+                self.program_id = Some(program_id);
+            } else {
+                // Optional: Log if the macro is found but parsing fails
+                log::warn!(
+                    "Found `declare_id!` macro, but failed to parse its content as a string literal."
+                );
             }
-            Expr::MethodCall(method_call) => {
-                let method_name = method_call.method.to_string();
-
-                // Check for upgrade-related methods
-                if self.is_upgrade_method(&method_name) {
-                    self.program_upgrade_calls += 1;
-                    self.record_pattern(&format!("upgrade_method_{}", method_name));
-                }
-
-                // Check for governance-related methods
-                if self.is_governance_method(&method_name) {
-                    self.governance_voting_patterns += 1;
-                    self.record_pattern(&format!("governance_method_{}", method_name));
-                }
-
-                // Check for timelock-related methods
-                if self.is_timelock_method(&method_name) {
-                    self.timelock_detection += 1;
-                    self.upgrade_delay_patterns += 1;
-                    self.record_pattern(&format!("timelock_method_{}", method_name));
-                }
-            }
-            _ => {}
         }
 
-        // Continue visiting expression
-        syn::visit::visit_expr(self, node);
+        // Continue visiting (in case there are nested macros)
+        syn::visit::visit_item_macro(self, node);
+    }
+}
+
+/// Phase 2: Analyze on-chain governance status via RPC
+/// Returns governance status: "immutable", "locked", "single_wallet", or "governance"
+fn analyze_on_chain(
+    program_id_str: &str,
+    rpc_url: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    use solana_client::rpc_client::RpcClient;
+    use solana_sdk::pubkey::Pubkey;
+    use std::str::FromStr;
+
+    log::info!(
+        "🔍 GOVERNANCE: Starting on-chain analysis for program: {}",
+        program_id_str
+    );
+
+    let program_id =
+        Pubkey::from_str(program_id_str).map_err(|e| format!("Invalid Program ID: {}", e))?;
+
+    let client = RpcClient::new(rpc_url.to_string());
+
+    // Step 1: Derive ProgramData PDA
+    let (program_data_address, _bump) = Pubkey::find_program_address(
+        &[program_id.as_ref()],
+        &solana_sdk::bpf_loader_upgradeable::id(),
+    );
+
+    log::info!("🔍 GOVERNANCE: ProgramData PDA: {}", program_data_address);
+
+    // Step 2: Fetch ProgramData account
+    let program_data_account = client
+        .get_account(&program_data_address)
+        .map_err(|e| format!("Failed to fetch ProgramData account: {}", e))?;
+
+    // Step 3: Deserialize and check authority
+    // The ProgramData account structure (first 45 bytes):
+    // - 4 bytes: account type (should be 3 for ProgramData)
+    // - 8 bytes: slot
+    // - 32 bytes: upgrade_authority (optional Pubkey)
+    // - 1 byte: option flag for upgrade_authority
+
+    if program_data_account.data.len() < 45 {
+        return Err("ProgramData account is too small".into());
     }
 
-    fn visit_item_fn(&mut self, node: &'ast ItemFn) {
-        let func_name = node.sig.ident.to_string();
+    // Check if upgrade authority exists (byte at index 44)
+    let has_authority = program_data_account.data[44] == 1;
 
-        // Check for upgrade control functions
-        if self.is_upgrade_control_function(&func_name) {
-            self.upgrade_control_functions += 1;
-            self.record_pattern(&format!("upgrade_control_{}", func_name));
+    if !has_authority {
+        log::info!("🔍 GOVERNANCE: Program is IMMUTABLE (no upgrade authority)");
+        return Ok("immutable".to_string());
+    }
+
+    // Extract upgrade authority Pubkey (bytes 12-44)
+    let authority_bytes: [u8; 32] = program_data_account.data[12..44]
+        .try_into()
+        .map_err(|_| "Failed to extract authority pubkey")?;
+    let authority_pubkey = Pubkey::new_from_array(authority_bytes);
+
+    log::info!("🔍 GOVERNANCE: Upgrade authority: {}", authority_pubkey);
+
+    // Step 4: Fetch authority account to determine type
+    match client.get_account(&authority_pubkey) {
+        Ok(authority_account) => {
+            // Check if authority is owned by System Program (single wallet)
+            if authority_account.owner == solana_sdk::system_program::id() {
+                log::info!("🔍 GOVERNANCE: Authority is SINGLE_WALLET (owned by System Program)");
+                Ok("single_wallet".to_string())
+            } else {
+                // Owned by another program = governance contract
+                log::info!(
+                    "🔍 GOVERNANCE: Authority is GOVERNANCE (owned by program: {})",
+                    authority_account.owner
+                );
+                Ok("governance".to_string())
+            }
         }
-
-        // Check for authority transfer functions
-        if self.is_authority_transfer_function(&func_name) {
-            self.authority_transfer_functions += 1;
-            self.record_pattern(&format!("authority_transfer_{}", func_name));
+        Err(_) => {
+            // Authority account doesn't exist or is empty = locked
+            log::info!("🔍 GOVERNANCE: Authority account doesn't exist - program is LOCKED");
+            Ok("locked".to_string())
         }
-
-        // Check for emergency upgrade functions
-        if self.is_emergency_upgrade_function(&func_name) {
-            self.emergency_upgrade_functions += 1;
-            self.record_pattern(&format!("emergency_upgrade_{}", func_name));
-        }
-
-        // Check for upgrade pause functions
-        if self.is_upgrade_pause_function(&func_name) {
-            self.upgrade_pause_functions += 1;
-            self.record_pattern(&format!("upgrade_pause_{}", func_name));
-        }
-
-        // Analyze function body for authority patterns
-        let func_content = quote::quote!(#node).to_string();
-        self.analyze_authority_type(&func_content);
-
-        // Continue visiting function body
-        syn::visit::visit_item_fn(self, node);
     }
 }
 
 /// Calculate upgradeability metrics for workspace
+///
+/// This performs a 2-phase hybrid analysis:
+/// Phase 1: AST analysis to find Program ID from declare_id! macro
+/// Phase 2: On-chain RPC analysis to determine governance status
 pub fn calculate_workspace_upgradeability(
     workspace_path: &std::path::PathBuf,
     selected_files: &[String],
+    rpc_url: Option<&str>,
 ) -> Result<UpgradeabilityMetrics, Box<dyn std::error::Error>> {
     log::info!(
-        "🔍 UPGRADEABILITY DEBUG: Starting analysis for workspace: {:?}",
+        "🔍 UPGRADEABILITY: Starting 2-phase governance analysis for workspace: {:?}",
         workspace_path
     );
 
     let mut metrics = UpgradeabilityMetrics::default();
-    let mut files_analyzed = 0;
-    let mut files_skipped = 0;
 
-    for file_path in selected_files {
-        let full_path = workspace_path.join(file_path);
+    // ===== Phase 1: AST Analysis to Find Program ID =====
+    log::info!("🔍 UPGRADEABILITY: Phase 1 - Searching for Program ID in all selected files");
 
-        if !full_path.exists() {
-            log::warn!(
-                "🔍 UPGRADEABILITY DEBUG: File does not exist: {:?}",
-                full_path
-            );
-            files_skipped += 1;
+    let mut visitor = ProgramIdVisitor::default();
+
+    // Iterate through ALL selected files (no filtering by name)
+    for file_path_str in selected_files {
+        let file_path = workspace_path.join(file_path_str);
+
+        // Skip non-Rust files
+        if !file_path.extension().map_or(false, |ext| ext == "rs") {
             continue;
         }
 
-        if !full_path.extension().map_or(false, |ext| ext == "rs") {
-            log::info!(
-                "🔍 UPGRADEABILITY DEBUG: Skipping non-Rust file: {:?}",
-                full_path
-            );
-            files_skipped += 1;
+        if !file_path.exists() {
+            log::warn!("🔍 UPGRADEABILITY: File does not exist: {:?}", file_path);
             continue;
         }
 
-        log::info!("🔍 UPGRADEABILITY DEBUG: Analyzing file: {:?}", full_path);
+        log::debug!("🔍 UPGRADEABILITY: Analyzing file: {:?}", file_path);
 
-        let content = std::fs::read_to_string(&full_path)?;
-        let syntax_tree = syn::parse_file(&content)?;
+        // Parse the file and run the visitor
+        match std::fs::read_to_string(&file_path) {
+            Ok(content) => {
+                if let Ok(syntax_tree) = syn::parse_file(&content) {
+                    visitor.visit_file(&syntax_tree);
 
-        let mut visitor = UpgradeabilityVisitor::new();
-        visitor.current_file_path = file_path.to_string();
-        visitor.visit_file(&syntax_tree);
-
-        // Accumulate metrics from this visitor
-        metrics.upgradeable_loader_usage += visitor.upgradeable_loader_usage;
-        metrics.anchor_upgradeable_patterns += visitor.anchor_upgradeable_patterns;
-        metrics.program_upgrade_calls += visitor.program_upgrade_calls;
-        metrics.single_key_authorities += visitor.single_key_authorities;
-        metrics.multisig_authorities += visitor.multisig_authorities;
-        metrics.governance_authorities += visitor.governance_authorities;
-        metrics.timelocked_authorities += visitor.timelocked_authorities;
-        metrics.unknown_authorities += visitor.unknown_authorities;
-        metrics.governance_program_calls += visitor.governance_program_calls;
-        metrics.timelock_detection += visitor.timelock_detection;
-        metrics.upgrade_delay_patterns += visitor.upgrade_delay_patterns;
-        metrics.governance_voting_patterns += visitor.governance_voting_patterns;
-        metrics.upgrade_control_functions += visitor.upgrade_control_functions;
-        metrics.authority_transfer_functions += visitor.authority_transfer_functions;
-        metrics.emergency_upgrade_functions += visitor.emergency_upgrade_functions;
-        metrics.upgrade_pause_functions += visitor.upgrade_pause_functions;
-
-        // Merge pattern breakdown
-        for (pattern, count) in visitor.upgradeability_pattern_counts {
-            *metrics
-                .upgradeability_pattern_breakdown
-                .entry(pattern)
-                .or_insert(0) += count;
+                    // If we found a Program ID, we can stop searching
+                    if visitor.program_id.is_some() {
+                        log::info!(
+                            "🔍 UPGRADEABILITY: Found declare_id! in file: {:?}",
+                            file_path
+                        );
+                        break;
+                    }
+                }
+            }
+            Err(e) => {
+                log::warn!(
+                    "🔍 UPGRADEABILITY: Failed to read file {:?}: {}",
+                    file_path,
+                    e
+                );
+            }
         }
-
-        files_analyzed += 1;
-
-        log::info!(
-            "🔍 UPGRADEABILITY DEBUG: File {} analysis complete - upgradeable loader: {}, governance: {}, timelock: {}, upgrade control: {}",
-            file_path,
-            visitor.upgradeable_loader_usage,
-            visitor.governance_program_calls,
-            visitor.timelock_detection,
-            visitor.upgrade_control_functions
-        );
     }
 
-    // Add file analysis metadata
-    metrics.files_analyzed = files_analyzed;
-    metrics.files_skipped = files_skipped;
+    // Check if we found a Program ID
+    if visitor.program_id.is_none() {
+        log::warn!("🔍 UPGRADEABILITY: No declare_id! macro found in any selected files");
+        metrics.governance_status = "no_data".to_string();
+        metrics.governance_factor = UpgradeabilityMetrics::calculate_governance_factor("no_data");
+        return Ok(metrics);
+    }
 
-    // Calculate total upgradeable programs (heuristic)
-    metrics.total_upgradeable_programs = if metrics.upgradeable_loader_usage > 0 {
-        1
+    let program_id = visitor.program_id.clone().unwrap();
+    metrics.program_id = Some(program_id.clone());
+    log::info!(
+        "🔍 UPGRADEABILITY: Phase 1 Complete - Found Program ID: {}",
+        program_id
+    );
+
+    // ===== Phase 2: On-Chain RPC Analysis =====
+    if let Some(rpc_endpoint) = rpc_url {
+        log::info!("🔍 UPGRADEABILITY: Phase 2 - Analyzing on-chain governance via RPC");
+
+        match analyze_on_chain(&program_id, rpc_endpoint) {
+            Ok(status) => {
+                log::info!(
+                    "🔍 UPGRADEABILITY: On-chain analysis complete - Status: {}",
+                    status
+                );
+                metrics.governance_status = status.clone();
+                metrics.governance_factor =
+                    UpgradeabilityMetrics::calculate_governance_factor(&status);
+                metrics.raw_governance_score = metrics.governance_factor; // Same as factor for this model
+                metrics.on_chain_analysis_performed = true;
+            }
+            Err(e) => {
+                log::error!("🔍 UPGRADEABILITY: On-chain analysis failed: {}", e);
+                metrics.governance_status = "error".to_string();
+                metrics.on_chain_analysis_error = Some(e.to_string());
+                metrics.on_chain_analysis_performed = false;
+                // Fallback to safe default
+                metrics.governance_factor = 0.0;
+            }
+        }
     } else {
-        0
-    };
-    metrics.total_upgrade_authorities = metrics.single_key_authorities
-        + metrics.multisig_authorities
-        + metrics.governance_authorities
-        + metrics.timelocked_authorities
-        + metrics.unknown_authorities;
-
-    // Calculate risk scores
-    // Upgradeability Risk Score (lower is better)
-    let single_key_risk = metrics.single_key_authorities as f64 * 10.0; // High risk
-    let multisig_risk = metrics.multisig_authorities as f64 * 5.0; // Medium risk
-    let governance_risk = metrics.governance_authorities as f64 * 2.0; // Low risk
-    let timelocked_risk = metrics.timelocked_authorities as f64 * 1.0; // Very low risk
-    let unknown_risk = metrics.unknown_authorities as f64 * 8.0; // High risk
-    let emergency_risk = metrics.emergency_upgrade_functions as f64 * 15.0; // Very high risk
-
-    metrics.upgradeability_risk_score = single_key_risk
-        + multisig_risk
-        + governance_risk
-        + timelocked_risk
-        + unknown_risk
-        + emergency_risk;
-
-    // Governance Maturity Score (higher is better)
-    let governance_score = metrics.governance_program_calls as f64 * 3.0;
-    let timelock_score = metrics.timelock_detection as f64 * 5.0;
-    let voting_score = metrics.governance_voting_patterns as f64 * 2.0;
-    let control_score = metrics.upgrade_control_functions as f64 * 1.0;
-
-    metrics.governance_maturity_score =
-        governance_score + timelock_score + voting_score + control_score;
-
-    // Upgrade Control Score (higher is better)
-    let pause_score = metrics.upgrade_pause_functions as f64 * 3.0;
-    let transfer_score = metrics.authority_transfer_functions as f64 * 2.0;
-    let control_functions_score = metrics.upgrade_control_functions as f64 * 1.0;
-
-    metrics.upgrade_control_score = pause_score + transfer_score + control_functions_score;
+        log::warn!("🔍 UPGRADEABILITY: No RPC URL provided - skipping on-chain analysis");
+        metrics.governance_status = "rpc_not_available".to_string();
+        metrics.on_chain_analysis_performed = false;
+        metrics.governance_factor = 0.0;
+    }
 
     log::info!(
-        "🔍 UPGRADEABILITY DEBUG: Analysis complete - {} files analyzed, {} files skipped, upgradeable programs: {}, risk score: {:.1}, governance maturity: {:.1}, control score: {:.1}",
-        files_analyzed,
-        files_skipped,
-        metrics.total_upgradeable_programs,
-        metrics.upgradeability_risk_score,
-        metrics.governance_maturity_score,
-        metrics.upgrade_control_score
+        "🔍 UPGRADEABILITY: Analysis complete - Program ID: {:?}, Status: {}, Factor: {:.1}",
+        metrics.program_id,
+        metrics.governance_status,
+        metrics.governance_factor
     );
 
     Ok(metrics)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_program_id_extraction() {
+        let code = r#"
+            use anchor_lang::prelude::*;
+
+            declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+
+            #[program]
+            pub mod my_program {
+                use super::*;
+                
+                pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+                    Ok(())
+                }
+            }
+        "#;
+
+        let syntax_tree = syn::parse_file(code).unwrap();
+        let mut visitor = ProgramIdVisitor::default();
+        visitor.visit_file(&syntax_tree);
+
+        assert_eq!(
+            visitor.program_id,
+            Some("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS".to_string())
+        );
+    }
+
+    #[test]
+    fn test_no_program_id() {
+        let code = r#"
+            use anchor_lang::prelude::*;
+
+            pub fn some_function() {}
+        "#;
+
+        let syntax_tree = syn::parse_file(code).unwrap();
+        let mut visitor = ProgramIdVisitor::default();
+        visitor.visit_file(&syntax_tree);
+
+        assert_eq!(visitor.program_id, None);
+    }
+
+    #[test]
+    fn test_program_id_extraction_with_spaces() {
+        // Test robustness with various formatting (spaces, tabs, etc.)
+        let code = r#"
+            use anchor_lang::prelude::*;
+
+            declare_id!(  "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"  );
+
+            #[program]
+            pub mod my_program {
+                use super::*;
+            }
+        "#;
+
+        let syntax_tree = syn::parse_file(code).unwrap();
+        let mut visitor = ProgramIdVisitor::default();
+        visitor.visit_file(&syntax_tree);
+
+        // Should still correctly extract the ID despite the spaces
+        assert_eq!(
+            visitor.program_id,
+            Some("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS".to_string())
+        );
+    }
+
+    #[test]
+    fn test_program_id_extraction_multiline() {
+        // Test robustness with multiline formatting
+        let code = r#"
+            use anchor_lang::prelude::*;
+
+            declare_id!(
+                "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+            );
+
+            #[program]
+            pub mod my_program {}
+        "#;
+
+        let syntax_tree = syn::parse_file(code).unwrap();
+        let mut visitor = ProgramIdVisitor::default();
+        visitor.visit_file(&syntax_tree);
+
+        // Should handle multiline formatting correctly
+        assert_eq!(
+            visitor.program_id,
+            Some("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS".to_string())
+        );
+    }
+
+    #[test]
+    fn test_governance_factor_calculation() {
+        // Test all governance statuses
+        assert_eq!(
+            UpgradeabilityMetrics::calculate_governance_factor("no_data"),
+            0.0
+        );
+        assert_eq!(
+            UpgradeabilityMetrics::calculate_governance_factor("immutable"),
+            50.0
+        );
+        assert_eq!(
+            UpgradeabilityMetrics::calculate_governance_factor("locked"),
+            50.0
+        );
+        assert_eq!(
+            UpgradeabilityMetrics::calculate_governance_factor("single_wallet"),
+            75.0
+        );
+        assert_eq!(
+            UpgradeabilityMetrics::calculate_governance_factor("governance"),
+            100.0
+        );
+        assert_eq!(
+            UpgradeabilityMetrics::calculate_governance_factor("unknown"),
+            0.0
+        );
+    }
+
+    #[test]
+    fn test_no_lib_rs() {
+        let temp_dir = std::env::temp_dir();
+        let workspace_dir = temp_dir.join("test_no_lib_rs");
+        std::fs::create_dir_all(&workspace_dir).unwrap();
+
+        let result =
+            calculate_workspace_upgradeability(&workspace_dir, &["src/main.rs".to_string()], None)
+                .unwrap();
+
+        assert_eq!(result.governance_status, "no_data");
+        assert_eq!(result.governance_factor, 0.0);
+        assert_eq!(result.program_id, None);
+    }
+
+    #[test]
+    fn test_lib_rs_without_declare_id() {
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("test_no_declare_id.rs");
+
+        let code = r#"
+            pub fn some_function() {}
+        "#;
+        std::fs::write(&test_file, code).unwrap();
+
+        let result = calculate_workspace_upgradeability(
+            &temp_dir,
+            &["test_no_declare_id.rs".to_string()],
+            None,
+        )
+        .unwrap();
+
+        // Even though file exists, it's not lib.rs
+        assert_eq!(result.governance_status, "no_data");
+        assert_eq!(result.governance_factor, 0.0);
+    }
+
+    #[test]
+    fn test_workspace_with_lib_rs_and_declare_id() {
+        let temp_dir = std::env::temp_dir();
+        let lib_rs = temp_dir.join("lib.rs");
+
+        let code = r#"
+            use anchor_lang::prelude::*;
+
+            declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+
+            #[program]
+            pub mod my_program {
+                use super::*;
+                
+                pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+                    Ok(())
+                }
+            }
+        "#;
+        std::fs::write(&lib_rs, code).unwrap();
+
+        let result = calculate_workspace_upgradeability(
+            &temp_dir,
+            &["lib.rs".to_string()],
+            None, // No RPC URL
+        )
+        .unwrap();
+
+        // Should find Program ID but not perform on-chain analysis
+        assert_eq!(
+            result.program_id,
+            Some("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS".to_string())
+        );
+        assert_eq!(result.governance_status, "rpc_not_available");
+        assert_eq!(result.on_chain_analysis_performed, false);
+        assert_eq!(result.governance_factor, 0.0);
+    }
 }
