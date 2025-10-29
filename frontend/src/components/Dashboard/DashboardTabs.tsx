@@ -154,7 +154,7 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
         <div className="relative inline-flex rounded-full overflow-hidden border border-[#A8C3FF] shadow-[0_17px_25px_rgba(107,134,194,0.32)]">
           {/* ✅ GIF BACKGROUND */}
           <img
-            src={"videos/DockNavGif.gif"}
+            src={"/videos/DockNavGIF.gif"}
             alt="Animated background"
             className="absolute w-full h-full object-cover  z-0 pointer-events-none"
           />
