@@ -75,7 +75,18 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
   // // Modified ReportsPage wrapper to handle report selection
 
   return (
-    <div className="relative w-full max-w-7xl mx-auto px-6 min-h-[600px] pt-0">
+    <div
+      className="
+  relative w-full 
+  max-w-[95%]         /* default mobile */
+  sm:max-w-[90%]      /* small screens */
+  md:max-w-[90%]      /* medium screens */
+  lg:max-w-[90%]      /* large screens */
+  xl:max-w-[90%]      /* extra large screens */
+  2xl:max-w-[80%]     /* ultra wide screens */
+  mx-auto px-6 min-h-[600px] pt-0
+"
+    >
       {activeTab !== Tab.REPORT_DETAIL && <DashboardHeroHeader />}
       <div className="py-12 h-full overflow-y-auto pb-28">
         {activeTab === Tab.ANALYZE && (
@@ -140,18 +151,15 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
       {/* Tabs - Only show main tabs, hide when viewing report details */}
 
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2">
-        <div className="relative isolate inline-flex rounded-full overflow-hidden">
+        <div className="relative inline-flex rounded-full overflow-hidden border border-[#A8C3FF] shadow-[0_17px_25px_rgba(107,134,194,0.32)]">
           {/* ✅ GIF BACKGROUND */}
-
-          {/* Optional gradient tint overlay */}
-          <div className="absolute  z-10 pointer-events-none bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-blue-500/10" />
           <img
-            src="/videos/DockNavGif.gif" // your GIF path here
+            src={"videos/DockNavGif.gif"}
             alt="Animated background"
             className="absolute w-full h-full object-cover  z-0 pointer-events-none"
           />
           {/* Buttons (content stays same) */}
-          <div className="relative z-20 flex gap-2 rounded-full p-2 bg-white/40 backdrop-blur-md">
+          <div className="relative z-20 flex gap-2 rounded-full p-2 bg-white/40">
             {TAB_CONFIG.map((tab) => (
               <button
                 key={tab.id}
@@ -179,9 +187,7 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
                       alt={tab.label}
                       width={20}
                       height={20}
-                      className={
-                        activeTab === tab.id ? "invert text-white" : ""
-                      }
+                      className={activeTab === tab.id ? " text-white" : ""}
                     />
                   )}
                   {tab.label}

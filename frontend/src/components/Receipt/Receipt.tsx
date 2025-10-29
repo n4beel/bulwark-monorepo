@@ -3,6 +3,9 @@
 import { useEffect } from "react";
 import StepResults from "./StepResults";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store/store";
 
 type Props = {
   open: boolean;
@@ -20,6 +23,8 @@ export default function ReceiptModal({
   const router = useRouter();
 
   if (!open || !report) return null;
+
+  const { user } = useSelector((state: RootState) => state.auth);
 
   const oid = typeof report?._id === "string" ? report._id : report?._id?.$oid;
 
@@ -55,7 +60,7 @@ export default function ReceiptModal({
           }}
         >
           {/* Scrollable results */}
-          <div className="flex-1 overflow-y-auto bg-white">
+          <div className="flex-1 overflow-hidden bg-white">
             <StepResults report={report} />
           </div>
 
@@ -72,10 +77,23 @@ export default function ReceiptModal({
           >
             <div className="px-6 py-4 flex justify-end gap-3 backdrop-blur-sm">
               <button
-                className="border px-4 py-2 rounded-lg bg-white/80 cursor-pointer"
+                className="border px-4 flex py-2 rounded-lg bg-white/80 cursor-pointer"
                 onClick={() => router.push("/dashboard")}
               >
-                Signup to save
+                {user ? (
+                  <>
+                    Save to my reports
+                    <Image
+                      src="/icons/CloudStorage.svg"
+                      alt="done"
+                      width={20}
+                      height={20}
+                      className="ml-2"
+                    />
+                  </>
+                ) : (
+                  "Signup to save"
+                )}
               </button>
 
               <button

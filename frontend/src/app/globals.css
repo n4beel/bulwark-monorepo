@@ -176,7 +176,7 @@ select:focus {
 /* Doto Heading Style */
 .doto {
   font-family: "Doto" !important;
-  color: #0F172A !important;
+  /* color: #0F172A; */
 
 }
 

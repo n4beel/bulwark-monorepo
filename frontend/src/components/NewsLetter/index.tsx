@@ -23,7 +23,7 @@ export default function NewsletterSection() {
         <div className="relative grid grid-cols-1 lg:grid-cols-3 gap-6 px-10 py-14">
           {/* Left text block */}
           <div className="col-span-2 space-y-4 text-white">
-            <h2 className="text-3xl font-bold tracking-wider doto">
+            <h2 className="text-3xl font-bold tracking-wider text-white doto">
               Subscribe to Our
               <br />
               Newsletter

@@ -6,13 +6,10 @@ import Chip from "../ui/Chip";
 import ComplexityCard from "../ComplexityCard";
 import AuditEffortCard from "../AuditEffortCard";
 import HotspotsCard from "../HotspotCards";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store/store";
 
 export default function StepResults({ report }: any) {
-  const complexityScore =
-    Number(report?.scores?.structural?.score) ||
-    Number(report?.complexityScore) ||
-    0;
-
   // Determine if this is GitHub or Upload source
   const isGitHubSource = !!report?.repository?.includes("/");
   const sourceLabel = isGitHubSource
@@ -32,7 +29,7 @@ export default function StepResults({ report }: any) {
       <div className="flex gap-2 flex-wrap mb-4">
         <Chip
           label="Encrypted by Arcium"
-          iconSrc="/icons/arcium.svg"
+          iconSrc="/icons/Arcium.svg"
           iconAlt="Arcium"
           iconSide="right"
           variant="filled"
