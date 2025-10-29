@@ -331,18 +331,30 @@ export interface AIAnalysisFactors {
   [key: string]: unknown;
 }
 
+export interface AIHotspot {
+  file: string;
+  lines: string;
+  risk_score: number;
+  components: string[];
+}
+
+export interface AIAnalysisFactors {
+  highRiskHotspots?: AIHotspot[];
+  mediumRiskHotspots?: AIHotspot[];
+  recommendations?: string[];
+  documentation_clarity?: number;
+  testing_coverage?: number;
+  financial_logic_complexity?: number;
+  attack_vector_risk?: number;
+  value_at_risk?: number;
+}
+
 export interface AIAnalysis {
   engine: string;
   version: string;
   success: boolean;
   error?: string | null;
   analysisFactors: AIAnalysisFactors;
-  documentation_clarity: number;
-  testing_coverage: number;
-  financial_logic_complexity: number;
-  attack_vector_risk: number;
-  value_at_risk: number;
-  game_theory_complexity: number;
 }
 
 export interface RustAnalysis {

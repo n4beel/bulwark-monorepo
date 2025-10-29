@@ -20,6 +20,7 @@ import HotspotsCard from "./HotspotCards";
 import AuditEffortCard from "./AuditEffortCard";
 import ScoreCards from "./ScoreCards";
 import { getScoreColor } from "@/utils";
+import AIAnalysisTab from "./AiAnalysis";
 
 interface StaticAnalysisReportDisplayProps {
   report: StaticAnalysisReport;
@@ -978,17 +979,8 @@ export default function StaticAnalysisReportDisplay({
               </div>
             )}
 
-            {activeTab === "ai" && (
-              // show image
-              <div className=" h-full">
-                <Image
-                  src="/icons/AiAnalysis.svg"
-                  alt="ai"
-                  width={800}
-                  height={80}
-                  className="w-[100%] h-auto mx-auto"
-                />
-              </div>
+            {activeTab === "ai" && report.ai_analysis && (
+              <AIAnalysisTab ai={report.ai_analysis} />
             )}
 
             {activeTab === "rust" &&
