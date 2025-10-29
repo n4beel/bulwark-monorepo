@@ -6,7 +6,7 @@ export default function HeroFooter() {
       <div className="mx-auto flex w-full max-w-[720px] items-center justify-center gap-6 ">
         <Chip
           label="Encrypted by Arcium"
-          iconSrc="/icons/Arcium.svg"
+          iconSrc="https://res.cloudinary.com/ahmed8215/image/upload/Arcium_jqbxu1.svg"
           size="md"
         />
         <Chip

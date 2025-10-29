@@ -164,7 +164,11 @@ export default function StepUpload({ onComplete, onBack }: Props) {
 
       {/* Bottom Purple Disclosure */}
       <div className="mt-6 rounded-xl bg-[#E8E0FF] text-[#6B4EFF] text-xs px-4 py-3 flex items-center gap-2">
-        <img src="/icons/arcium.svg" alt="arcium" className="w-4 h-4" />
+        <img
+          src="https://res.cloudinary.com/ahmed8215/image/upload/Arcium_jqbxu1.svg"
+          alt="arcium"
+          className="w-4 h-4"
+        />
         Arcum Disclosure: Encrypted in use. Only summaries leave compute.
       </div>
 

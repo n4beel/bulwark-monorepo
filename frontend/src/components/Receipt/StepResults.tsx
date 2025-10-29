@@ -29,7 +29,7 @@ export default function StepResults({ report }: any) {
       <div className="flex gap-2 flex-wrap mb-4">
         <Chip
           label="Encrypted by Arcium"
-          iconSrc="/icons/Arcium.svg"
+          iconSrc="https://res.cloudinary.com/ahmed8215/image/upload/Arcium_jqbxu1.svg"
           iconAlt="Arcium"
           iconSide="right"
           variant="filled"
