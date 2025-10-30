@@ -354,7 +354,7 @@ export default function StaticAnalysisReportDisplay({
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-4 h-4" strokeWidth={2} />
                   <span>{tab.label}</span>
                 </button>
               );
@@ -422,15 +422,15 @@ export default function StaticAnalysisReportDisplay({
 
             {activeTab === "vulnerability" && report?.ai_analysis && (
               <div className="relative">
-                {/* Slight dim (not blur) */}
+                {/* Under content dimmed */}
                 <div className="opacity-70 pointer-events-none">
                   <AIAnalysisTab ai={report.ai_analysis} />
                 </div>
 
-                {/* Light glass overlay (no blue tint) */}
-                <div className="absolute inset-0 backdrop-blur-sm rounded-xl pointer-events-none" />
+                {/* Glass overlay w/ correct border + tint */}
+                <div className="absolute inset-0 rounded-xl border border-[var(--blue-primary)] bg-[rgba(127,175,200,0.05)] backdrop-blur-sm pointer-events-none" />
 
-                {/* Forensic Upgrade Overlay Image */}
+                {/* Forensic Overlay Image */}
                 <Image
                   src="/icons/Forensic.svg"
                   alt="Upgrade Overlay"
