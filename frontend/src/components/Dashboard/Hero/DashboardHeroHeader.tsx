@@ -12,7 +12,7 @@ export default function DashboardHeroHeader() {
       {/* Profile Initial Badge */}
 
       {/* Welcome Title */}
-      <h1 className="text-xl md:text-2xl font-normal tracking-wide doto">
+      <h1 className="text-3xl font-normal tracking-wide doto">
         👋 <span className="text-[var(--text-primary)]">Welcome, </span>
         <span className="text-[var(--blue-primary)]">{name}</span>
       </h1>

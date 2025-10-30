@@ -74,7 +74,8 @@ export default function StepResults({ report }: any) {
       </div>
 
       {/* Divider */}
-      <div className="my-4 w-full border-t-2 border-dashed border-[var(--border-color)]" />
+
+      <div className="my-4 w-full h-[2px] bg-[repeating-linear-gradient(to_right,var(--blue-light)_0_12px,transparent_12px_22px)]"></div>
 
       {/* Section Header */}
       <div className="flex items-start justify-between">
@@ -89,26 +90,24 @@ export default function StepResults({ report }: any) {
         </div>
 
         <div className="text-end text-[10px] text-[var(--text-secondary)]">
-          {report?.createdAt && (
-            <p>
-              Analyzed:{" "}
-              <span className="underline cursor-default">
-                {new Date(report.createdAt).toLocaleDateString()}
-              </span>
-            </p>
-          )}
           <p>
             Receipt ID:{" "}
-            <span className="underline cursor-default">
+            <span className=" cursor-default">
               {report?.receiptId ?? "A54D7S846"}
             </span>
           </p>
+
           {report?.commitHash && (
             <p>
-              Commit:{" "}
-              <span className="underline cursor-default">
-                {report.commitHash.slice(0, 7)}
-              </span>
+              Bound to commit:{" "}
+              <a
+                href={report?.hrefUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-[var(--blue-primary)] hover:text-[var(--blue-hover)] cursor-pointer"
+              >
+                {report?.commitHash?.slice(0, 7)}
+              </a>
             </p>
           )}
         </div>
