@@ -227,3 +227,11 @@ select:focus {
   background: rgba(255, 255, 255, 0.50);
   backdrop-filter: blur(17px) !important;
 }
+
+.locked-tab {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}

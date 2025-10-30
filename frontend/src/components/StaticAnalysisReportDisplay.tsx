@@ -421,23 +421,25 @@ export default function StaticAnalysisReportDisplay({
             )}
 
             {activeTab === "vulnerability" && report?.ai_analysis && (
-              <div className="relative">
-                {/* Under content dimmed */}
-                <div className="opacity-70 pointer-events-none">
+              <div className="relative min-h-[600px]">
+                {/* LOCKED CONTENT (no selection + no click) */}
+                <div className="locked-tab opacity-60 pointer-events-none select-none user-select-none">
                   <AIAnalysisTab ai={report.ai_analysis} />
                 </div>
 
-                {/* Glass overlay w/ correct border + tint */}
-                <div className="absolute inset-0 rounded-xl border border-[var(--blue-primary)] bg-[rgba(127,175,200,0.05)] backdrop-blur-sm pointer-events-none" />
+                {/* Glass Overlay */}
+                <div className="absolute inset-0 rounded-xl border border-[var(--blue-primary)]/60 bg-[rgba(127,175,200,0.05)] backdrop-blur-[6px] pointer-events-none" />
 
-                {/* Forensic Overlay Image */}
-                <Image
-                  src="/icons/Forensic.svg"
-                  alt="Upgrade Overlay"
-                  width={600}
-                  height={600}
-                  className="absolute inset-0 m-auto opacity-90 pointer-events-none"
-                />
+                {/* Upgrade Overlay Image */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <Image
+                    src="/icons/Forensic.svg"
+                    alt="Upgrade Overlay"
+                    width={480}
+                    height={480}
+                    className="opacity-90"
+                  />
+                </div>
               </div>
             )}
 
