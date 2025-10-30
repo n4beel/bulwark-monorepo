@@ -14,7 +14,17 @@ interface Props {
 
 export default function FeatureCards({ items }: Props) {
   return (
-    <div className="w-full flex justify-center py-16 mt-10">
+    <div className="w-full flex flex-col justify-center items-center pb-16 pt-8 mt-2">
+      <h1
+        className="text-3xl font-normal my-12"
+        style={{
+          fontFamily: '"Doto", sans-serif',
+          color: "var(--black-primary)",
+        }}
+      >
+        Why Bulwark is different ?
+      </h1>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl w-full px-4">
         {items.map((item, idx) => (
           <div

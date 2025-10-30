@@ -5,7 +5,7 @@ import Link from "next/link";
 
 export default function Footer() {
   return (
-    <footer className="relative w-11/12 mx-auto bg-[var(--blue-primary)] text-white overflow-hidden pb-20">
+    <footer className="relative w-11/12 mx-auto bg-[var(--blue-primary)] text-white overflow-hidden pb-0">
       {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-[var(--blue-dark)]/20 via-transparent to-transparent pointer-events-none" />
 
@@ -46,7 +46,7 @@ export default function Footer() {
             <p className="text-sm leading-snug opacity-90">
               For queries and information please reach us at:
               <br />
-              <span className="font-semibold ">bulwark@blockapex.io</span>
+              <span className="font-normal mt-4 ">bulwark@blockapex.io</span>
             </p>
           </div>
         </div>
@@ -61,6 +61,12 @@ export default function Footer() {
           height={500}
           priority
         />
+      </div>
+      <div className="w-[97%] mx-auto border-t border-white/20 mt-20 " />
+
+      {/* Bottom Text */}
+      <div className="text-start text-xs text-white/70 py-6 select-none px-6">
+        © 2025 Bulwark. All rights reserved.
       </div>
     </footer>
   );
