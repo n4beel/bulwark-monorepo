@@ -35,12 +35,6 @@ export default function StepResults({ report }: any) {
           variant="filled"
           size="sm"
         />
-        {report?.language && (
-          <Chip label={report.language} variant="outline" size="sm" />
-        )}
-        {report?.framework && (
-          <Chip label={report.framework} variant="outline" size="sm" />
-        )}
       </div>
 
       {/* Success Section */}

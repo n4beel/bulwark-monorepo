@@ -782,9 +782,9 @@ export default function StaticAnalysisReportDisplay({
               className="mt-6 mx-auto"
             />
 
-            <button className="mt-8 w-4/5  mx-auto inline-flex items-center justify-center gap-2 px-2 py-3 rounded-lg cursor-pointer text-white bg-[var(--button-secondary)] hover:bg-[var(--button-primary-hover)] transition">
+            {/* <button className="mt-8 w-4/5  mx-auto inline-flex items-center justify-center gap-2 px-2 py-3 rounded-lg cursor-pointer text-white bg-[var(--button-secondary)] hover:bg-[var(--button-primary-hover)] transition">
               Get Quote
-            </button>
+            </button> */}
           </div>
         </div>
       </div>
