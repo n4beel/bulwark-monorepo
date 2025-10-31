@@ -1,6 +1,6 @@
-# 🛡️ MySecurity Tool - Frontend
+# 🛡️ Bulwark Tool - Frontend
 
-A beautiful, modern web interface for the MySecurity Tool scoping engine that analyzes smart contract repositories and generates pre-audit reports.
+A beautiful, modern web interface for the Bulwark Tool scoping engine that analyzes smart contract repositories and generates pre-audit reports.
 
 ## 🚀 Features
 
@@ -166,4 +166,4 @@ The interface uses a clean, professional design with:
 
 ## 📄 License
 
-This project is part of the MySecurity Tool platform.
+This project is part of the Bulwark Tool platform.
