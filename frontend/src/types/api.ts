@@ -401,7 +401,29 @@ export interface Scores {
 // Result Interface
 export interface Result {
   filesCount: number;
-  auditEffort: AuditEffort;
+  lowerAuditEffort: {
+    timeRange: {
+      minimumDays: number;
+      maximumDays: number;
+    };
+    resources: number;
+    costRange: {
+      minimumCost: number;
+      maximumCost: number;
+    };
+  };
+  upperAuditEffort: {
+    timeRange: {
+      minimumDays: number;
+      maximumDays: number;
+    };
+
+    resources: number;
+    costRange: {
+      minimumCost: number;
+      maximumCost: number;
+    };
+  };
   hotspots: Hotspots;
   receiptId: string;
 }
