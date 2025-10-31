@@ -1,0 +1,33 @@
+name: Deploy Rust Analyzer
+
+on:
+    push:
+        branches:
+            - main # Or your deployment branch
+
+jobs:
+    deploy:
+        runs-on: self-hosted
+
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+
+            - name: Setup Rust Toolchain
+              uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: stable
+                  override: true
+
+            - name: Build Release Binary
+              run: cargo build --release
+
+            - name: Create .env file
+              # Setting the port to 8080 as requested.
+              run: |
+                  echo "PORT=8000" > .env
+                  # Add any other secrets your Rust app needs below
+                  # echo "SOME_SECRET=${{ secrets.SOME_SECRET }}" >> .env
+
+            - name: Restart the Rust Service
+              run: sudo systemctl restart rust-server.service

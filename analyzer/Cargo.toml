@@ -1,0 +1,78 @@
+[package]
+name = "amm-analyzer"
+version = "0.1.0"
+edition = "2021"
+description = "Semantic static analysis for Solana/Anchor smart contracts"
+authors = ["MySecurity Team"]
+# Adjusted default-run and binary target names to align with Railway Railpack expectations.
+default-run = "server"
+
+[[bin]]
+name = "cli"
+path = "src/bin/cli.rs"
+
+[[bin]]
+name = "server"
+path = "src/bin/server.rs"
+
+[dependencies]
+# Core parsing and AST manipulation
+syn = { version = "2.0", features = ["full", "extra-traits", "visit", "visit-mut"] }
+quote = "1.0"
+proc-macro2 = "1.0"
+
+# HTTP Server dependencies
+axum = "0.7"
+tokio = { version = "1.0", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+hyper = "1.0"
+
+# Command line interface (keep for backward compatibility)
+clap = { version = "4.0", features = ["derive"] }
+
+# Serialization for JSON output
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# File system operations
+walkdir = "2.0"
+glob = "0.3"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+log = "0.4"
+env_logger = "0.10"
+
+# Hashing for incremental analysis
+sha2 = "0.10"
+
+# Configuration
+toml = "0.8"
+
+# Optional: For macro expansion (requires cargo expand)
+# cargo_metadata = "0.18"
+
+# Additional dependencies
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1.0"
+
+# Cyclomatic complexity analysis - using syn (already included)
+
+# HTTP server specific
+uuid = { version = "1.0", features = ["v4"] }
+
+# Solana dependencies for on-chain analysis
+solana-client = "1.18"
+solana-sdk = "1.18"
+
+[dev-dependencies]
+tempfile = "3.0"
+pretty_assertions = "1.0"
+
+[features]
+default = []
+macro-expansion = []
