@@ -38,8 +38,8 @@ export default function AuditEffortCard({ estimate }: Props) {
       {/* Table */}
       <div className="relative w-full overflow-hidden">
         {/* Header Icons Row */}
-        <div className="grid grid-cols-4 py-2  bg-[var(--gray-light)]/30 text-[11px] text-[var(--text-secondary)] px-3">
-          <span></span>
+        <div className="grid grid-cols-3 py-2  bg-[var(--gray-light)]/30 text-[11px] text-[var(--text-secondary)] px-3">
+          {/* <span></span> */}
           <Image src="/icons/Clock.svg" width={14} height={14} alt="time" />
           <Image src="/icons/Peoples.svg" width={14} height={14} alt="team" />
           <Image
@@ -51,8 +51,8 @@ export default function AuditEffortCard({ estimate }: Props) {
         </div>
 
         {/* Standard Row */}
-        <div className="grid grid-cols-4  border-t border-[var(--border-color)] px-0 items-center">
-          <Image src="/icons/Cube.svg" width={30} height={30} alt="" />
+        <div className="grid grid-cols-3  border-t border-[var(--border-color)] px-3 items-center">
+          {/* <Image src="/icons/Cube.svg" width={50} height={40} alt="" /> */}
           <p className="font-medium">
             {fmt(lower?.timeRange?.minimumDays)}–
             {fmt(lower?.timeRange?.maximumDays, "d")}
@@ -65,8 +65,8 @@ export default function AuditEffortCard({ estimate }: Props) {
         </div>
 
         {/* Forensic Row */}
-        <div className="grid grid-cols-4 border-t border-[var(--border-color)] px-0 items-center">
-          <Image src="/icons/BgDiamond.svg" width={30} height={30} alt="" />
+        <div className="grid grid-cols-3 border-t border-[var(--border-color)] px-3 items-center">
+          {/* <Image src="/icons/BgDiamond.svg" width={50} height={40} alt="" /> */}
           <p className="font-medium">
             {fmt(upper?.timeRange?.minimumDays)}–
             {fmt(upper?.timeRange?.maximumDays, "d")}
@@ -79,8 +79,8 @@ export default function AuditEffortCard({ estimate }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="grid grid-cols-4 text-[10px] text-[var(--text-secondary)] border-t border-[var(--border-color)] py-2 px-3">
-          <span></span>
+        <div className="grid grid-cols-3 text-[10px] text-[var(--text-secondary)] border-t border-[var(--border-color)] py-2 px-3">
+          {/* <span></span> */}
           <span>p50 to p80</span>
           <span>p50 to p80</span>
           <span>±20% variance</span>

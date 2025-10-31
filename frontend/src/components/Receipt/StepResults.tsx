@@ -108,16 +108,16 @@ export default function StepResults({ report }: any) {
       </div>
 
       {/* MAIN GRID */}
-      <div className="flex flex-row gap-1  p-3 rounded-xl border border-[var(--border-color)] bg-[var(--background)]">
+      <div className="flex flex-row justify-between gap-1  p-3 rounded-xl border border-[var(--border-color)] bg-[var(--background)]">
         {/* Complexity Card */}
-        <div className="w-[30%]">
+        <div className="w-[40%]">
           <ComplexityCard
             complexityScore={Number(report?.scores?.total) || 0}
           />
         </div>
 
         {/* Audit Effort Units */}
-        <div className="w-[70%]">
+        <div className="w-[60%]">
           <AuditEffortCard estimate={report?.result.auditEffort} />
         </div>
       </div>
