@@ -110,13 +110,15 @@ export default function ReceiptModal({
             }}
           >
             <div className="px-6 py-2 flex justify-end gap-2 backdrop-blur-sm">
-              <button
-                className="border px-4 flex py-2 rounded-lg bg-white/80 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={handleSignupToSave}
-                disabled={isSaving}
-              >
-                {!user && "Signup to save"}
-              </button>
+              {!user && (
+                <button
+                  className="border px-4 flex py-2 rounded-lg bg-white/80 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleSignupToSave}
+                  disabled={isSaving}
+                >
+                  {"Signup to save"}
+                </button>
+              )}
 
               <button
                 onClick={() =>
