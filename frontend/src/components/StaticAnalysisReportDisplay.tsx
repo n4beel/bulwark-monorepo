@@ -379,12 +379,12 @@ export default function StaticAnalysisReportDisplay({
                     <HotspotsCard
                       findings={{
                         totalFindings:
-                          report?.result?.hotspots?.totalCount || 0,
+                          report?.report?.hotspots?.totalCount || 0,
                         severityCounts: {
-                          high: report?.result?.hotspots?.highRiskCount || 0,
+                          high: report?.report?.hotspots?.highRiskCount || 0,
                           medium:
-                            report?.result?.hotspots?.mediumRiskCount || 0,
-                          low: report?.result?.hotspots?.lowPriorityCount || 0,
+                            report?.report?.hotspots?.mediumRiskCount || 0,
+                          low: report?.report?.hotspots?.lowPriorityCount || 0,
                         },
                       }}
                     />
@@ -392,7 +392,7 @@ export default function StaticAnalysisReportDisplay({
 
                   {/* 35% width */}
                   <div className="w-[40%] h-[150px]">
-                    <AuditEffortCard estimate={report?.result.auditEffort} />
+                    <AuditEffortCard estimate={report?.report.auditEffort} />
                   </div>
                 </div>
 

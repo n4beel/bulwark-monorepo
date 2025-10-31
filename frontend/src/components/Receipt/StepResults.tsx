@@ -87,7 +87,9 @@ export default function StepResults({ report }: any) {
           <p>
             Receipt ID:{" "}
             <span className=" cursor-default">
-              {report?.receiptId ?? "A54D7S846"}
+              {(report?.report?.receiptId ?? "").length > 8
+                ? `${(report?.report?.receiptId ?? "").slice(0, 8)}...`
+                : report?.report?.receiptId ?? ""}
             </span>
           </p>
 
@@ -95,7 +97,7 @@ export default function StepResults({ report }: any) {
             <p>
               Bound to commit:{" "}
               <a
-                href={report?.hrefUrl}
+                href={report?.report?.hrefUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline text-[var(--blue-primary)] hover:text-[var(--blue-hover)] cursor-pointer"
@@ -118,7 +120,7 @@ export default function StepResults({ report }: any) {
 
         {/* Audit Effort Units */}
         <div className="w-[60%]">
-          <AuditEffortCard estimate={report?.result.auditEffort} />
+          <AuditEffortCard estimate={report?.report.auditEffort} />
         </div>
       </div>
 
@@ -126,11 +128,11 @@ export default function StepResults({ report }: any) {
       <div className="mt-2">
         <HotspotsCard
           findings={{
-            totalFindings: report?.result?.hotspots?.totalCount || 0,
+            totalFindings: report?.report?.hotspots?.totalCount || 0,
             severityCounts: {
-              high: report?.result?.hotspots?.highRiskCount || 0,
-              medium: report?.result?.hotspots?.mediumRiskCount || 0,
-              low: report?.result?.hotspots?.lowPriorityCount || 0,
+              high: report?.report?.hotspots?.highRiskCount || 0,
+              medium: report?.report?.hotspots?.mediumRiskCount || 0,
+              low: report?.report?.hotspots?.lowPriorityCount || 0,
             },
           }}
         />

@@ -376,7 +376,7 @@ export interface StaticAnalysisReport {
   language: string;
   framework: string;
   scores: Scores;
-  result: Result;
+  report: Result;
   static_analysis_scores: StaticAnalysisScores;
   analysis_engine: string;
   analyzer_version: string;
