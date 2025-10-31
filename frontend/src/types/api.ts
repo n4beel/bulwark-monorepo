@@ -418,7 +418,6 @@ export interface Result {
 //   totalCost: number;
 // }
 
-  
 export interface AuditEffort {
   lowerAuditEffort: {
     timeRange: {
@@ -429,7 +428,7 @@ export interface AuditEffort {
     costRange: {
       minimumCost: number;
       maximumCost: number;
-      };
+    };
   };
   upperAuditEffort: {
     timeRange: {
@@ -439,10 +438,11 @@ export interface AuditEffort {
 
     resources: number;
     costRange: {
-      minimumCost: number;  
+      minimumCost: number;
       maximumCost: number;
     };
-  }
+  };
+}
 export interface Hotspots {
   totalCount: number;
   highRiskCount: number;
