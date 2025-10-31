@@ -9,6 +9,14 @@ type Props = { report?: StaticAnalysisReport };
 const fmt = (n?: number | null, suffix: string = "") =>
   n == null || isNaN(n) ? `0${suffix}` : `${n}${suffix}`;
 
+const formatCost = (cost?: number | null) => {
+  if (cost == null || isNaN(cost)) return "0";
+  if (cost >= 1000000)
+    return `${(cost / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (cost >= 1000) return `${(cost / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+  return `${cost}`;
+};
+
 export default function AuditEffortCard({ report }: Props) {
   const lower = report?.report?.lowerAuditEffort;
   const upper = report?.report?.upperAuditEffort;
@@ -38,8 +46,7 @@ export default function AuditEffortCard({ report }: Props) {
       {/* Table */}
       <div className="relative w-full overflow-hidden">
         {/* Header Icons Row */}
-        <div className="grid grid-cols-3 py-2  bg-[var(--gray-light)]/30 text-[11px] text-[var(--text-secondary)] px-3">
-          {/* <span></span> */}
+        <div className="grid grid-cols-3 py-2 bg-[var(--gray-light)]/30 text-[11px] text-[var(--text-secondary)] px-3">
           <Image src="/icons/Clock.svg" width={14} height={14} alt="time" />
           <Image src="/icons/Peoples.svg" width={14} height={14} alt="team" />
           <Image
@@ -51,36 +58,33 @@ export default function AuditEffortCard({ report }: Props) {
         </div>
 
         {/* Standard Row */}
-        <div className="grid grid-cols-3  border-t border-[var(--border-color)] px-3 items-center">
-          {/* <Image src="/icons/Cube.svg" width={50} height={40} alt="" /> */}
+        <div className="grid grid-cols-3 border-t border-[var(--border-color)] px-3 items-center">
           <p className="font-medium">
             {fmt(lower?.timeRange?.minimumDays)}–
             {fmt(lower?.timeRange?.maximumDays, "d")}
           </p>
           <p className="font-medium">{fmt(lower?.resources)}</p>
           <p className="font-medium">
-            ${fmt(lower?.costRange?.minimumCost, "K")}–
-            {fmt(lower?.costRange?.maximumCost, "K")}
+            ${formatCost(lower?.costRange?.minimumCost)}–
+            {formatCost(lower?.costRange?.maximumCost)}
           </p>
         </div>
 
         {/* Forensic Row */}
         <div className="grid grid-cols-3 border-t border-[var(--border-color)] px-3 items-center">
-          {/* <Image src="/icons/BgDiamond.svg" width={50} height={40} alt="" /> */}
           <p className="font-medium">
             {fmt(upper?.timeRange?.minimumDays)}–
             {fmt(upper?.timeRange?.maximumDays, "d")}
           </p>
           <p className="font-medium">{fmt(upper?.resources)}</p>
           <p className="font-medium">
-            ${fmt(upper?.costRange?.minimumCost, "K")}–
-            {fmt(upper?.costRange?.maximumCost, "K")}
+            ${formatCost(upper?.costRange?.minimumCost)}–
+            {formatCost(upper?.costRange?.maximumCost)}
           </p>
         </div>
 
         {/* Footer */}
         <div className="grid grid-cols-3 text-[10px] text-[var(--text-secondary)] border-t border-[var(--border-color)] py-2 px-3">
-          {/* <span></span> */}
           <span>p50 to p80</span>
           <span>p50 to p80</span>
           <span>±20% variance</span>
