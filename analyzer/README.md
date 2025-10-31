@@ -1,4 +1,4 @@
-# MySecurity Rust Analyzer
+# Bulwark Rust Analyzer
 
 > **Comprehensive semantic static analysis for Solana/Anchor smart contracts**
 
@@ -237,7 +237,7 @@ cargo check
 
 ## 🌐 Integration
 
-This analyzer is part of the larger **MySecurity** ecosystem:
+This analyzer is part of the larger **Bulwark** ecosystem:
 
 ```
 User → NestJS Server → Rust Analyzer → AI Model (Python)
