@@ -120,7 +120,7 @@ export default function StepResults({ report }: any) {
 
         {/* Audit Effort Units */}
         <div className="w-[60%]">
-          <AuditEffortCard estimate={report?.report.auditEffort} />
+          <AuditEffortCard report={report} />
         </div>
       </div>
 

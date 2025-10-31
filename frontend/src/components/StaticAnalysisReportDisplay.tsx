@@ -392,7 +392,7 @@ export default function StaticAnalysisReportDisplay({
 
                   {/* 35% width */}
                   <div className="w-[40%] h-[150px]">
-                    <AuditEffortCard estimate={report?.report.auditEffort} />
+                    <AuditEffortCard report={report} />
                   </div>
                 </div>
 

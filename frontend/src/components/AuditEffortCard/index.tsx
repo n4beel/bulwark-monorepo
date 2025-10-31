@@ -2,16 +2,16 @@
 
 import Image from "next/image";
 import Tooltip from "../ui/ToolTip";
-import { AuditEffort } from "@/types/api";
+import { AuditEffort, StaticAnalysisReport } from "@/types/api";
 
-type Props = { estimate?: AuditEffort };
+type Props = { report?: StaticAnalysisReport };
 
 const fmt = (n?: number | null, suffix: string = "") =>
   n == null || isNaN(n) ? `0${suffix}` : `${n}${suffix}`;
 
-export default function AuditEffortCard({ estimate }: Props) {
-  const lower = estimate?.lowerAuditEffort;
-  const upper = estimate?.upperAuditEffort;
+export default function AuditEffortCard({ report }: Props) {
+  const lower = report?.report?.lowerAuditEffort;
+  const upper = report?.report?.upperAuditEffort;
 
   return (
     <div className="relative rounded-xl border border-[var(--blue-primary)] bg-white py-2">
