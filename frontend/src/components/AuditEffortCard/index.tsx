@@ -2,94 +2,88 @@
 
 import Image from "next/image";
 import Tooltip from "../ui/ToolTip";
+import { AuditEffort } from "@/types/api";
 
-type Estimate = {
-  days?: [number, number]; // p50 – p90 window
-  devs?: [number, number]; // people range
-  cost?: number; // USD cost estimate
-  variance?: number; // %
-};
+type Props = { estimate?: AuditEffort };
 
-type Props = {
-  estimate?: Estimate;
-};
+const fmt = (n?: number | null, suffix: string = "") =>
+  n == null || isNaN(n) ? `0${suffix}` : `${n}${suffix}`;
 
-export default function AuditEffortCard({
-  estimate = {
-    days: [12, 19],
-    devs: [1, 2],
-    cost: 18000,
-    variance: 20,
-  },
-}: Props) {
-  const daysText = estimate.days?.join("–") ?? "12–19";
-  const devsText = estimate.devs?.join("–") ?? "1–2";
-  const costText = Intl.NumberFormat().format(estimate.cost ?? 18000);
-  const varianceText = estimate.variance ?? 20;
-  // border-[var(--border-color)]
+export default function AuditEffortCard({ estimate }: Props) {
+  const lower = estimate?.lowerAuditEffort;
+  const upper = estimate?.upperAuditEffort;
+
   return (
-    <div className="flex flex-col justify-around p-3 rounded-lg border  border-[var(--border-color)]  relative w-full h-full">
+    <div className="relative rounded-xl border border-[var(--blue-primary)] bg-white py-2">
+      <div className="absolute inset-0 bg-[url('/images/DotPattern.svg')] opacity-10 pointer-events-none" />
+
       {/* Header */}
-      <div className="flex justify-between text-xs text-[var(--text-secondary)]">
-        <span>Audit Effort Units (time/resources/cost)</span>
-        <Tooltip text="Calculated from similar code reviews with average developer velocity.">
+      <div className="relative flex items-center justify-between text-xs mb-3 px-3">
+        <div className="text-[var(--text-secondary)] font-normal text-sm">
+          Audit Effort Units{" "}
+          <span className="text-[10px]">(time/resources/cost)</span>
+        </div>
+
+        <Tooltip text="Calibration based on similar code we've seen & stability.">
           <Image
             src="/icons/InfoIcon.svg"
-            alt="i"
             width={14}
             height={14}
+            alt="info"
             className="cursor-pointer"
           />
         </Tooltip>
       </div>
 
-      {/* Three sections */}
-      <div className="flex items-start justify-between">
-        {/* Time */}
-        <div className="flex-1 flex flex-col items-start text-left">
-          <Image
-            src="/icons/Clock.svg"
-            alt="time"
-            width={18}
-            height={18}
-            className="mb-1"
-          />
-          <p className="font-normal text-3xl">{daysText}d</p>
-          <p className="text-[10px] text-[var(--text-secondary)]">p50 to p90</p>
-        </div>
-
-        {/* Divider */}
-        <div className="h-10 w-px bg-[var(--border-color)] mx-3 opacity-60" />
-
-        {/* Devs */}
-        <div className="flex-1 flex flex-col items-start text-left">
-          <Image
-            src="/icons/Peoples.svg"
-            alt="team"
-            width={18}
-            height={18}
-            className="mb-1"
-          />
-          <p className="font-normal text-3xl">{devsText}</p>
-          <p className="text-[10px] text-[var(--text-secondary)]">p50 to p90</p>
-        </div>
-
-        {/* Divider */}
-        <div className="h-10 w-px bg-[var(--border-color)] mx-3 opacity-100" />
-
-        {/* Cost */}
-        <div className="flex-1 flex flex-col items-start text-left pl-2">
+      {/* Table */}
+      <div className="relative w-full overflow-hidden">
+        {/* Header Icons Row */}
+        <div className="grid grid-cols-4 py-2  bg-[var(--gray-light)]/30 text-[11px] text-[var(--text-secondary)] px-3">
+          <span></span>
+          <Image src="/icons/Clock.svg" width={14} height={14} alt="time" />
+          <Image src="/icons/Peoples.svg" width={14} height={14} alt="team" />
           <Image
             src="/icons/CurrencyCircleDollar.svg"
+            width={14}
+            height={14}
             alt="cost"
-            width={18}
-            height={18}
-            className="mb-1"
           />
-          <p className="font-normal text-3xl">${costText}</p>
-          <p className="text-[10px] text-[var(--text-secondary)]">
-            ±{varianceText}% variance
+        </div>
+
+        {/* Standard Row */}
+        <div className="grid grid-cols-4  border-t border-[var(--border-color)] px-0 items-center">
+          <Image src="/icons/Cube.svg" width={30} height={30} alt="" />
+          <p className="font-medium">
+            {fmt(lower?.timeRange?.minimumDays)}–
+            {fmt(lower?.timeRange?.maximumDays, "d")}
           </p>
+          <p className="font-medium">{fmt(lower?.resources)}</p>
+          <p className="font-medium">
+            ${fmt(lower?.costRange?.minimumCost, "K")}–
+            {fmt(lower?.costRange?.maximumCost, "K")}
+          </p>
+        </div>
+
+        {/* Forensic Row */}
+        <div className="grid grid-cols-4 border-t border-[var(--border-color)] px-0 items-center">
+          <Image src="/icons/BgDiamond.svg" width={30} height={30} alt="" />
+          <p className="font-medium">
+            {fmt(upper?.timeRange?.minimumDays)}–
+            {fmt(upper?.timeRange?.maximumDays, "d")}
+          </p>
+          <p className="font-medium">{fmt(upper?.resources)}</p>
+          <p className="font-medium">
+            ${fmt(upper?.costRange?.minimumCost, "K")}–
+            {fmt(upper?.costRange?.maximumCost, "K")}
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="grid grid-cols-4 text-[10px] text-[var(--text-secondary)] border-t border-[var(--border-color)] py-2 px-3">
+          <span></span>
+          <span>p50 to p80</span>
+          <span>p50 to p80</span>
+          <span>±20% variance</span>
         </div>
       </div>
     </div>

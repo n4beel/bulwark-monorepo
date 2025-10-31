@@ -12,13 +12,12 @@ import DashboardHeroHeader from "./Hero/DashboardHeroHeader";
 
 interface DashboardTabsProps {
   handlers: {
-    onConnectGitHub: () => void;
+    onConnectGitHub: (redirectPath?: string, mode?: "auth" | "connect") => void;
     onUploadZip: () => void;
     onAnalyze: (input: string) => void;
   };
-  initialReportId?: string; // Pass this from URL params if needed
+  initialReportId?: string;
 }
-
 enum Tab {
   ANALYZE = "analyze",
   REPORTS = "reports",
@@ -66,10 +65,18 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
   const handleBackToReports = () => {
     setSelectedReport(null);
     setActiveTab(Tab.REPORTS);
+    // replace router with dashboard url without report param
+    window.history.replaceState({}, "", "/dashboard");
   };
 
   const handleNewAnalysis = () => {
     setActiveTab(Tab.ANALYZE);
+  };
+  const dashboardHandlers = {
+    // ✅ For "Connect GitHub" button - mode: "connect"
+    onConnectGitHub: () => handlers.onConnectGitHub("/dashboard", "connect"),
+    onUploadZip: handlers.onUploadZip,
+    onAnalyze: handlers.onAnalyze,
   };
 
   // // Modified ReportsPage wrapper to handle report selection
@@ -92,9 +99,9 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
         {activeTab === Tab.ANALYZE && (
           <div className="w-4/6 mx-auto">
             <RepoInputSection
-              onConnectGitHub={handlers.onConnectGitHub}
-              onUploadZip={handlers.onUploadZip}
-              onAnalyze={handlers.onAnalyze}
+              onConnectGitHub={dashboardHandlers.onConnectGitHub} // ✅ Uses "connect" mode
+              onUploadZip={dashboardHandlers.onUploadZip}
+              onAnalyze={dashboardHandlers.onAnalyze}
               showStats={false}
               compact={true}
             />
@@ -165,6 +172,7 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
                 key={tab.id}
                 onClick={() => {
                   if (tab.id !== Tab.MARKETPLACE) setActiveTab(tab.id);
+                  window.history.replaceState({}, "", "/dashboard");
                 }}
                 disabled={tab.id === Tab.MARKETPLACE}
                 className={`px-6 py-3 rounded-full font-normal transition-all 

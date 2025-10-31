@@ -16,7 +16,6 @@ export default function ReportDetailPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    console.log("Report ID from params:", params);
     if (params.id) {
       loadReport(params.id as string);
     }
@@ -26,7 +25,7 @@ export default function ReportDetailPage() {
     try {
       setIsLoading(true);
       setError("");
-      console.log("Loading report with ID:", reportId);
+
       // Get all reports and find the one with matching ID
       const report = await staticAnalysisApi.getReportById(reportId);
 
@@ -37,7 +36,6 @@ export default function ReportDetailPage() {
       }
     } catch (err) {
       setError("Failed to load report. Please try again.");
-      console.error("Error loading report:", err);
     } finally {
       setIsLoading(false);
     }

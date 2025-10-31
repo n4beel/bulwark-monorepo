@@ -406,18 +406,43 @@ export interface Result {
   receiptId: string;
 }
 
-export interface AuditEffort {
-  timeRange: {
-    minimumDays: number;
-    maximumDays: number;
-  };
-  resourceRange: {
-    minimumCount: number;
-    maximumCount: number;
-  };
-  totalCost: number;
-}
+// export interface AuditEffort {
+//   timeRange: {
+//     minimumDays: number;
+//     maximumDays: number;
+//   };
+//   resourceRange: {
+//     minimumCount: number;
+//     maximumCount: number;
+//   };
+//   totalCost: number;
+// }
 
+  
+export interface AuditEffort {
+  lowerAuditEffort: {
+    timeRange: {
+      minimumDays: number;
+      maximumDays: number;
+    };
+    resources: number;
+    costRange: {
+      minimumCost: number;
+      maximumCost: number;
+      };
+  };
+  upperAuditEffort: {
+    timeRange: {
+      minimumDays: number;
+      maximumDays: number;
+    };
+
+    resources: number;
+    costRange: {
+      minimumCost: number;  
+      maximumCost: number;
+    };
+  }
 export interface Hotspots {
   totalCount: number;
   highRiskCount: number;

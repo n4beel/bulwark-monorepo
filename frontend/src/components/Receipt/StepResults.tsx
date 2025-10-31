@@ -26,7 +26,7 @@ export default function StepResults({ report }: any) {
       }}
     >
       {/* Top Chips */}
-      <div className="flex gap-2 flex-wrap mb-4">
+      <div className="flex gap-0 flex-wrap mb-2">
         <Chip
           label="Encrypted by Arcium"
           iconSrc="https://res.cloudinary.com/ahmed8215/image/upload/Arcium_jqbxu1.svg"
@@ -38,8 +38,8 @@ export default function StepResults({ report }: any) {
       </div>
 
       {/* Success Section */}
-      <div className="mt-2 flex flex-col items-center text-center">
-        <div className="w-14 h-14 rounded-full bg-[var(--green-light)] flex items-center justify-center">
+      <div className=" flex flex-col items-center text-center">
+        <div className="w-12 h-12 rounded-full bg-[var(--green-light)] flex items-center justify-center">
           <Image
             src="/icons/GreenCheck.svg"
             alt="done"
@@ -47,7 +47,7 @@ export default function StepResults({ report }: any) {
             height={28}
           />
         </div>
-        <h2 className="mt-3 text-[18px] font-semibold text-[var(--text-primary)]">
+        <h2 className=" text-[18px] font-semibold text-[var(--text-primary)]">
           Scan complete!
         </h2>
 
@@ -108,43 +108,33 @@ export default function StepResults({ report }: any) {
       </div>
 
       {/* MAIN GRID */}
-      <div className="flex flex-row gap-1 mt-3 p-3 rounded-xl border border-[var(--border-color)] bg-[var(--background)]">
+      <div className="flex flex-row gap-1  p-3 rounded-xl border border-[var(--border-color)] bg-[var(--background)]">
         {/* Complexity Card */}
-        <div className="w-[40%]">
+        <div className="w-[30%]">
           <ComplexityCard
             complexityScore={Number(report?.scores?.total) || 0}
           />
         </div>
 
         {/* Audit Effort Units */}
-
-        <AuditEffortCard
-          estimate={{
-            days: [
-              report?.result?.auditEffort?.timeRange?.minimumDays ?? 0,
-              report?.result?.auditEffort?.timeRange?.maximumDays ?? 0,
-            ],
-            devs: [
-              report?.result?.auditEffort?.resourceRange?.minimumCount ?? 0,
-              report?.result?.auditEffort?.resourceRange?.maximumCount ?? 0,
-            ],
-            cost: report?.result?.auditEffort?.totalCost ?? 0,
-            variance: 20, // or calculate dynamically if you have that info
-          }}
-        />
+        <div className="w-[70%]">
+          <AuditEffortCard estimate={report?.result.auditEffort} />
+        </div>
       </div>
 
       {/* Hotspots - Use real data if available */}
-      <HotspotsCard
-        findings={{
-          totalFindings: report?.result?.hotspots?.totalCount || 0,
-          severityCounts: {
-            high: report?.result?.hotspots?.highRiskCount || 0,
-            medium: report?.result?.hotspots?.mediumRiskCount || 0,
-            low: report?.result?.hotspots?.lowPriorityCount || 0,
-          },
-        }}
-      />
+      <div className="mt-2">
+        <HotspotsCard
+          findings={{
+            totalFindings: report?.result?.hotspots?.totalCount || 0,
+            severityCounts: {
+              high: report?.result?.hotspots?.highRiskCount || 0,
+              medium: report?.result?.hotspots?.mediumRiskCount || 0,
+              low: report?.result?.hotspots?.lowPriorityCount || 0,
+            },
+          }}
+        />
+      </div>
 
       <Image
         src="/icons/Wave.svg"

@@ -1,11 +1,16 @@
 import { authApi } from "@/services/api";
 
-export const handleGitHubLogin = async () => {
+export const handleGitHubLogin = async (
+  redirectPath?: string,
+  mode: "auth" | "connect" = "auth"
+) => {
   try {
-    const { authUrl } = await authApi.getGitHubAuthUrl();
-    // console.log("Redirecting to GitHub OAuth URL:", authUrl);
+    const from = redirectPath || window.location.pathname;
+
+    const { authUrl } = await authApi.getGitHubAuthUrl(from, mode);
+
     window.location.href = authUrl;
   } catch (error) {
-    console.error("GitHub login failed:", error);
+    throw error;
   }
 };

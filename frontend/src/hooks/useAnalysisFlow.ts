@@ -1,9 +1,4 @@
-// hooks/useAnalysisFlows.ts (SIMPLE & CLEAN)
-/**
- * Simple hook that manages ALL analysis flows
- * No duplicate state needed in components
- */
-
+// hooks/useAnalysisFlows.ts
 import { useState, useEffect } from "react";
 import { useUploadFlow } from "@/hooks";
 import { GitHubFlowStep, useGitHubFlow } from "@/hooks/useGitHubFlow";
@@ -46,39 +41,12 @@ export const useAnalysisFlows = () => {
   const [openResults, setOpenResults] = useState(false);
   const [resultsReport, setResultsReport] = useState<any>(null);
 
-  // OAuth Callback Handler
-  const [hasInitialized, setHasInitialized] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && !hasInitialized) {
-      setHasInitialized(true);
-
-      const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get("token");
-      const userStr = urlParams.get("user");
-
-      if (token && userStr) {
-        try {
-          const user = JSON.parse(decodeURIComponent(userStr));
-          localStorage.setItem("github_token", token);
-          localStorage.setItem("github_user", JSON.stringify(user));
-
-          // Open GitHub flow modal
-          handleAuthSuccess(token);
-
-          // Clean URL
-          const currentPath = window.location.pathname;
-          window.history.replaceState({}, "", currentPath);
-        } catch (err) {
-          console.error("Error parsing OAuth response:", err);
-        }
-      }
-    }
-  }, [hasInitialized, handleAuthSuccess]);
-
   // Entry point handlers
-  const handleConnectGitHub = () => {
-    handleGitHubLogin();
+  const handleConnectGitHub = (
+    redirectPath = "/",
+    mode: "auth" | "connect" = "auth"
+  ) => {
+    handleGitHubLogin(redirectPath, mode); // ✅ Pass mode parameter
   };
 
   const handleUploadZip = () => {
@@ -99,7 +67,7 @@ export const useAnalysisFlows = () => {
       size: 0,
       language: "Rust",
     }));
-    // ✅ Set GitHubFlow Repo
+
     selectRepository(
       {
         id: 0,
@@ -109,12 +77,9 @@ export const useAnalysisFlows = () => {
         private: false,
       },
       files
-    ); // IMPORTANT ✅
+    );
 
-    // ✅ Set files into GitHubFlow
     setContractFiles(files);
-
-    // ✅ Open modal file selection UI
     setStep(GitHubFlowStep.FILE_SELECT);
   };
 
@@ -146,6 +111,8 @@ export const useAnalysisFlows = () => {
       runAnalysis: runGithubAnalysis,
       completeAnalysis: completeGithubAnalysis,
       resetFlow: resetGithubFlow,
+      handleAuthSuccess,
+      setStep,
     },
 
     // Results Modal
@@ -158,7 +125,7 @@ export const useAnalysisFlows = () => {
 
     // Entry point handlers
     handlers: {
-      onConnectGitHub: handleConnectGitHub,
+      onConnectGitHub: handleConnectGitHub, // ✅ Now accepts mode parameter
       onUploadZip: handleUploadZip,
       onAnalyze: handleAnalyze,
     },

@@ -227,7 +227,7 @@ export default function StepAnalysisProgress({
       {/* Top banner */}
       <div className="rounded-2xl   p-6 mb-6">
         <div className="flex flex-col items-center">
-          <p className="text-sm font-medium text-[var(--text-primary)] mb-3">
+          <p className="text-2xl font-normal text-[var(--text-primary)] mb-2">
             Running encrypted analysis on Arcium
           </p>
           <video
@@ -240,7 +240,7 @@ export default function StepAnalysisProgress({
             <source src="/videos/AnalyzerLoader.webm" type="video/webm" />
           </video>
           <p className="text-xs text-[var(--text-secondary)] mt-3">
-            Running encrypted analysis on Arcium
+            Most scans finish in under 2 minutes.
           </p>
         </div>
 
@@ -264,7 +264,7 @@ export default function StepAnalysisProgress({
       </div>
 
       {/* Stages list */}
-      <div className="space-y-3 mb-6">
+      <div className="space-y-3 mb-4">
         {STAGES.map((stage, i) => {
           const state = stageState(i);
           return (

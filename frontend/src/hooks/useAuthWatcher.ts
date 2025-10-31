@@ -19,7 +19,7 @@ export default function useAuthWatcher() {
           })
         );
       } else {
-        dispatch(setUser(null));
+        // dispatch(setUser(null));
       }
     });
     return () => unsub();

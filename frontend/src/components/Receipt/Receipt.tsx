@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import StepResults from "./StepResults";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
+import { staticAnalysisApi } from "@/services/api"; // ✅ Import the API
+import { handleGitHubLogin } from "@/utils/auth";
 
 type Props = {
   open: boolean;
@@ -20,17 +22,50 @@ export default function ReceiptModal({
   onClose,
   onViewDetailed,
 }: Props) {
+  const { user } = useSelector((state: RootState) => state.auth);
   const router = useRouter();
+  const [isSaving, setIsSaving] = useState(false);
 
   if (!open || !report) return null;
 
-  const { user } = useSelector((state: RootState) => state.auth);
-
   const oid = typeof report?._id === "string" ? report._id : report?._id?.$oid;
+
+  // // ✅ Handle save to reports
+  // const handleSaveToReports = async () => {
+  //   if (!user) {
+  //     // Redirect to login/signup
+  //     router.push("/dashboard");
+  //     return;
+  //   }
+
+  //   if (!oid) {
+  //     console.error("No report ID found");
+  //     return;
+  //   }
+
+  //   try {
+  //     setIsSaving(true);
+  //     await staticAnalysisApi.associateReport(oid);
+
+  //     // Success! Navigate to dashboard
+  //     router.push("/dashboard");
+  //     onClose();
+  //     onViewDetailed?.(oid);
+  //   } catch (error) {
+  //     console.error("Failed to save report:", error);
+  //     // Optionally show error toast/notification
+  //   } finally {
+  //     setIsSaving(false);
+  //   }
+  // };
+
+  const handleSignupToSave = () => {
+    handleGitHubLogin(`/dashboard?report=${oid}`, "auth");
+  };
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center overflow-hidden">
-      <div className="relative w-full max-w-[720px] h-[700px]">
+      <div className="relative w-full max-w-[660px] h-[700px]">
         {/* Close */}
         <button
           onClick={onClose}
@@ -56,7 +91,6 @@ export default function ReceiptModal({
             borderColor: "var(--blue-secondary)",
             borderTopLeftRadius: "20px",
             borderTopRightRadius: "20px",
-            // backgroundColor: "#FFFFFF",
           }}
         >
           {/* Scrollable results */}
@@ -72,28 +106,16 @@ export default function ReceiptModal({
               backgroundRepeat: "no-repeat",
               backgroundPosition: "center bottom",
               backgroundSize: "100% auto",
-              marginTop: "-6px", // ✅ brings scallops INTO view, not clipped
+              marginTop: "-6px",
             }}
           >
-            <div className="px-6 py-4 flex justify-end gap-3 backdrop-blur-sm">
+            <div className="px-6 py-2 flex justify-end gap-2 backdrop-blur-sm">
               <button
-                className="border px-4 flex py-2 rounded-lg bg-white/80 cursor-pointer"
-                onClick={() => router.push("/dashboard")}
+                className="border px-4 flex py-2 rounded-lg bg-white/80 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleSignupToSave}
+                disabled={isSaving}
               >
-                {user ? (
-                  <>
-                    Save to my reports
-                    <Image
-                      src="/icons/CloudStorage.svg"
-                      alt="done"
-                      width={20}
-                      height={20}
-                      className="ml-2"
-                    />
-                  </>
-                ) : (
-                  "Signup to save"
-                )}
+                {!user && "Signup to save"}
               </button>
 
               <button

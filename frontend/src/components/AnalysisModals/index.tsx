@@ -70,6 +70,9 @@ const AnalysisModals = ({
         open={results.isOpen}
         report={results.report}
         onClose={() => results.setOpen(false)}
+        onViewDetailed={(report: any) => {
+          results.setOpen(false);
+        }}
       />
     </>
   );

@@ -9,10 +9,10 @@ import DashboardHero from "@/components/Dashboard/Hero";
 import Loading from "@/components/Loading";
 import AuthModal from "@/components/auth/AuthModal";
 import { logout } from "@/store/slices/authSlice";
+import { GitHubFlowStep, useGitHubFlow } from "@/hooks/useGitHubFlow";
 
 export default function DashboardPageContent() {
   const router = useRouter();
-  const dispatch = useDispatch();
   const searchParams = useSearchParams();
   const reportId = searchParams.get("report");
   const { user, loading } = useSelector((state: RootState) => state.auth);

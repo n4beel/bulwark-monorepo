@@ -21,12 +21,14 @@ import { staticAnalysisApi } from "@/services/api";
 import StaticAnalysisReportDisplay from "@/components/StaticAnalysisReportDisplay";
 import ExportModal from "@/components/ExportModal";
 import { getScoreColor } from "@/utils";
+import Image from "next/image";
 
 interface ReportsPageProps {
   onReportSelect?: (reportId: string) => void;
   onNewAnalysis?: () => void;
-  embedded?: boolean; // To know if it's embedded in dashboard
+  embedded?: boolean;
 }
+
 const ReportsPage = ({
   onReportSelect,
   onNewAnalysis,
@@ -75,6 +77,50 @@ const ReportsPage = ({
     return Number((total / values.length).toFixed(1));
   };
 
+  const filterAndSortReports = useCallback(() => {
+    // Filter reports
+    const filtered = reports.filter(
+      (report) =>
+        report.repository.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        report.language.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        report.framework.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // Sort reports
+    filtered.sort((a, b) => {
+      let aValue: string | number | Date, bValue: string | number | Date;
+
+      switch (sortBy) {
+        case "date":
+          aValue = new Date(a.createdAt);
+          bValue = new Date(b.createdAt);
+          break;
+        case "score":
+          aValue = getOverallScore(a);
+          bValue = getOverallScore(b);
+          break;
+        case "repository":
+          aValue = a.repository.toLowerCase();
+          bValue = b.repository.toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+
+      if (sortOrder === "asc") {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    setFilteredReports(filtered);
+  }, [reports, searchTerm, sortBy, sortOrder]);
+
+  useEffect(() => {
+    filterAndSortReports();
+  }, [filterAndSortReports]);
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -83,12 +129,6 @@ const ReportsPage = ({
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 8) return "text-green-600";
-    if (score >= 6) return "text-yellow-600";
-    return "text-red-600";
   };
 
   if (isLoading) {
@@ -114,19 +154,43 @@ const ReportsPage = ({
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
+      <div className="bg-white   p-0 mb-2 flex justify-between w-full">
+        <div className="flex flex-col md:flex-row gap-4 w-[90%]">
+          <div className="w-2/4 ">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search reports..."
+                placeholder="Search reports by repository, language, or framework..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
+          <div className="flex gap-2">
+            <select
+              value={sortBy}
+              onChange={(e) =>
+                setSortBy(e.target.value as "date" | "score" | "repository")
+              }
+              className="px-4 py-0 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="date">Sort by Date</option>
+              <option value="score">Sort by Score</option>
+              <option value="repository">Sort by Repository</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="w-fit">
+          <span className="py-1  font-normal text-[var(--blue-primary)] text-sm rounded cursor-pointer">
+            Select All
+          </span>
+          {/* Delete */}
+          <span className="ml-2  py-1 font-normal text-red-600 text-sm rounded cursor-pointer">
+            Delete
+          </span>
         </div>
       </div>
 
@@ -136,6 +200,11 @@ const ReportsPage = ({
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               No reports found
             </h3>
+            <p className="text-gray-600 mb-4">
+              {searchTerm
+                ? "No reports match your search criteria."
+                : "You haven't generated any analysis reports yet."}
+            </p>
             <button
               onClick={onNewAnalysis}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -162,30 +231,45 @@ const ReportsPage = ({
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <h3 className="text-xl font-semibold text-gray-900">
-                    {report.repository}
-                  </h3>
+                  <div className="flex gap-2">
+                    <Image
+                      src="/icons/Code.svg"
+                      alt="code"
+                      width={20}
+                      height={20}
+                    />
+                    <h3 className="text-xl font-normal ">
+                      {report.repository}
+                    </h3>
+                  </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="px-2 py-1 bg-gray-100 text-gray-600 text-sm rounded">
+                    <span className="px-2 py-1 bg-gray-100 font-normal text-[var(--blue-primary)] text-sm rounded">
                       {report.language?.toUpperCase()}
-                    </span>
-                    <span className="px-2 py-1 bg-blue-100 text-blue-600 text-sm rounded">
-                      {report.framework}
                     </span>
                   </div>
                   <div className="text-sm text-gray-500 mt-2">
                     Created {formatDate(report.createdAt)}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div
-                    className={`text-2xl font-bold ${getScoreColor(
+                <div className="text-right flex flex-col items-end gap-2">
+                  <span className="text-sm text-gray-600">Overall Score</span>
+                  <span
+                    className={`text-2xl font-normal px-2 py-0 rounded-lg inline-block ${getScoreColor(
                       getOverallScore(report)
                     )}`}
                   >
                     {getOverallScore(report)}
-                  </div>
-                  <span className="text-sm text-gray-600">Overall Score</span>
+                  </span>
+                  <span className="text-sm text-[var(--blue-primary)] flex">
+                    view details
+                    <Image
+                      src={"/icons/ArrowRightDotted.svg"}
+                      alt="arrowright"
+                      width={10}
+                      height={10}
+                      className="ml-2"
+                    />
+                  </span>
                 </div>
               </div>
             </div>
@@ -195,4 +279,5 @@ const ReportsPage = ({
     </div>
   );
 };
+
 export default ReportsPage;

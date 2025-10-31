@@ -7,6 +7,8 @@ import {
   StaticAnalysisReport,
   StaticAnalysisDto,
 } from "@/types/api";
+import store from "@/store/store";
+import { logout } from "@/store/slices/authSlice";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -16,6 +18,43 @@ const api = axios.create({
     "Content-Type": "application/json",
   },
 });
+
+api.interceptors.request.use(
+  (config) => {
+    const state = store.getState();
+
+    const jwtToken = state.auth.jwtToken;
+
+    if (jwtToken) {
+      config.headers.Authorization = `Bearer ${jwtToken}`;
+    }
+
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem("github_token");
+      localStorage.removeItem("github_user");
+
+      store.dispatch(logout());
+
+      if (typeof window !== "undefined") {
+        window.location.href = "/dashboard";
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 export const scopingApi = {
   // Health check
@@ -60,6 +99,14 @@ export const staticAnalysisApi = {
     const response = await api.get(`/static-analysis/reports/${id}`);
     return response.data;
   },
+  associateReport: async (
+    reportId: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const response = await api.post(
+      `/static-analysis/reports/${reportId}/associate`
+    );
+    return response.data;
+  },
 
   // Export reports to CSV
   exportReportsCSV: async (
@@ -102,19 +149,32 @@ export const staticAnalysisApi = {
   },
 };
 
+// services/api.ts - Update the authApi section
+// services/api.ts (or wherever authApi is)
 export const authApi = {
-  // Get GitHub OAuth URL
-  getGitHubAuthUrl: async (): Promise<{ authUrl: string }> => {
-    // send header for ngrok
-    const currentPath = window.location.pathname;
-    const response = await api.get(
-      `/auth/github/url?from=${encodeURIComponent(currentPath)}`
-    );
-    console.log("GitHub Auth URL response:", response.data);
+  getGitHubAuthUrl: async (
+    redirectPath?: string,
+    mode?: "auth" | "connect"
+  ): Promise<{ authUrl: string }> => {
+    const currentPath = redirectPath || window.location.pathname;
+    const modeParam = mode || "auth";
+
+    // ✅ Extract reportId from URL if present
+    const urlParams = new URLSearchParams(window.location.search);
+    const reportId = urlParams.get("report");
+
+    // ✅ Build query string with mode and reportId (if present)
+    let queryString = `from=${encodeURIComponent(
+      currentPath
+    )}&mode=${modeParam}`;
+    if (reportId) {
+      queryString += `&reportId=${encodeURIComponent(reportId)}`;
+    }
+
+    const response = await api.get(`/auth/github/url?${queryString}`);
     return response.data;
   },
 
-  // Validate GitHub token
   validateToken: async (
     token: string
   ): Promise<{ valid: boolean; user?: unknown; error?: string }> => {

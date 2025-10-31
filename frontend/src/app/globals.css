@@ -235,3 +235,7 @@ select:focus {
   user-select: none;
   -webkit-touch-callout: none;
 }
+
+.border-blue {
+  border-color: var(--blue-primary) !important;
+}

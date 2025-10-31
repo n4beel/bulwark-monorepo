@@ -1,3 +1,4 @@
+// store/slices/authSlice.ts
 "use client";
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
@@ -10,11 +11,15 @@ export interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null;
+  githubToken: string | null; // ✅ Store GitHub token
+  jwtToken: string | null; // ✅ Store JWT token
   loading: boolean;
 }
 
 const initialState: AuthState = {
   user: null,
+  githubToken: null,
+  jwtToken: null,
   loading: true,
 };
 
@@ -26,12 +31,28 @@ const authSlice = createSlice({
       state.user = action.payload;
       state.loading = false;
     },
+    setTokens: (
+      state,
+      action: PayloadAction<{ githubToken?: string; jwtToken?: string }>
+    ) => {
+      if (action.payload.githubToken) {
+        state.githubToken = action.payload.githubToken;
+      }
+      if (action.payload.jwtToken) {
+        state.jwtToken = action.payload.jwtToken;
+      }
+    },
     logout: (state) => {
       state.user = null;
+      state.githubToken = null;
+      state.jwtToken = null;
       state.loading = false;
+    },
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
     },
   },
 });
 
-export const { setUser, logout } = authSlice.actions;
+export const { setUser, setTokens, logout, setLoading } = authSlice.actions;
 export default authSlice.reducer;

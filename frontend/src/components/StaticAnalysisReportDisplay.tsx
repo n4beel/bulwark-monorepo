@@ -34,7 +34,6 @@ export default function StaticAnalysisReportDisplay({
   onBack,
   onNewAnalysis,
 }: StaticAnalysisReportDisplayProps) {
-  console.log({ report });
   const [activeTab, setActiveTab] = useState<
     "scores" | "vulnerability" | "rust" | "ai"
   >("scores");
@@ -393,24 +392,7 @@ export default function StaticAnalysisReportDisplay({
 
                   {/* 35% width */}
                   <div className="w-[40%] h-[150px]">
-                    <AuditEffortCard
-                      estimate={{
-                        days: [
-                          report?.result?.auditEffort?.timeRange?.minimumDays ??
-                            0,
-                          report?.result?.auditEffort?.timeRange?.maximumDays ??
-                            0,
-                        ],
-                        devs: [
-                          report?.result?.auditEffort?.resourceRange
-                            ?.minimumCount ?? 0,
-                          report?.result?.auditEffort?.resourceRange
-                            ?.maximumCount ?? 0,
-                        ],
-                        cost: report?.result?.auditEffort?.totalCost ?? 0,
-                        variance: 20, // or calculate dynamically if you have that info
-                      }}
-                    />
+                    <AuditEffortCard estimate={report?.result.auditEffort} />
                   </div>
                 </div>
 
