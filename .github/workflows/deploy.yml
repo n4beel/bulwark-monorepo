@@ -120,6 +120,13 @@ jobs:
           # Copy built files
           cp -r ./backend/node_modules ${{ env.DEPLOY_PATH }}/backend/
           cp -r ./backend/dist ${{ env.DEPLOY_PATH }}/backend/
+          
+          # Copy the appropriate ecosystem config file
+          if [ "${{ steps.env.outputs.environment }}" == "production" ]; then
+            cp ./backend/ecosystem.production.config.js ${{ env.DEPLOY_PATH }}/backend/ecosystem.config.js
+          else
+            cp ./backend/ecosystem.staging.config.js ${{ env.DEPLOY_PATH }}/backend/ecosystem.config.js
+          fi
 
       - name: Deploy analyzer
         run: |
@@ -151,8 +158,25 @@ jobs:
       - name: Start backend with PM2
         run: |
           cd ${{ env.DEPLOY_PATH }}/backend
-          pm2 start npm --name "${{ env.PM2_APP_NAME }}" -- run start:prod
+          
+          # Verify files exist
+          echo "Checking backend deployment..."
+          ls -la
+          echo "Checking dist directory..."
+          ls -la dist/ || echo "dist directory not found!"
+          echo "Checking node_modules..."
+          ls -la node_modules/.bin/node || echo "node not found in node_modules!"
+          echo "Checking .env file..."
+          ls -la .env || echo ".env file not found!"
+          
+          # Start with ecosystem config
+          pm2 start ecosystem.config.js
           pm2 save
+          
+          echo "PM2 process started. Checking status..."
+          pm2 list
+          sleep 3
+          pm2 logs ${{ env.PM2_APP_NAME }} --lines 50 --nostream
 
       - name: Start analyzer service
         run: |
@@ -180,6 +204,18 @@ jobs:
           done
 
           echo "✗ Backend health check failed!"
+          echo "=== PM2 Status ==="
+          pm2 list
+          echo "=== PM2 Logs (last 100 lines) ==="
+          pm2 logs ${{ env.PM2_APP_NAME }} --lines 100 --nostream || true
+          echo "=== Backend Error Log ==="
+          tail -100 ${{ env.DEPLOY_PATH }}/logs/backend-error.log || echo "No error log found"
+          echo "=== Backend Out Log ==="
+          tail -100 ${{ env.DEPLOY_PATH }}/logs/backend-out.log || echo "No out log found"
+          echo "=== Checking if port is in use ==="
+          netstat -tuln | grep ${{ env.BACKEND_PORT }} || echo "Port ${{ env.BACKEND_PORT }} is not listening"
+          echo "=== Checking .env file ==="
+          ls -la ${{ env.DEPLOY_PATH }}/backend/.env || echo ".env file not found"
           exit 1
 
       - name: Health check - Analyzer

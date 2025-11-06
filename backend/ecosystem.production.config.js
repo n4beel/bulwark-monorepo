@@ -13,7 +13,6 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3000,
       },
-      env_file: '/home/azureuser/apps/production/backend/.env',
       error_file: '/home/azureuser/apps/production/logs/backend-error.log',
       out_file: '/home/azureuser/apps/production/logs/backend-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',

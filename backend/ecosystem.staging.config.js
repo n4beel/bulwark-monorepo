@@ -13,7 +13,6 @@ module.exports = {
         NODE_ENV: 'staging',
         PORT: 3001,
       },
-      env_file: '/home/azureuser/apps/staging/backend/.env',
       error_file: '/home/azureuser/apps/staging/logs/backend-error.log',
       out_file: '/home/azureuser/apps/staging/logs/backend-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
