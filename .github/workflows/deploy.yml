@@ -69,6 +69,7 @@ jobs:
         with:
           toolchain: stable
           cache: true
+          rustflags: ""
 
       - name: Create deployment directory
         run: |
