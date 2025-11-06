@@ -5,12 +5,21 @@ export type UserDocument = User & Document;
 
 @Schema({ timestamps: true })
 export class User {
-    @Prop({ required: true, unique: true })
-    githubId: number; // GitHub user ID
+    // GitHub OAuth fields
+    @Prop({ sparse: true, unique: true })
+    githubId?: number; // GitHub user ID
 
-    @Prop({ required: true })
-    githubUsername: string; // GitHub login
+    @Prop()
+    githubUsername?: string; // GitHub login
 
+    // Google OAuth fields
+    @Prop({ sparse: true, unique: true })
+    googleId?: string; // Google user ID
+
+    @Prop()
+    googleEmail?: string; // Google email
+
+    // Common fields
     @Prop()
     email?: string;
 
@@ -28,4 +37,15 @@ export class User {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+
+// Create compound index to ensure at least one OAuth provider is connected
+UserSchema.index(
+    { githubId: 1 },
+    { unique: true, sparse: true }
+);
+
+UserSchema.index(
+    { googleId: 1 },
+    { unique: true, sparse: true }
+);
 

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { GitHubService, RepositoryMetadata } from '../github/github.service';
 import { AIService, AuditEstimate } from '../ai/ai.service';
 
-export interface PreAuditReport {
+export class PreAuditReport {
   projectName: string;
   repositoryInfo: {
     name: string;

@@ -177,8 +177,7 @@ export interface ComplexityScores {
   };
 }
 
-export interface StaticAnalysisReport {
-  _id?: string;
+export class StaticAnalysisReport {
   repository: string;
   repositoryUrl: string;
   language: string;
@@ -257,10 +256,9 @@ export interface StaticAnalysisReport {
 
   createdAt: Date;
   updatedAt: Date;
-  __v?: number;
 }
 
-export interface StaticAnalysisReportDocument extends StaticAnalysisReport {
+export class StaticAnalysisReportDocument extends StaticAnalysisReport {
   _id: string;
   __v: number;
 }

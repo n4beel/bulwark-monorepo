@@ -20,7 +20,9 @@ import { JwtAuthGuard } from '../users/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../users/guards/optional-jwt-auth.guard';
 import { CurrentUser } from '../users/decorators/current-user.decorator';
 import { UserDocument } from '../users/schemas/user.schema';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('static-analysis')
 @Controller('static-analysis')
 export class StaticAnalysisController {
     private readonly logger = new Logger(StaticAnalysisController.name);
@@ -32,6 +34,14 @@ export class StaticAnalysisController {
 
     @Post('analyze-rust-contract')
     @UseGuards(OptionalJwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Analyze a Rust contract from a GitHub repository' })
+    @ApiBody({ type: StaticAnalysisDto })
+    @ApiResponse({ status: 201, description: 'The analysis report has been successfully generated.', type: StaticAnalysisReport })
+    @ApiResponse({ status: 400, description: 'Bad Request' })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
+    @ApiResponse({ status: 404, description: 'Not Found' })
+    @ApiResponse({ status: 500, description: 'Internal Server Error' })
     async analyzeRustContract(
         @Body() dto: StaticAnalysisDto,
         @CurrentUser() user?: UserDocument,
@@ -95,6 +105,10 @@ export class StaticAnalysisController {
 
     @Post('reports')
     @UseGuards(OptionalJwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get all analysis reports for the authenticated user' })
+    @ApiResponse({ status: 200, description: 'Returns all analysis reports.', type: [StaticAnalysisReportDocument] })
+    @ApiResponse({ status: 500, description: 'Internal Server Error' })
     async getAllReports(
         @Request() req: any,
     ): Promise<StaticAnalysisReportDocument[]> {
@@ -115,6 +129,10 @@ export class StaticAnalysisController {
 
 
     @Get('reports/:id')
+    @ApiOperation({ summary: 'Get an analysis report by ID' })
+    @ApiParam({ name: 'id', required: true, type: String })
+    @ApiResponse({ status: 200, description: 'Returns the analysis report.', type: StaticAnalysisReportDocument })
+    @ApiResponse({ status: 404, description: 'Not Found' })
     async getReportById(@Param('id') id: string): Promise<StaticAnalysisReportDocument | null> {
         this.logger.log(`Retrieving report for ${id}`);
         return await this.staticAnalysisService.getReportById(id);
@@ -126,6 +144,13 @@ export class StaticAnalysisController {
      */
     @Post('reports/:id/associate')
     @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Associate a report with the authenticated user' })
+    @ApiParam({ name: 'id', required: true, type: String })
+    @ApiResponse({ status: 200, description: 'The report has been successfully associated with the user.' })
+    @ApiResponse({ status: 404, description: 'Not Found' })
+    @ApiResponse({ status: 409, description: 'Conflict' })
+    @ApiResponse({ status: 500, description: 'Internal Server Error' })
     async associateReportWithUser(
         @Param('id') reportId: string,
         @CurrentUser() user: UserDocument,
@@ -172,6 +197,11 @@ export class StaticAnalysisController {
     }
 
     @Post('reports/:repository')
+    @ApiOperation({ summary: 'Get an analysis report by repository' })
+    @ApiBody({ schema: { type: 'object', properties: { repository: { type: 'string' } } } })
+    @ApiResponse({ status: 200, description: 'Returns the analysis report.', type: StaticAnalysisReportDocument })
+    @ApiResponse({ status: 404, description: 'Not Found' })
+    @ApiResponse({ status: 500, description: 'Internal Server Error' })
     async getReportByRepository(@Body() body: { repository: string }): Promise<StaticAnalysisReportDocument | null> {
         try {
             this.logger.log(`Retrieving report for ${body.repository}`);
@@ -186,6 +216,10 @@ export class StaticAnalysisController {
     }
 
     @Post('debug-framework')
+    @ApiOperation({ summary: 'Debug framework detection for a repository' })
+    @ApiBody({ schema: { type: 'object', properties: { owner: { type: 'string' }, repo: { type: 'string' }, accessToken: { type: 'string' } } } })
+    @ApiResponse({ status: 200, description: 'Returns the repository info.' })
+    @ApiResponse({ status: 500, description: 'Internal Server Error' })
     async debugFramework(@Body() dto: { owner: string; repo: string; accessToken: string }): Promise<any> {
         try {
             this.logger.log(`Debug framework detection for ${dto.owner}/${dto.repo}`);
@@ -209,6 +243,12 @@ export class StaticAnalysisController {
 
     @Post('analyze-uploaded-contract')
     @UseGuards(OptionalJwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Analyze an uploaded contract' })
+    @ApiBody({ schema: { type: 'object', properties: { extractedPath: { type: 'string' }, selectedFiles: { type: 'array', items: { type: 'string' } } } } })
+    @ApiResponse({ status: 201, description: 'The analysis report has been successfully generated.', type: StaticAnalysisReport })
+    @ApiResponse({ status: 400, description: 'Bad Request' })
+    @ApiResponse({ status: 500, description: 'Internal Server Error' })
     async analyzeUploadedContract(
         @Body() dto: { extractedPath: string; selectedFiles?: string[] },
         @Request() req: any,
@@ -255,6 +295,10 @@ export class StaticAnalysisController {
     }
 
     @Post('export-csv')
+    @ApiOperation({ summary: 'Export analysis reports to CSV' })
+    @ApiBody({ schema: { type: 'object', properties: { reportIds: { type: 'array', items: { type: 'string' } }, factors: { type: 'array', items: { type: 'string' } } } } })
+    @ApiResponse({ status: 200, description: 'Returns the CSV data and filename.' })
+    @ApiResponse({ status: 500, description: 'Internal Server Error' })
     async exportCsv(
         @Body() dto: { reportIds?: string[]; factors?: string[] },
     ): Promise<{ csv: string; filename: string }> {
@@ -284,6 +328,9 @@ export class StaticAnalysisController {
     }
 
     @Post('available-factors')
+    @ApiOperation({ summary: 'Get available factors for analysis' })
+    @ApiResponse({ status: 200, description: 'Returns the available factors.' })
+    @ApiResponse({ status: 500, description: 'Internal Server Error' })
     async getAvailableFactors(): Promise<any> {
         try {
             this.logger.log('Retrieving available factors with metadata');
@@ -338,6 +385,8 @@ export class StaticAnalysisController {
     // }
 
     @Post('health')
+    @ApiOperation({ summary: 'Health check' })
+    @ApiResponse({ status: 200, description: 'Returns the health status.' })
     healthCheck(): Promise<{ status: string; timestamp: Date }> {
         return Promise.resolve({
             status: 'healthy',

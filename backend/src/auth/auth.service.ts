@@ -18,6 +18,26 @@ export interface GitHubTokenResponse {
   error_description?: string;
 }
 
+export interface GoogleUser {
+  id: string;
+  email: string;
+  verified_email: boolean;
+  name: string;
+  given_name: string;
+  family_name: string;
+  picture: string;
+}
+
+export interface GoogleTokenResponse {
+  access_token?: string;
+  expires_in?: number;
+  scope?: string;
+  token_type?: string;
+  id_token?: string;
+  error?: string;
+  error_description?: string;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -129,5 +149,100 @@ export class AuthService {
       Math.random().toString(36).substring(2, 15) +
       Math.random().toString(36).substring(2, 15)
     );
+  }
+
+  /**
+   * Generate Google OAuth URL
+   */
+  getGoogleAuthUrl(fromPath?: string, mode?: string, reportId?: string): string {
+    this.logger.log(`Generating Google Auth URL for mode: ${mode}`);
+    this.logger.log(`From path: ${fromPath}`);
+
+    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+    const redirectUri = this.configService.get<string>('GOOGLE_CALLBACK_URL');
+
+    if (!clientId || !redirectUri) {
+      throw new Error('Google OAuth credentials not configured');
+    }
+
+    const state = { path: fromPath || '/', mode: mode || 'auth', reportId: reportId || '' };
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'openid email profile',
+      access_type: 'online',
+      state: JSON.stringify(state),
+    });
+
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
+  /**
+   * Exchange Google authorization code for access token
+   */
+  async exchangeGoogleCodeForToken(code: string): Promise<string> {
+    try {
+      const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+      const clientSecret = this.configService.get<string>('GOOGLE_CLIENT_SECRET');
+      const redirectUri = this.configService.get<string>('GOOGLE_CALLBACK_URL');
+
+      if (!clientId || !clientSecret || !redirectUri) {
+        throw new Error('Google OAuth credentials not configured');
+      }
+
+      const response = await axios.post<GoogleTokenResponse>(
+        'https://oauth2.googleapis.com/token',
+        {
+          client_id: clientId,
+          client_secret: clientSecret,
+          code: code,
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+        },
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        },
+      );
+
+      if (response.data.error) {
+        throw new Error(
+          `Google OAuth error: ${response.data.error_description || response.data.error}`,
+        );
+      }
+
+      if (!response.data.access_token) {
+        throw new Error('No access token received from Google');
+      }
+
+      return response.data.access_token;
+    } catch (error) {
+      this.logger.error(`Failed to exchange Google code for token: ${error.message}`);
+      throw new Error('Failed to authenticate with Google');
+    }
+  }
+
+  /**
+   * Get Google user information using access token
+   */
+  async getGoogleUser(accessToken: string): Promise<GoogleUser> {
+    try {
+      const response = await axios.get<GoogleUser>(
+        'https://www.googleapis.com/oauth2/v2/userinfo',
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      this.logger.error(`Failed to get Google user: ${error.message}`);
+      throw new Error('Failed to get user information from Google');
+    }
   }
 }

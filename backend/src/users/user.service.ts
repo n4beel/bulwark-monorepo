@@ -1,8 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from './schemas/user.schema';
-import { GitHubUser } from '../auth/auth.service';
+import { GitHubUser, GoogleUser } from '../auth/auth.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
@@ -29,18 +29,18 @@ export class UserService {
                 user = new this.userModel({
                     githubId: githubUser.id,
                     githubUsername: githubUser.login,
-                    email: githubUser.email,
-                    name: githubUser.name,
-                    avatarUrl: githubUser.avatar_url,
+                    email: githubUser.email || undefined,
+                    name: githubUser.name || undefined,
+                    avatarUrl: githubUser.avatar_url || undefined,
                 });
                 await user.save();
                 this.logger.log(`Created new user: ${githubUser.login} (${githubUser.id})`);
             } else {
                 // Update existing user info (in case GitHub data changed)
                 user.githubUsername = githubUser.login;
-                user.email = githubUser.email;
-                user.name = githubUser.name;
-                user.avatarUrl = githubUser.avatar_url;
+                if (githubUser.email) user.email = githubUser.email;
+                if (githubUser.name) user.name = githubUser.name;
+                if (githubUser.avatar_url) user.avatarUrl = githubUser.avatar_url;
                 await user.save();
                 this.logger.log(`Updated user: ${githubUser.login} (${githubUser.id})`);
             }
@@ -53,6 +53,173 @@ export class UserService {
     }
 
     /**
+     * Find or create user from Google data
+     */
+    async findOrCreateGoogleUser(googleUser: GoogleUser): Promise<UserDocument> {
+        try {
+            // Try to find existing user
+            let user = await this.userModel.findOne({ googleId: googleUser.id }).exec();
+
+            if (!user) {
+                // Create new user
+                user = new this.userModel({
+                    googleId: googleUser.id,
+                    googleEmail: googleUser.email,
+                    email: googleUser.email,
+                    name: googleUser.name || undefined,
+                    avatarUrl: googleUser.picture || undefined,
+                });
+                await user.save();
+                this.logger.log(`Created new user with Google: ${googleUser.email} (${googleUser.id})`);
+            } else {
+                // Update existing user info (in case Google data changed)
+                if (googleUser.email) user.googleEmail = googleUser.email;
+                if (googleUser.email && !user.email) user.email = googleUser.email;
+                if (googleUser.name && !user.name) user.name = googleUser.name;
+                if (googleUser.picture && !user.avatarUrl) user.avatarUrl = googleUser.picture;
+                await user.save();
+                this.logger.log(`Updated user: ${googleUser.email} (${googleUser.id})`);
+            }
+
+            return user;
+        } catch (error) {
+            this.logger.error(`Failed to find or create Google user: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Link GitHub account to existing user
+     */
+    async linkGitHubAccount(userId: string, githubUser: GitHubUser): Promise<UserDocument> {
+        try {
+            // Check if GitHub account is already linked to another user
+            const existingGithubUser = await this.userModel.findOne({ githubId: githubUser.id }).exec();
+            
+            if (existingGithubUser && String(existingGithubUser._id) !== userId) {
+                throw new BadRequestException('This GitHub account is already associated with another account');
+            }
+
+            // Find the current user
+            const user = await this.userModel.findById(userId).exec();
+            if (!user) {
+                throw new BadRequestException('User not found');
+            }
+
+            // Link GitHub account
+            user.githubId = githubUser.id;
+            user.githubUsername = githubUser.login;
+            
+            // Update common fields only if they don't exist
+            if (!user.email && githubUser.email) user.email = githubUser.email;
+            if (!user.name && githubUser.name) user.name = githubUser.name;
+            if (!user.avatarUrl && githubUser.avatar_url) user.avatarUrl = githubUser.avatar_url;
+
+            await user.save();
+            this.logger.log(`Linked GitHub account ${githubUser.login} to user ${userId}`);
+
+            return user;
+        } catch (error) {
+            this.logger.error(`Failed to link GitHub account: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Link Google account to existing user
+     */
+    async linkGoogleAccount(userId: string, googleUser: GoogleUser): Promise<UserDocument> {
+        try {
+            // Check if Google account is already linked to another user
+            const existingGoogleUser = await this.userModel.findOne({ googleId: googleUser.id }).exec();
+            
+            if (existingGoogleUser && String(existingGoogleUser._id) !== userId) {
+                throw new BadRequestException('This Google account is already associated with another account');
+            }
+
+            // Find the current user
+            const user = await this.userModel.findById(userId).exec();
+            if (!user) {
+                throw new BadRequestException('User not found');
+            }
+
+            // Link Google account
+            user.googleId = googleUser.id;
+            user.googleEmail = googleUser.email;
+            
+            // Update common fields only if they don't exist
+            if (!user.email && googleUser.email) user.email = googleUser.email;
+            if (!user.name && googleUser.name) user.name = googleUser.name;
+            if (!user.avatarUrl && googleUser.picture) user.avatarUrl = googleUser.picture;
+
+            await user.save();
+            this.logger.log(`Linked Google account ${googleUser.email} to user ${userId}`);
+
+            return user;
+        } catch (error) {
+            this.logger.error(`Failed to link Google account: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Merge two user accounts - keeps the older account and merges data
+     */
+    async mergeAccounts(primaryUserId: string, secondaryUserId: string): Promise<UserDocument> {
+        try {
+            const primaryUser = await this.userModel.findById(primaryUserId).exec();
+            const secondaryUser = await this.userModel.findById(secondaryUserId).exec();
+
+            if (!primaryUser || !secondaryUser) {
+                throw new BadRequestException('One or both users not found');
+            }
+
+            // Store data from secondary user before deleting
+            const secondaryData = {
+                githubId: secondaryUser.githubId,
+                githubUsername: secondaryUser.githubUsername,
+                googleId: secondaryUser.googleId,
+                googleEmail: secondaryUser.googleEmail,
+                email: secondaryUser.email,
+                name: secondaryUser.name,
+                avatarUrl: secondaryUser.avatarUrl,
+            };
+
+            // Delete the secondary user FIRST to avoid unique index conflicts
+            await this.userModel.findByIdAndDelete(secondaryUserId).exec();
+            this.logger.log(`Deleted secondary user ${secondaryUserId}`);
+
+            // Now merge data into primary user (no conflicts possible)
+            if (!primaryUser.githubId && secondaryData.githubId) {
+                primaryUser.githubId = secondaryData.githubId;
+                primaryUser.githubUsername = secondaryData.githubUsername;
+            }
+
+            if (!primaryUser.googleId && secondaryData.googleId) {
+                primaryUser.googleId = secondaryData.googleId;
+                primaryUser.googleEmail = secondaryData.googleEmail;
+            }
+
+            if (!primaryUser.email && secondaryData.email) primaryUser.email = secondaryData.email;
+            if (!primaryUser.name && secondaryData.name) primaryUser.name = secondaryData.name;
+            if (!primaryUser.avatarUrl && secondaryData.avatarUrl) primaryUser.avatarUrl = secondaryData.avatarUrl;
+
+            // TODO: When subscriptions are added, merge subscription data here
+            // if (secondaryData.subscription && !primaryUser.subscription) {
+            //     primaryUser.subscription = secondaryData.subscription;
+            // }
+
+            await primaryUser.save();
+
+            this.logger.log(`Merged user ${secondaryUserId} into ${primaryUserId}`);
+            return primaryUser;
+        } catch (error) {
+            this.logger.error(`Failed to merge accounts: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
      * Generate JWT token for user
      */
     generateToken(user: UserDocument): string {
@@ -60,6 +227,8 @@ export class UserService {
             userId: String(user._id),
             githubId: user.githubId,
             githubUsername: user.githubUsername,
+            googleId: user.googleId,
+            googleEmail: user.googleEmail,
         };
 
         return this.jwtService.sign(payload);
@@ -68,8 +237,8 @@ export class UserService {
     /**
      * Verify and decode JWT token
      */
-    verifyToken(token: string): { userId: string; githubId: number; githubUsername: string } {
-        return this.jwtService.verify(token) as any;
+    verifyToken(token: string): any {
+        return this.jwtService.verify(token);
     }
 
     /**
@@ -84,6 +253,13 @@ export class UserService {
      */
     async findByGitHubId(githubId: number): Promise<UserDocument | null> {
         return this.userModel.findOne({ githubId }).exec();
+    }
+
+    /**
+     * Find user by Google ID
+     */
+    async findByGoogleId(googleId: string): Promise<UserDocument | null> {
+        return this.userModel.findOne({ googleId }).exec();
     }
 }
 

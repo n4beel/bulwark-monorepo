@@ -29,6 +29,7 @@
     "@nestjs/mongoose": "^11.0.3",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/swagger": "^11.2.1",
     "@solana/web3.js": "^1.98.4",
     "@types/multer": "^2.0.0",
     "adm-zip": "^0.5.16",
