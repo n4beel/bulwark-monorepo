@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ScopingService, PreAuditReport } from './scoping.service';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 
 export class GenerateReportDto {
   owner: string;
@@ -15,13 +16,21 @@ export class GenerateReportDto {
   selectedFiles?: string[];
 }
 
+@ApiTags('scoping')
 @Controller('scoping')
 export class ScopingController {
   private readonly logger = new Logger(ScopingController.name);
 
-  constructor(private readonly scopingService: ScopingService) {}
+  constructor(private readonly scopingService: ScopingService) { }
 
   @Post('generate-report')
+  @ApiOperation({ summary: 'Generate a pre-audit report' })
+  @ApiBody({ type: GenerateReportDto })
+  @ApiResponse({ status: 201, description: 'The pre-audit report has been successfully generated.', type: PreAuditReport })
+  @ApiResponse({ status: 400, description: 'Bad Request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Not Found' })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
   async generatePreAuditReport(
     @Body() dto: GenerateReportDto,
   ): Promise<PreAuditReport> {
@@ -80,6 +89,8 @@ export class ScopingController {
   }
 
   @Post('health')
+  @ApiOperation({ summary: 'Health check' })
+  @ApiResponse({ status: 200, description: 'Returns the health status.' })
   async healthCheck(): Promise<{ status: string; timestamp: Date }> {
     return {
       status: 'healthy',

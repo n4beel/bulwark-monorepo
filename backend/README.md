@@ -96,3 +96,17 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+# Bulwark API
+
+This is the backend for the Bulwark application.
+
+## Swagger Documentation
+
+The Swagger documentation for this API is available at [http://localhost:3000/api](http://localhost:3000/api).
+
+To start the application, run:
+
+```bash
+npm run start:dev
+```

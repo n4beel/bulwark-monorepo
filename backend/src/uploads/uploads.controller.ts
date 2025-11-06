@@ -13,7 +13,9 @@ import { diskStorage } from 'multer';
 import { UploadsService } from './uploads.service';
 import * as path from 'path';
 import * as fs from 'fs';
+import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
 
+@ApiTags('uploads')
 @Controller('uploads')
 export class UploadsController {
     private readonly logger = new Logger(UploadsController.name);
@@ -53,6 +55,23 @@ export class UploadsController {
             },
         }),
     )
+    @ApiConsumes('multipart/form-data')
+    @ApiOperation({ summary: 'Discover files in an uploaded archive' })
+    @ApiBody({
+        description: 'A compressed file (zip, tar.gz, rar, 7z)',
+        schema: {
+            type: 'object',
+            properties: {
+                file: {
+                    type: 'string',
+                    format: 'binary',
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 201, description: 'The files have been successfully discovered.' })
+    @ApiResponse({ status: 400, description: 'Bad Request' })
+    @ApiResponse({ status: 500, description: 'Internal Server Error' })
     async discoverUploadedFiles(
         @UploadedFile() file: Express.Multer.File,
     ): Promise<any> {
@@ -90,7 +109,9 @@ export class UploadsController {
     }
 
     @Post('health')
-    healthCheck(): Promise<{ status: string; timestamp: Date }> {
+    @ApiOperation({ summary: 'Health check' })
+    @ApiResponse({ status: 200, description: 'Returns the health status.' })
+    healthCheck(): Promise<{ status: 'healthy'; timestamp: Date }> {
         return Promise.resolve({
             status: 'healthy',
             timestamp: new Date(),

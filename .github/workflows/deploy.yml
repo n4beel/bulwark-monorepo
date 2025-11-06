@@ -1,0 +1,229 @@
+name: Deploy Backend Services
+
+on:
+    push:
+        branches:
+            - main # Production deployment
+            - develop # Staging deployment
+        paths:
+            - "backend/**"
+            - "analyzer/**"
+            - ".github/workflows/deploy.yml"
+
+    workflow_dispatch: # Allow manual deployment
+        inputs:
+            environment:
+                description: "Environment to deploy to"
+                required: true
+                type: choice
+                options:
+                    - staging
+                    - production
+
+jobs:
+    deploy:
+        runs-on: self-hosted
+
+        steps:
+            - name: Determine environment
+              id: env
+              run: |
+                  if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+                    echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+                  elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+                    echo "environment=production" >> $GITHUB_OUTPUT
+                  else
+                    echo "environment=staging" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Set environment variables
+              run: |
+                  if [ "${{ steps.env.outputs.environment }}" == "production" ]; then
+                    echo "DEPLOY_PATH=/home/azureuser/apps/production" >> $GITHUB_ENV
+                    echo "BACKEND_PORT=3000" >> $GITHUB_ENV
+                    echo "ANALYZER_PORT=8080" >> $GITHUB_ENV
+                    echo "PM2_APP_NAME=backend-prod" >> $GITHUB_ENV
+                    echo "PM2_ANALYZER_NAME=analyzer-prod" >> $GITHUB_ENV
+                    echo "ENV_FILE=.env.production" >> $GITHUB_ENV
+                  else
+                    echo "DEPLOY_PATH=/home/azureuser/apps/staging" >> $GITHUB_ENV
+                    echo "BACKEND_PORT=3001" >> $GITHUB_ENV
+                    echo "ANALYZER_PORT=8081" >> $GITHUB_ENV
+                    echo "PM2_APP_NAME=backend-staging" >> $GITHUB_ENV
+                    echo "PM2_ANALYZER_NAME=analyzer-staging" >> $GITHUB_ENV
+                    echo "ENV_FILE=.env.staging" >> $GITHUB_ENV
+                  fi
+
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  cache: "npm"
+                  cache-dependency-path: backend/package-lock.json
+
+            - name: Setup Rust
+              uses: actions-rust-lang/setup-rust-toolchain@v1
+              with:
+                  toolchain: stable
+                  cache: true
+
+            - name: Create deployment directory
+              run: |
+                  mkdir -p ${{ env.DEPLOY_PATH }}
+                  mkdir -p ${{ env.DEPLOY_PATH }}/logs
+
+            - name: Backup current deployment
+              run: |
+                  if [ -d "${{ env.DEPLOY_PATH }}/backend" ]; then
+                    echo "Creating backup of current deployment..."
+                    mkdir -p ${{ env.DEPLOY_PATH }}/backups
+                    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                    tar -czf ${{ env.DEPLOY_PATH }}/backups/backup_${TIMESTAMP}.tar.gz \
+                      -C ${{ env.DEPLOY_PATH }} backend analyzer 2>/dev/null || true
+                    # Keep only last 5 backups
+                    cd ${{ env.DEPLOY_PATH }}/backups && ls -t backup_*.tar.gz | tail -n +6 | xargs -r rm
+                  fi
+
+            - name: Install backend dependencies
+              working-directory: ./backend
+              run: |
+                  npm ci --production
+                  npm run build
+
+            - name: Build Rust analyzer
+              working-directory: ./analyzer
+              run: |
+                  cargo build --release
+
+            - name: Deploy backend
+              run: |
+                  echo "Deploying to ${{ steps.env.outputs.environment }} environment"
+
+                  # Copy backend files
+                  rsync -av --delete \
+                    --exclude='node_modules' \
+                    --exclude='.git' \
+                    --exclude='dist' \
+                    ./backend/ ${{ env.DEPLOY_PATH }}/backend/
+
+                  # Copy built files
+                  cp -r ./backend/node_modules ${{ env.DEPLOY_PATH }}/backend/
+                  cp -r ./backend/dist ${{ env.DEPLOY_PATH }}/backend/
+
+            - name: Deploy analyzer
+              run: |
+                  # Copy analyzer binary
+                  mkdir -p ${{ env.DEPLOY_PATH }}/analyzer
+                  cp ./analyzer/target/release/analyzer ${{ env.DEPLOY_PATH }}/analyzer/
+                  chmod +x ${{ env.DEPLOY_PATH }}/analyzer/analyzer
+
+            - name: Copy environment file
+              run: |
+                  if [ -f "${{ env.DEPLOY_PATH }}/${{ env.ENV_FILE }}" ]; then
+                    cp ${{ env.DEPLOY_PATH }}/${{ env.ENV_FILE }} ${{ env.DEPLOY_PATH }}/backend/.env
+                  else
+                    echo "Warning: Environment file ${{ env.ENV_FILE }} not found!"
+                    exit 1
+                  fi
+
+            - name: Stop existing services
+              run: |
+                  pm2 stop ${{ env.PM2_APP_NAME }} || true
+                  pm2 delete ${{ env.PM2_APP_NAME }} || true
+
+                  # Stop analyzer
+                  if pgrep -f "analyzer.*${{ env.ANALYZER_PORT }}" > /dev/null; then
+                    pkill -f "analyzer.*${{ env.ANALYZER_PORT }}"
+                    sleep 2
+                  fi
+
+            - name: Start backend with PM2
+              run: |
+                  cd ${{ env.DEPLOY_PATH }}/backend
+                  pm2 start npm --name "${{ env.PM2_APP_NAME }}" -- run start:prod
+                  pm2 save
+
+            - name: Start analyzer service
+              run: |
+                  cd ${{ env.DEPLOY_PATH }}/analyzer
+                  nohup ./analyzer --port ${{ env.ANALYZER_PORT }} \
+                    > ${{ env.DEPLOY_PATH }}/logs/analyzer.log 2>&1 &
+                  echo $! > ${{ env.DEPLOY_PATH }}/analyzer/analyzer.pid
+
+            - name: Health check - Backend
+              run: |
+                  echo "Waiting for backend to start..."
+                  sleep 10
+
+                  MAX_RETRIES=30
+                  RETRY_COUNT=0
+
+                  while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+                    if curl -f http://localhost:${{ env.BACKEND_PORT }}/health > /dev/null 2>&1; then
+                      echo "✓ Backend is healthy!"
+                      exit 0
+                    fi
+                    echo "Waiting for backend... (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+                    sleep 2
+                    RETRY_COUNT=$((RETRY_COUNT + 1))
+                  done
+
+                  echo "✗ Backend health check failed!"
+                  exit 1
+
+            - name: Health check - Analyzer
+              run: |
+                  echo "Checking analyzer..."
+                  sleep 5
+
+                  if pgrep -f "analyzer.*${{ env.ANALYZER_PORT }}" > /dev/null; then
+                    echo "✓ Analyzer is running on port ${{ env.ANALYZER_PORT }}"
+                  else
+                    echo "✗ Analyzer is not running!"
+                    exit 1
+                  fi
+
+            - name: Deployment summary
+              if: success()
+              run: |
+                  echo "════════════════════════════════════════════════"
+                  echo "✓ Deployment successful!"
+                  echo "════════════════════════════════════════════════"
+                  echo "Environment: ${{ steps.env.outputs.environment }}"
+                  echo "Backend Port: ${{ env.BACKEND_PORT }}"
+                  echo "Analyzer Port: ${{ env.ANALYZER_PORT }}"
+                  echo "Deployed to: ${{ env.DEPLOY_PATH }}"
+                  echo "PM2 Apps:"
+                  pm2 list
+                  echo "════════════════════════════════════════════════"
+
+            - name: Rollback on failure
+              if: failure()
+              run: |
+                  echo "Deployment failed! Attempting rollback..."
+
+                  LATEST_BACKUP=$(ls -t ${{ env.DEPLOY_PATH }}/backups/backup_*.tar.gz 2>/dev/null | head -n1)
+
+                  if [ -n "$LATEST_BACKUP" ]; then
+                    echo "Restoring from backup: $LATEST_BACKUP"
+                    tar -xzf "$LATEST_BACKUP" -C ${{ env.DEPLOY_PATH }}
+                    
+                    # Restart services
+                    pm2 restart ${{ env.PM2_APP_NAME }} || pm2 start ${{ env.DEPLOY_PATH }}/backend/ecosystem.config.js
+                    
+                    echo "Rollback completed"
+                  else
+                    echo "No backup found for rollback"
+                  fi
+
+            - name: Notify deployment status
+              if: always()
+              run: |
+                  if [ "${{ job.status }}" == "success" ]; then
+                    echo "✓ Deployment to ${{ steps.env.outputs.environment }} completed successfully"
+                  else
+                    echo "✗ Deployment to ${{ steps.env.outputs.environment }} failed"
+                  fi
