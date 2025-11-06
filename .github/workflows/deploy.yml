@@ -68,8 +68,14 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          cache: true
+          cache: false
           rustflags: ""
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./analyzer"
+          cache-on-failure: true
 
       - name: Create deployment directory
         run: |
@@ -117,10 +123,10 @@ jobs:
 
       - name: Deploy analyzer
         run: |
-          # Copy analyzer binary
+          # Copy analyzer binary (the server binary is what we deploy)
           mkdir -p ${{ env.DEPLOY_PATH }}/analyzer
-          cp ./analyzer/target/release/analyzer ${{ env.DEPLOY_PATH }}/analyzer/
-          chmod +x ${{ env.DEPLOY_PATH }}/analyzer/analyzer
+          cp ./analyzer/target/release/server ${{ env.DEPLOY_PATH }}/analyzer/
+          chmod +x ${{ env.DEPLOY_PATH }}/analyzer/server
 
       - name: Copy environment file
         run: |
@@ -136,9 +142,9 @@ jobs:
           pm2 stop ${{ env.PM2_APP_NAME }} || true
           pm2 delete ${{ env.PM2_APP_NAME }} || true
 
-          # Stop analyzer
-          if pgrep -f "analyzer.*${{ env.ANALYZER_PORT }}" > /dev/null; then
-            pkill -f "analyzer.*${{ env.ANALYZER_PORT }}"
+          # Stop analyzer (server binary)
+          if pgrep -f "server.*${{ env.ANALYZER_PORT }}" > /dev/null; then
+            pkill -f "server.*${{ env.ANALYZER_PORT }}"
             sleep 2
           fi
 
@@ -151,9 +157,9 @@ jobs:
       - name: Start analyzer service
         run: |
           cd ${{ env.DEPLOY_PATH }}/analyzer
-          nohup ./analyzer --port ${{ env.ANALYZER_PORT }} \
+          nohup ./server --port ${{ env.ANALYZER_PORT }} \
             > ${{ env.DEPLOY_PATH }}/logs/analyzer.log 2>&1 &
-          echo $! > ${{ env.DEPLOY_PATH }}/analyzer/analyzer.pid
+          echo $! > ${{ env.DEPLOY_PATH }}/analyzer/server.pid
 
       - name: Health check - Backend
         run: |
@@ -181,7 +187,7 @@ jobs:
           echo "Checking analyzer..."
           sleep 5
 
-          if pgrep -f "analyzer.*${{ env.ANALYZER_PORT }}" > /dev/null; then
+          if pgrep -f "server.*${{ env.ANALYZER_PORT }}" > /dev/null; then
             echo "✓ Analyzer is running on port ${{ env.ANALYZER_PORT }}"
           else
             echo "✗ Analyzer is not running!"
