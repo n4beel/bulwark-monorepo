@@ -88,10 +88,19 @@ jobs:
             echo "Creating backup of current deployment..."
             mkdir -p ${{ env.DEPLOY_PATH }}/backups
             TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            
+            # Backup only essential files (exclude node_modules and large build artifacts)
             tar -czf ${{ env.DEPLOY_PATH }}/backups/backup_${TIMESTAMP}.tar.gz \
-              -C ${{ env.DEPLOY_PATH }} backend analyzer 2>/dev/null || true
-            # Keep only last 5 backups
-            cd ${{ env.DEPLOY_PATH }}/backups && ls -t backup_*.tar.gz | tail -n +6 | xargs -r rm
+              -C ${{ env.DEPLOY_PATH }} \
+              --exclude='backend/node_modules' \
+              --exclude='backend/dist' \
+              --exclude='analyzer/target' \
+              backend analyzer 2>/dev/null || true
+            
+            # Keep only last 3 backups
+            cd ${{ env.DEPLOY_PATH }}/backups && ls -t backup_*.tar.gz | tail -n +4 | xargs -r rm || true
+            
+            echo "Backup created (excluding node_modules and build artifacts)"
           fi
 
       - name: Install backend dependencies
@@ -120,7 +129,7 @@ jobs:
           # Copy built files
           cp -r ./backend/node_modules ${{ env.DEPLOY_PATH }}/backend/
           cp -r ./backend/dist ${{ env.DEPLOY_PATH }}/backend/
-          
+
           # Copy the appropriate ecosystem config file
           if [ "${{ steps.env.outputs.environment }}" == "production" ]; then
             cp ./backend/ecosystem.production.config.js ${{ env.DEPLOY_PATH }}/backend/ecosystem.config.js
@@ -158,7 +167,7 @@ jobs:
       - name: Start backend with PM2
         run: |
           cd ${{ env.DEPLOY_PATH }}/backend
-          
+
           # Verify files exist
           echo "Checking backend deployment..."
           ls -la
@@ -168,11 +177,11 @@ jobs:
           ls -la node_modules/.bin/node || echo "node not found in node_modules!"
           echo "Checking .env file..."
           ls -la .env || echo ".env file not found!"
-          
+
           # Start with ecosystem config
           pm2 start ecosystem.config.js
           pm2 save
-          
+
           echo "PM2 process started. Checking status..."
           pm2 list
           sleep 3
