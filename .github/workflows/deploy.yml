@@ -87,11 +87,12 @@ jobs:
                     cd ${{ env.DEPLOY_PATH }}/backups && ls -t backup_*.tar.gz | tail -n +6 | xargs -r rm
                   fi
 
-            - name: Install backend dependencies
-              working-directory: ./backend
-              run: |
-                  npm ci --production
-                  npm run build
+             - name: Install backend dependencies
+               working-directory: ./backend
+               run: |
+                   npm ci
+                   npm run build
+                   npm prune --production
 
             - name: Build Rust analyzer
               working-directory: ./analyzer
