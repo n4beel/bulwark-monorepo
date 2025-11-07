@@ -1,22 +1,23 @@
-"use client";
-import React from "react";
-import { LucideIcon } from "lucide-react";
-import Image from "next/image";
+'use client';
+
+import { LucideIcon } from 'lucide-react';
+import React from 'react';
+import Image from 'next/image';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   icon?: LucideIcon;
   iconSvg?: string; // Path to SVG file
-  iconPosition?: "left" | "right";
+  iconPosition?: 'left' | 'right';
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   (
-    { icon: Icon, iconSvg, iconPosition = "left", className = "", ...props },
-    ref
+    { icon: Icon, iconSvg, iconPosition = 'left', className = '', ...props },
+    ref,
   ) => {
     return (
       <div className="relative w-full">
-        {(Icon || iconSvg) && iconPosition === "left" && (
+        {(Icon || iconSvg) && iconPosition === 'left' && (
           <div className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none">
             {iconSvg ? (
               <Image
@@ -35,8 +36,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           className={`
             w-full
-            ${(Icon || iconSvg) && iconPosition === "left" ? "pl-12" : "pl-4"}
-            ${(Icon || iconSvg) && iconPosition === "right" ? "pr-12" : "pr-4"}
+            ${(Icon || iconSvg) && iconPosition === 'left' ? 'pl-12' : 'pl-4'}
+            ${(Icon || iconSvg) && iconPosition === 'right' ? 'pr-12' : 'pr-4'}
             py-3
             bg-white
             rounded-lg
@@ -51,7 +52,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           `}
           {...props}
         />
-        {(Icon || iconSvg) && iconPosition === "right" && (
+        {(Icon || iconSvg) && iconPosition === 'right' && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none">
             {iconSvg ? (
               <Image
@@ -68,9 +69,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         )}
       </div>
     );
-  }
+  },
 );
 
-Input.displayName = "Input";
+Input.displayName = 'Input';
 
 export default Input;

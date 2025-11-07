@@ -16,14 +16,14 @@ export interface Analysis {
   dependencies: string[];
   framework: string;
   testFiles: number;
-  complexity: "low" | "medium" | "high";
+  complexity: 'low' | 'medium' | 'high';
 }
 
 export interface AuditEstimate {
   duration: {
     min: number;
     max: number;
-    unit: "days";
+    unit: 'days';
     reasoning: string;
   };
   resources: {
@@ -34,7 +34,7 @@ export interface AuditEstimate {
   cost: {
     min: number;
     max: number;
-    currency: "USD";
+    currency: 'USD';
     reasoning: string;
   };
   riskFactors: string[];
@@ -70,7 +70,7 @@ export interface GitHubRepositoryContent {
   html_url: string;
   git_url: string;
   download_url: string | null;
-  type: "file" | "dir";
+  type: 'file' | 'dir';
   content?: string;
   encoding?: string;
 }
@@ -91,32 +91,32 @@ export interface StaticAnalysisDto {
   analysisOptions?: {
     includeTests?: boolean;
     includeDependencies?: boolean;
-    depth?: "shallow" | "medium" | "deep";
+    depth?: 'shallow' | 'medium' | 'deep';
   };
 }
 
 export interface OracleUsage {
   oracle: string;
   functions: string[];
-  riskLevel: "low" | "medium" | "high";
+  riskLevel: 'low' | 'medium' | 'high';
 }
 
 export interface DeFiPattern {
   type: string;
-  complexity: "low" | "medium" | "high";
-  riskLevel: "low" | "medium" | "high";
+  complexity: 'low' | 'medium' | 'high';
+  riskLevel: 'low' | 'medium' | 'high';
 }
 
 export interface EconomicRiskFactor {
   type: string;
-  severity: "low" | "medium" | "high";
+  severity: 'low' | 'medium' | 'high';
   count: number;
   weight: number;
 }
 
 export interface RiskFactor {
   type: string;
-  severity: "low" | "medium" | "high";
+  severity: 'low' | 'medium' | 'high';
   count: number;
   weight: number;
 }
@@ -225,7 +225,7 @@ export interface SystemicScore {
     oracleUsage: OracleUsage[];
     accessControlPattern: {
       type: string;
-      complexity: "low" | "medium" | "high";
+      complexity: 'low' | 'medium' | 'high';
     };
   };
 }

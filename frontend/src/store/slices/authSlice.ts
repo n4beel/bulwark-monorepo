@@ -1,6 +1,7 @@
 // store/slices/authSlice.ts
-"use client";
-import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+'use client';
+
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 export interface AuthUser {
   uid: string;
@@ -24,7 +25,7 @@ const initialState: AuthState = {
 };
 
 const authSlice = createSlice({
-  name: "auth",
+  name: 'auth',
   initialState,
   reducers: {
     setUser: (state, action: PayloadAction<AuthUser | null>) => {
@@ -33,7 +34,7 @@ const authSlice = createSlice({
     },
     setTokens: (
       state,
-      action: PayloadAction<{ githubToken?: string; jwtToken?: string }>
+      action: PayloadAction<{ githubToken?: string; jwtToken?: string }>,
     ) => {
       if (action.payload.githubToken) {
         state.githubToken = action.payload.githubToken;

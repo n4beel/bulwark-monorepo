@@ -1,1 +1,1 @@
-export { useUploadFlow } from "./useUploadFlow";
+export { useUploadFlow } from '../shared/hooks/useUploadFlow';

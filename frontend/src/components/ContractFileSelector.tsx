@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
 import {
-  CheckSquare,
-  Square,
-  FileText,
   ArrowLeft,
-  ArrowRight,
-  Search,
   Brain,
+  CheckSquare,
   Code2,
-} from "lucide-react";
-import { GitHubRepository } from "@/types/api";
-import { githubApi } from "@/services/api";
+  FileText,
+  Search,
+  Square,
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import AnalysisActionBar from '@/shared/components/AnalysisActionBar/AnalysisActionBar';
+import { githubApi } from '@/services/api';
+import { GitHubRepository } from '@/types/api';
 
 interface ContractFile {
   path: string;
@@ -21,7 +21,7 @@ interface ContractFile {
   language: string;
 }
 
-type AnalysisType = "ai" | "static";
+type AnalysisType = 'ai' | 'static';
 
 interface ContractFileSelectorProps {
   repository: GitHubRepository;
@@ -39,54 +39,54 @@ export default function ContractFileSelector({
   const [contractFiles, setContractFiles] = useState<ContractFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [analysisType, setAnalysisType] = useState<AnalysisType>("ai");
+  const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [analysisType, setAnalysisType] = useState<AnalysisType>('ai');
 
   const recursivelyFindContractFiles = useCallback(
     async (
       owner: string,
       repoName: string,
       accessToken: string,
-      path: string = ""
+      path: string = '',
     ): Promise<ContractFile[]> => {
       try {
         const contents = await githubApi.getRepositoryContents(
           owner,
           repoName,
           accessToken,
-          path
+          path,
         );
         const contractFiles: ContractFile[] = [];
 
         for (const item of contents) {
-          if (item.type === "file") {
+          if (item.type === 'file') {
             // Check if it's a contract file
-            const contractExtensions = [".sol", ".rs"];
+            const contractExtensions = ['.sol', '.rs'];
             if (contractExtensions.some((ext) => item.name.endsWith(ext))) {
               // Filter out test files and common non-contract files
               const lowerPath = item.path.toLowerCase();
               const excludePatterns = [
-                "/test/",
-                "/tests/",
-                "/testing/",
-                "/example/",
-                "/examples/",
-                "/docs/",
-                "/documentation/",
-                "/scripts/",
-                "/tools/",
-                "/migrations/",
-                "/deploy/",
-                "test.sol",
-                "test.rs",
-                "mock",
-                "mockup",
-                "fake",
+                '/test/',
+                '/tests/',
+                '/testing/',
+                '/example/',
+                '/examples/',
+                '/docs/',
+                '/documentation/',
+                '/scripts/',
+                '/tools/',
+                '/migrations/',
+                '/deploy/',
+                'test.sol',
+                'test.rs',
+                'mock',
+                'mockup',
+                'fake',
               ];
 
               const shouldExclude = excludePatterns.some((pattern) =>
-                lowerPath.includes(pattern)
+                lowerPath.includes(pattern),
               );
 
               if (!shouldExclude) {
@@ -98,16 +98,16 @@ export default function ContractFileSelector({
                 });
               }
             }
-          } else if (item.type === "dir") {
+          } else if (item.type === 'dir') {
             // Prioritize common contract directories
             const lowerDirName = item.name.toLowerCase();
             const priorityDirs = [
-              "contracts",
-              "src",
-              "programs",
-              "contract",
-              "lib",
-              "core",
+              'contracts',
+              'src',
+              'programs',
+              'contract',
+              'lib',
+              'core',
             ];
 
             if (priorityDirs.includes(lowerDirName)) {
@@ -116,7 +116,7 @@ export default function ContractFileSelector({
                 owner,
                 repoName,
                 accessToken,
-                item.path
+                item.path,
               );
               contractFiles.push(...subFiles);
             } else {
@@ -125,7 +125,7 @@ export default function ContractFileSelector({
                 owner,
                 repoName,
                 accessToken,
-                item.path
+                item.path,
               );
               contractFiles.push(...subFiles);
             }
@@ -138,21 +138,21 @@ export default function ContractFileSelector({
         return [];
       }
     },
-    []
+    [],
   );
 
   const loadContractFiles = useCallback(async () => {
     try {
       setIsLoading(true);
-      setError("");
+      setError('');
 
       // Get repository contents to find contract files
-      const [owner, repoName] = repository.full_name.split("/");
+      const [owner, repoName] = repository.full_name.split('/');
       const allContractFiles = await recursivelyFindContractFiles(
         owner,
         repoName,
         accessToken,
-        ""
+        '',
       );
 
       setContractFiles(allContractFiles);
@@ -160,8 +160,8 @@ export default function ContractFileSelector({
       // Auto-select all files by default
       setSelectedFiles(new Set(allContractFiles.map((file) => file.path)));
     } catch (err: unknown) {
-      setError("Failed to load contract files. Please try again.");
-      console.error("Error loading contract files:", err);
+      setError('Failed to load contract files. Please try again.');
+      console.error('Error loading contract files:', err);
     } finally {
       setIsLoading(false);
     }
@@ -172,9 +172,9 @@ export default function ContractFileSelector({
   }, [loadContractFiles]);
 
   const getLanguageFromExtension = (filename: string): string => {
-    if (filename.endsWith(".sol")) return "Solidity (EVM)";
-    if (filename.endsWith(".rs")) return "Rust (Solana/Near)";
-    return "Unknown";
+    if (filename.endsWith('.sol')) return 'Solidity (EVM)';
+    if (filename.endsWith('.rs')) return 'Rust (Solana/Near)';
+    return 'Unknown';
   };
 
   const toggleFile = (filePath: string) => {
@@ -198,7 +198,7 @@ export default function ContractFileSelector({
 
   const handleProceed = () => {
     if (selectedFiles.size === 0) {
-      setError("Please select at least one contract file to audit.");
+      setError('Please select at least one contract file to audit.');
       return;
     }
     onProceed(Array.from(selectedFiles), analysisType);
@@ -207,15 +207,15 @@ export default function ContractFileSelector({
   const filteredFiles = contractFiles.filter(
     (file) =>
       file.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      file.path.toLowerCase().includes(searchTerm.toLowerCase())
+      file.path.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return "0 B";
+    if (bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
   if (isLoading) {
@@ -283,17 +283,17 @@ export default function ContractFileSelector({
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
-              onClick={() => setAnalysisType("ai")}
+              onClick={() => setAnalysisType('ai')}
               className={`p-4 border-2 rounded-lg transition-all ${
-                analysisType === "ai"
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-gray-300 hover:border-gray-400"
+                analysisType === 'ai'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-300 hover:border-gray-400'
               }`}
             >
               <div className="flex items-center space-x-3">
                 <Brain
                   className={`w-6 h-6 ${
-                    analysisType === "ai" ? "text-blue-600" : "text-gray-500"
+                    analysisType === 'ai' ? 'text-blue-600' : 'text-gray-500'
                   }`}
                 />
                 <div className="text-left">
@@ -305,19 +305,19 @@ export default function ContractFileSelector({
               </div>
             </button>
             <button
-              onClick={() => setAnalysisType("static")}
+              onClick={() => setAnalysisType('static')}
               className={`p-4 border-2 rounded-lg transition-all ${
-                analysisType === "static"
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-gray-300 hover:border-gray-400"
+                analysisType === 'static'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-300 hover:border-gray-400'
               }`}
             >
               <div className="flex items-center space-x-3">
                 <Code2
                   className={`w-6 h-6 ${
-                    analysisType === "static"
-                      ? "text-blue-600"
-                      : "text-gray-500"
+                    analysisType === 'static'
+                      ? 'text-blue-600'
+                      : 'text-gray-500'
                   }`}
                 />
                 <div className="text-left">
@@ -372,8 +372,8 @@ export default function ContractFileSelector({
           {filteredFiles.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               {searchTerm
-                ? "No contract files found matching your search."
-                : "No contract files found in this repository."}
+                ? 'No contract files found matching your search.'
+                : 'No contract files found in this repository.'}
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
@@ -420,36 +420,11 @@ export default function ContractFileSelector({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-between mt-6">
-          <div className="text-sm text-gray-600">
-            {selectedFiles.size > 0 && (
-              <span>
-                Ready to analyze {selectedFiles.size} contract file
-                {selectedFiles.size !== 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
-          <div className="flex space-x-3">
-            <button
-              onClick={onBack}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleProceed}
-              disabled={selectedFiles.size === 0}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-            >
-              <span>
-                {analysisType === "ai"
-                  ? "Run AI Analysis"
-                  : "Run Static Analysis"}
-              </span>
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </button>
-          </div>
-        </div>
+        <AnalysisActionBar
+          count={selectedFiles.size}
+          onBack={onBack}
+          onRun={handleProceed}
+        />
       </div>
     </div>
   );

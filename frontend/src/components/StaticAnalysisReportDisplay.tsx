@@ -1,27 +1,15 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import {
-  Code2,
-  BarChart3,
-  Cpu,
-  Brain,
-  CheckCircle,
-  XCircle,
-  Layers,
-  Shield,
-  DollarSign,
-  Database,
-} from "lucide-react";
-import { StaticAnalysisReport } from "@/types/api";
-import Image from "next/image";
-import ComplexityCard from "./ComplexityCard";
-import HotspotsCard from "./HotspotCards";
-import AuditEffortCard from "./AuditEffortCard";
-import ScoreCards from "./ScoreCards";
-import { getScoreColor } from "@/utils";
-import AIAnalysisTab from "./AiAnalysis";
-import UpgradeForensicModal from "./UpgradeForensicModal";
+import { StaticAnalysisReport } from '@/types/api';
+import { getScoreColor } from '@/utils';
+import { BarChart3, Brain, Cpu, XCircle } from 'lucide-react';
+import Image from 'next/image';
+import { useState } from 'react';
+import AIAnalysisTab from '../modules/reports/components/AiAnalysis';
+import ScoreCards from '../modules/reports/components/ScoreCards';
+import AuditEffortCard from '../shared/components/AuditEffortCard';
+import ComplexityCard from '../shared/components/ComplexityCard';
+import HotspotsCard from '../shared/components/HotspotCards';
 
 interface StaticAnalysisReportDisplayProps {
   report: StaticAnalysisReport;
@@ -35,33 +23,33 @@ export default function StaticAnalysisReportDisplay({
   onNewAnalysis,
 }: StaticAnalysisReportDisplayProps) {
   const [activeTab, setActiveTab] = useState<
-    "scores" | "vulnerability" | "rust" | "ai"
-  >("scores");
+    'scores' | 'vulnerability' | 'rust' | 'ai'
+  >('scores');
 
   // Utility functions for Rust analysis
   const formatRustAnalysisKey = (key: string): string => {
     return key
-      .replace(/([A-Z])/g, " $1")
+      .replace(/([A-Z])/g, ' $1')
       .replace(/^./, (str) => str.toUpperCase())
       .trim();
   };
 
   const formatRustAnalysisValue = (value: unknown): string => {
-    if (typeof value === "number") {
+    if (typeof value === 'number') {
       return value.toLocaleString();
     }
-    if (typeof value === "boolean") {
-      return value ? "Yes" : "No";
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No';
     }
     if (Array.isArray(value)) {
-      if (value.length === 0) return "0 (empty)";
+      if (value.length === 0) return '0 (empty)';
       // For arrays with primitive values, show count and sample
       if (
         value.every(
-          (item) => typeof item === "string" || typeof item === "number"
+          (item) => typeof item === 'string' || typeof item === 'number',
         )
       ) {
-        const sample = value.slice(0, 2).join(", ");
+        const sample = value.slice(0, 2).join(', ');
         return value.length > 2
           ? `${value.length} items (${sample}...)`
           : `${value.length} items (${sample})`;
@@ -69,10 +57,10 @@ export default function StaticAnalysisReportDisplay({
       // For arrays with objects, just show count
       return `${value.length} items`;
     }
-    if (typeof value === "object" && value !== null) {
+    if (typeof value === 'object' && value !== null) {
       // Handle nested objects by showing key count
       const keys = Object.keys(value);
-      if (keys.length === 0) return "Empty object";
+      if (keys.length === 0) return 'Empty object';
       return `Object with ${keys.length} properties`;
     }
     return String(value);
@@ -80,51 +68,51 @@ export default function StaticAnalysisReportDisplay({
 
   const getSectionTitle = (sectionKey: string): string => {
     const titleMap: { [key: string]: string } = {
-      accessControl: "Access Control",
-      complexity: "Complexity Analysis",
-      dependencies: "Dependencies Analysis",
-      modularity: "Modularity Analysis",
-      pdaSeeds: "PDA Seeds Analysis",
-      security: "Security Analysis",
-      performance: "Performance Metrics",
-      patterns: "Code Patterns",
-      validation: "Input Validation",
-      errorHandling: "Error Handling",
-      testing: "Testing Coverage",
+      accessControl: 'Access Control',
+      complexity: 'Complexity Analysis',
+      dependencies: 'Dependencies Analysis',
+      modularity: 'Modularity Analysis',
+      pdaSeeds: 'PDA Seeds Analysis',
+      security: 'Security Analysis',
+      performance: 'Performance Metrics',
+      patterns: 'Code Patterns',
+      validation: 'Input Validation',
+      errorHandling: 'Error Handling',
+      testing: 'Testing Coverage',
       // AI Analysis sections
-      documentationClarity: "Documentation Clarity",
-      testingCoverage: "Testing Coverage",
-      financialLogicIntricacy: "Financial Logic Intricacy",
-      profitAttackVectors: "Profit Attack Vectors",
-      valueAtRisk: "Value at Risk",
-      gameTheoryIncentives: "Game Theory Incentives",
+      documentationClarity: 'Documentation Clarity',
+      testingCoverage: 'Testing Coverage',
+      financialLogicIntricacy: 'Financial Logic Intricacy',
+      profitAttackVectors: 'Profit Attack Vectors',
+      valueAtRisk: 'Value at Risk',
+      gameTheoryIncentives: 'Game Theory Incentives',
     };
     return titleMap[sectionKey] || formatRustAnalysisKey(sectionKey);
   };
 
   const getSectionDescription = (sectionKey: string): string => {
     const descriptionMap: { [key: string]: string } = {
-      accessControl: "Security and authorization patterns",
-      complexity: "Code complexity and maintainability metrics",
-      dependencies: "External dependencies and risk assessment",
-      modularity: "Code organization and module structure",
-      pdaSeeds: "Program Derived Address (PDA) seed analysis",
-      security: "Security vulnerabilities and best practices",
-      performance: "Performance and optimization metrics",
-      patterns: "Common code patterns and anti-patterns",
-      validation: "Input validation and sanitization",
-      errorHandling: "Error handling and recovery patterns",
-      testing: "Test coverage and quality metrics",
+      accessControl: 'Security and authorization patterns',
+      complexity: 'Code complexity and maintainability metrics',
+      dependencies: 'External dependencies and risk assessment',
+      modularity: 'Code organization and module structure',
+      pdaSeeds: 'Program Derived Address (PDA) seed analysis',
+      security: 'Security vulnerabilities and best practices',
+      performance: 'Performance and optimization metrics',
+      patterns: 'Common code patterns and anti-patterns',
+      validation: 'Input validation and sanitization',
+      errorHandling: 'Error handling and recovery patterns',
+      testing: 'Test coverage and quality metrics',
       // AI Analysis descriptions
-      documentationClarity: "Code documentation quality and clarity assessment",
-      testingCoverage: "Test coverage analysis and quality evaluation",
+      documentationClarity: 'Code documentation quality and clarity assessment',
+      testingCoverage: 'Test coverage analysis and quality evaluation',
       financialLogicIntricacy:
-        "Financial logic complexity and mathematical operations",
+        'Financial logic complexity and mathematical operations',
       profitAttackVectors:
-        "Economic attack vectors and profit extraction risks",
-      valueAtRisk: "Asset value exposure and liquidity risk assessment",
+        'Economic attack vectors and profit extraction risks',
+      valueAtRisk: 'Asset value exposure and liquidity risk assessment',
       gameTheoryIncentives:
-        "Economic incentive alignment and game theory analysis",
+        'Economic incentive alignment and game theory analysis',
     };
     return (
       descriptionMap[sectionKey] ||
@@ -134,26 +122,26 @@ export default function StaticAnalysisReportDisplay({
 
   const getSectionColor = (sectionKey: string): string => {
     const colorMap: { [key: string]: string } = {
-      accessControl: "green",
-      complexity: "blue",
-      dependencies: "yellow",
-      modularity: "purple",
-      pdaSeeds: "indigo",
-      security: "red",
-      performance: "orange",
-      patterns: "pink",
-      validation: "teal",
-      errorHandling: "cyan",
-      testing: "lime",
+      accessControl: 'green',
+      complexity: 'blue',
+      dependencies: 'yellow',
+      modularity: 'purple',
+      pdaSeeds: 'indigo',
+      security: 'red',
+      performance: 'orange',
+      patterns: 'pink',
+      validation: 'teal',
+      errorHandling: 'cyan',
+      testing: 'lime',
       // AI Analysis colors
-      documentationClarity: "blue",
-      testingCoverage: "green",
-      financialLogicIntricacy: "purple",
-      profitAttackVectors: "red",
-      valueAtRisk: "orange",
-      gameTheoryIncentives: "indigo",
+      documentationClarity: 'blue',
+      testingCoverage: 'green',
+      financialLogicIntricacy: 'purple',
+      profitAttackVectors: 'red',
+      valueAtRisk: 'orange',
+      gameTheoryIncentives: 'indigo',
     };
-    return colorMap[sectionKey] || "gray";
+    return colorMap[sectionKey] || 'gray';
   };
 
   const renderArrayValue = (value: unknown[], key: string, color: string) => {
@@ -161,7 +149,7 @@ export default function StaticAnalysisReportDisplay({
 
     // Check if array contains objects
     const hasObjects = value.some(
-      (item) => typeof item === "object" && item !== null
+      (item) => typeof item === 'object' && item !== null,
     );
 
     if (hasObjects) {
@@ -176,7 +164,7 @@ export default function StaticAnalysisReportDisplay({
                 key={index}
                 className={`p-3 bg-${color}-50 border border-${color}-200 rounded-lg`}
               >
-                {typeof item === "object" && item !== null ? (
+                {typeof item === 'object' && item !== null ? (
                   <div className="space-y-1">
                     {Object.entries(item)
                       .slice(0, 3)
@@ -226,9 +214,9 @@ export default function StaticAnalysisReportDisplay({
               key={index}
               className={`bg-${color}-100 text-${color}-800 px-3 py-1 rounded-full text-sm font-medium`}
             >
-              {typeof item === "string"
+              {typeof item === 'string'
                 ? item
-                    .replace(/_/g, " ")
+                    .replace(/_/g, ' ')
                     .replace(/\b\w/g, (l) => l.toUpperCase())
                 : String(item)}
             </span>
@@ -240,20 +228,20 @@ export default function StaticAnalysisReportDisplay({
 
   const renderScoreCards = (
     sectionData: Record<string, unknown>,
-    color: string
+    color: string,
   ) => {
     const scoreKeys = [
-      "score",
-      "riskScore",
-      "securityScore",
-      "modularityScore",
-      "dependencyRiskScore",
-      "dependencySecurityScore",
+      'score',
+      'riskScore',
+      'securityScore',
+      'modularityScore',
+      'dependencyRiskScore',
+      'dependencySecurityScore',
     ];
     const scoreEntries = Object.entries(sectionData).filter(([key]) =>
       scoreKeys.some((scoreKey) =>
-        key.toLowerCase().includes(scoreKey.toLowerCase())
-      )
+        key.toLowerCase().includes(scoreKey.toLowerCase()),
+      ),
     );
 
     if (scoreEntries.length === 0) return null;
@@ -266,8 +254,8 @@ export default function StaticAnalysisReportDisplay({
             className={`text-center p-4 bg-${color}-50 rounded-lg`}
           >
             <div className={`text-2xl font-bold text-${color}-600`}>
-              {typeof value === "number"
-                ? key.toLowerCase().includes("risk") && value < 1
+              {typeof value === 'number'
+                ? key.toLowerCase().includes('risk') && value < 1
                   ? `${(value * 100)?.toFixed(1)}%`
                   : value.toFixed(1)
                 : String(value)}
@@ -282,16 +270,16 @@ export default function StaticAnalysisReportDisplay({
   };
 
   const tabs = [
-    { id: "scores", label: "Summary", icon: BarChart3, disabled: false },
+    { id: 'scores', label: 'Summary', icon: BarChart3, disabled: false },
     ...(report.rust_analysis
-      ? [{ id: "rust", label: "Component Details", icon: Cpu, disabled: false }]
+      ? [{ id: 'rust', label: 'Component Details', icon: Cpu, disabled: false }]
       : []),
     ...(report.ai_analysis
-      ? [{ id: "ai", label: "AI Analysis", icon: Brain, disabled: false }]
+      ? [{ id: 'ai', label: 'AI Analysis', icon: Brain, disabled: false }]
       : []),
     {
-      id: "vulnerability",
-      label: "Vulnerability Assessment ",
+      id: 'vulnerability',
+      label: 'Vulnerability Assessment ',
       icon: Cpu,
       disabled: false,
     },
@@ -301,100 +289,105 @@ export default function StaticAnalysisReportDisplay({
     <div className="w-full  ">
       <div className="bg-white rounded-lg shadow-lg ">
         {/* Header */}
-        <div className="border-b border-gray-200 p-6 flex flex-row items-center gap-3">
-          <div className="flex ">
-            <button
-              onClick={onBack}
-              className="px-4 py-1 h-10 cursor-pointer text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              ← Back
-            </button>
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-extrabold text-gray-900 doto">
-                {report.repository}
-              </h1>
-              <p className="text-gray-600 mt-1">
-                Static Analysis Report • {report.language.toUpperCase()} •{" "}
-                {report.framework}
-              </p>
-              <p className="text-sm text-gray-500 mt-1">
-                Generated
-                {/* {new Date(report.createdAt.$date).toLocaleString()} */}
-              </p>
-            </div>
-          </div>
-        </div>
+    <div className="border-b border-gray-200 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-start gap-4">
+
+  {/* Back Button */}
+  <button
+    onClick={onBack}
+    className="px-4 py-1 h-10 cursor-pointer text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50 w-fit"
+  >
+    ← Back
+  </button>
+
+  {/* Title / Repo Info */}
+  <div className="flex flex-col text-left sm:text-right">
+    <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 doto break-words">
+      {report.repository}
+    </h1>
+
+    <p className="text-gray-600 mt-1 text-sm sm:text-base">
+      Static Analysis Report • {report.language.toUpperCase()} • {report.framework}
+    </p>
+
+    <p className="text-xs sm:text-sm text-gray-500 mt-1">
+      Generated
+    </p>
+  </div>
+</div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              const isDisabled = tab.disabled;
+{/* Tabs */}
+<div className="border-b border-gray-200">
+  <nav className="flex space-x-8 px-6 overflow-x-auto no-scrollbar whitespace-nowrap">
+    {tabs.map((tab) => {
+      const Icon = tab.icon;
+      const isActive = activeTab === tab.id;
+      const isDisabled = tab.disabled;
 
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() =>
-                    !isDisabled &&
-                    setActiveTab(
-                      tab.id as "scores" | "vulnerability" | "rust" | "ai"
-                    )
-                  }
-                  disabled={isDisabled}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center cursor-pointer space-x-2 transition-all ${
-                    isDisabled
-                      ? "opacity-50 border-blue-500 text-blue-600 cursor-not-allowed"
-                      : isActive
-                      ? "border-blue-500 text-blue-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }`}
-                >
-                  <Icon className="w-4 h-4" strokeWidth={2} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
+      return (
+        <button
+          key={tab.id}
+          onClick={() =>
+            !isDisabled &&
+            setActiveTab(
+              tab.id as 'scores' | 'vulnerability' | 'rust' | 'ai',
+            )
+          }
+          disabled={isDisabled}
+          className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center cursor-pointer space-x-2 transition-all ${
+            isDisabled
+              ? 'opacity-50 border-blue-500 text-blue-600 cursor-not-allowed'
+              : isActive
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <Icon className="w-4 h-4" strokeWidth={2} />
+          <span>{tab.label}</span>
+        </button>
+      );
+    })}
+  </nav>
+</div>
 
-        <div className="flex flex-row gap-6">
+
+<div className="flex flex-col lg:flex-row gap-2 md:gap-6">
+
           {/* Content */}
-          <div className="p-6 pr-0 w-[80%]">
-            {activeTab === "scores" && (
+        <div className="px-2 py-2 md:p-6 md:pr-0 w-full lg:w-[75%]">
+
+            {activeTab === 'scores' && (
               <div className="space-y-6">
-                <div className="flex flex-row items-start gap-4 w-full">
-                  {/* 20% width */}
-                  <div className="w-[20%] h-[150px]">
-                    <ComplexityCard
-                      complexityScore={Number(report?.scores?.total) || 0}
-                    />
-                  </div>
+              <div className="flex flex-col lg:flex-row items-start gap-4 w-full">
 
-                  {/* 45% width */}
-                  <div className="w-[40%]  h-[150px]">
-                    <HotspotsCard
-                      findings={{
-                        totalFindings:
-                          report?.report?.hotspots?.totalCount || 0,
-                        severityCounts: {
-                          high: report?.report?.hotspots?.highRiskCount || 0,
-                          medium:
-                            report?.report?.hotspots?.mediumRiskCount || 0,
-                          low: report?.report?.hotspots?.lowPriorityCount || 0,
-                        },
-                      }}
-                    />
-                  </div>
+  {/* Complexity Score */}
+  <div className="w-full lg:w-[20%] h-[150px]">
+    <ComplexityCard
+      complexityScore={Number(report?.scores?.total) || 0}
+    />
+  </div>
 
-                  {/* 35% width */}
-                  <div className="w-[40%] h-[150px]">
-                    <AuditEffortCard report={report} />
-                  </div>
-                </div>
+  {/* Hotspots */}
+  <div className="w-full lg:w-[40%] h-[150px]">
+    <HotspotsCard
+      findings={{
+        totalFindings: report?.report?.hotspots?.totalCount || 0,
+        severityCounts: {
+          high: report?.report?.hotspots?.highRiskCount || 0,
+          medium: report?.report?.hotspots?.mediumRiskCount || 0,
+          low: report?.report?.hotspots?.lowPriorityCount || 0,
+        },
+      }}
+    />
+  </div>
+
+  {/* Audit Effort */}
+  <div className="w-full lg:w-[40%] h-[150px]">
+    <AuditEffortCard report={report} />
+  </div>
+
+</div>
+
 
                 {/* Detailed Score Cards */}
                 {/* Detailed Score Cards */}
@@ -402,34 +395,35 @@ export default function StaticAnalysisReportDisplay({
               </div>
             )}
 
-            {activeTab === "vulnerability" && report?.ai_analysis && (
-              <div className="relative min-h-[600px]">
-                {/* LOCKED CONTENT (no selection + no click) */}
-                <div className="locked-tab opacity-60 pointer-events-none select-none user-select-none">
-                  <AIAnalysisTab ai={report.ai_analysis} />
-                </div>
+          {activeTab === 'vulnerability' && report?.ai_analysis && (
+  <div className="relative h-[400px] md:min-h-[600px]">
 
-                {/* Glass Overlay */}
-                <div className="absolute inset-0 rounded-xl border border-[var(--blue-primary)]/60 bg-[rgba(127,175,200,0.05)] backdrop-blur-[6px] pointer-events-none" />
+    {/* LOCKED CONTENT */}
+    <div className="h-[400px] overflow-hidden md:h-auto locked-tab opacity-60 pointer-events-none select-none user-select-none px-2 md:px-0">
+      <AIAnalysisTab ai={report.ai_analysis} />
+    </div>
 
-                {/* Upgrade Overlay Image */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <Image
-                    src="/icons/Forensic.svg"
-                    alt="Upgrade Overlay"
-                    width={480}
-                    height={480}
-                    className="opacity-90"
-                  />
-                </div>
-              </div>
-            )}
+    {/* GLASS OVERLAY */}
+    <div className="absolute inset-0 rounded-xl border border-[var(--blue-primary)]/40 bg-[rgba(127,175,200,0.08)] backdrop-blur-md pointer-events-none" />
 
-            {activeTab === "ai" && report?.ai_analysis && (
+    {/* ILLUSTRATION (Responsive) */}
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <Image
+        src="/icons/Forensic.svg"
+        alt="Upgrade Overlay"
+        width={300}       // ✅ smaller default
+        height={300}
+        className="opacity-80 md:w-[420px] md:h-[420px] w-[65vw] h-[65vw] max-w-[380px] max-h-[380px]"
+      />
+    </div>
+  </div>
+)}
+
+            {activeTab === 'ai' && report?.ai_analysis && (
               <AIAnalysisTab ai={report.ai_analysis} />
             )}
 
-            {activeTab === "rust" &&
+            {activeTab === 'rust' &&
               report.rust_analysis &&
               (() => {
                 const rustAnalysis = report.rust_analysis;
@@ -472,7 +466,7 @@ export default function StaticAnalysisReportDisplay({
                                 <span
                                   className={`text-sm font-semibold text-gray-900 p-1 ${getScoreColor(
                                     (rustAnalysis.analysisFactors
-                                      .totalLinesOfCodeScore as number) || 0
+                                      .totalLinesOfCodeScore as number) || 0,
                                   )}`}
                                 >
                                   {rustAnalysis.analysisFactors.totalLinesOfCode.toLocaleString()}
@@ -485,7 +479,7 @@ export default function StaticAnalysisReportDisplay({
                                 <span
                                   className={`text-sm font-semibold text-gray-900  p-1 ${getScoreColor(
                                     (rustAnalysis.analysisFactors
-                                      .numFunctionsScore as number) || 0
+                                      .numFunctionsScore as number) || 0,
                                   )}`}
                                 >
                                   {rustAnalysis.analysisFactors.numFunctions}
@@ -500,9 +494,9 @@ export default function StaticAnalysisReportDisplay({
                           ([sectionKey, sectionData]) => {
                             // Skip core metrics (already rendered above) and non-object values
                             if (
-                              sectionKey === "totalLinesOfCode" ||
-                              sectionKey === "numFunctions" ||
-                              typeof sectionData !== "object" ||
+                              sectionKey === 'totalLinesOfCode' ||
+                              sectionKey === 'numFunctions' ||
+                              typeof sectionData !== 'object' ||
                               sectionData === null
                             ) {
                               return null;
@@ -528,34 +522,37 @@ export default function StaticAnalysisReportDisplay({
                                 </div>
                                 <div className="p-6">
                                   {/* Render score cards if any score-like properties exist */}
-                                  {typeof sectionData === "object" &&
+                                  {typeof sectionData === 'object' &&
                                   sectionData !== null &&
                                   !Array.isArray(sectionData)
                                     ? renderScoreCards(
                                         sectionData as Record<string, unknown>,
-                                        color
+                                        color,
                                       )
                                     : null}
 
                                   {/* Render regular properties */}
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                                    {typeof sectionData === "object" &&
+                                    {typeof sectionData === 'object' &&
                                     sectionData !== null &&
                                     !Array.isArray(sectionData)
                                       ? Object.entries(
-                                          sectionData as Record<string, unknown>
+                                          sectionData as Record<
+                                            string,
+                                            unknown
+                                          >,
                                         ).map(([key, value]) => {
                                           // Skip arrays and score properties (handled separately)
                                           if (
                                             Array.isArray(value) ||
-                                            key.toLowerCase().includes("score")
+                                            key.toLowerCase().includes('score')
                                           ) {
                                             return null;
                                           }
 
                                           // Handle nested objects
                                           if (
-                                            typeof value === "object" &&
+                                            typeof value === 'object' &&
                                             value !== null
                                           ) {
                                             return (
@@ -572,7 +569,7 @@ export default function StaticAnalysisReportDisplay({
                                                   >
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
                                                       {Object.entries(
-                                                        value
+                                                        value,
                                                       ).map(
                                                         ([
                                                           nestedKey,
@@ -584,17 +581,17 @@ export default function StaticAnalysisReportDisplay({
                                                           >
                                                             <span className="font-medium text-gray-700">
                                                               {formatRustAnalysisKey(
-                                                                nestedKey
+                                                                nestedKey,
                                                               )}
                                                               :
                                                             </span>
                                                             <span className="text-gray-900">
                                                               {formatRustAnalysisValue(
-                                                                nestedValue
+                                                                nestedValue,
                                                               )}
                                                             </span>
                                                           </div>
-                                                        )
+                                                        ),
                                                       )}
                                                     </div>
                                                   </div>
@@ -621,17 +618,17 @@ export default function StaticAnalysisReportDisplay({
                                   </div>
 
                                   {/* Render arrays as tag collections */}
-                                  {typeof sectionData === "object" &&
+                                  {typeof sectionData === 'object' &&
                                   sectionData !== null &&
                                   !Array.isArray(sectionData)
                                     ? Object.entries(
-                                        sectionData as Record<string, unknown>
+                                        sectionData as Record<string, unknown>,
                                       ).map(([key, value]) => {
                                         if (Array.isArray(value)) {
                                           return renderArrayValue(
                                             value,
                                             key,
-                                            color
+                                            color,
                                           );
                                         }
                                         return null;
@@ -639,29 +636,29 @@ export default function StaticAnalysisReportDisplay({
                                     : null}
 
                                   {/* Special handling for dependency tiers */}
-                                  {sectionKey === "dependencies" && (
+                                  {sectionKey === 'dependencies' && (
                                     <div className="mt-6">
                                       <div className="space-y-4">
                                         {[
                                           {
-                                            tier: "tier1",
-                                            label: "Tier 1 (Core)",
-                                            color: "green",
+                                            tier: 'tier1',
+                                            label: 'Tier 1 (Core)',
+                                            color: 'green',
                                           },
                                           {
-                                            tier: "tier2",
-                                            label: "Tier 2 (Standard)",
-                                            color: "blue",
+                                            tier: 'tier2',
+                                            label: 'Tier 2 (Standard)',
+                                            color: 'blue',
                                           },
                                           {
-                                            tier: "tier3",
-                                            label: "Tier 3 (Common)",
-                                            color: "yellow",
+                                            tier: 'tier3',
+                                            label: 'Tier 3 (Common)',
+                                            color: 'yellow',
                                           },
                                           {
-                                            tier: "tier4",
-                                            label: "Tier 4 (External)",
-                                            color: "red",
+                                            tier: 'tier4',
+                                            label: 'Tier 4 (External)',
+                                            color: 'red',
                                           },
                                         ].map(
                                           ({
@@ -701,9 +698,9 @@ export default function StaticAnalysisReportDisplay({
                                                   <span
                                                     className={`px-2 py-1 rounded-full text-xs font-medium bg-${tierColor}-100 text-${tierColor}-800`}
                                                   >
-                                                    {typeof count === "number"
+                                                    {typeof count === 'number'
                                                       ? count
-                                                      : 0}{" "}
+                                                      : 0}{' '}
                                                     dependencies
                                                   </span>
                                                 </div>
@@ -716,17 +713,17 @@ export default function StaticAnalysisReportDisplay({
                                                             className={`bg-${tierColor}-50 text-${tierColor}-700 px-3 py-1 rounded-full text-sm`}
                                                           >
                                                             {typeof crate ===
-                                                            "string"
+                                                            'string'
                                                               ? crate
                                                               : String(crate)}
                                                           </span>
-                                                        )
+                                                        ),
                                                       )
                                                     : null}
                                                 </div>
                                               </div>
                                             );
-                                          }
+                                          },
                                         )}
                                       </div>
                                     </div>
@@ -734,7 +731,7 @@ export default function StaticAnalysisReportDisplay({
                                 </div>
                               </div>
                             );
-                          }
+                          },
                         )}
 
                         {/* Analysis Comparison Note */}
@@ -755,7 +752,8 @@ export default function StaticAnalysisReportDisplay({
                 );
               })()}
           </div>
-          <div className="flex flex-col -mt-6">
+<div className="flex flex-col items-center lg:items-start w-full lg:w-[25%] mt-4 lg:-mt-6">
+
             <Image
               src="/icons/AuditorProfile.svg"
               alt="Match Auditor Illustration"
