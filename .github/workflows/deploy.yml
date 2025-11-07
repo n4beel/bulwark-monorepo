@@ -169,7 +169,7 @@ jobs:
               ps -p $PID > /dev/null 2>&1 && kill -9 $PID || true
             fi
           fi
-          
+
           # Also try to kill by port as a fallback (using lsof)
           if lsof -ti:${{ env.ANALYZER_PORT }} > /dev/null 2>&1; then
             echo "Found process on port ${{ env.ANALYZER_PORT }}, killing..."
@@ -245,11 +245,27 @@ jobs:
           echo "Checking analyzer..."
           sleep 5
 
-          if pgrep -f "server.*${{ env.ANALYZER_PORT }}" > /dev/null; then
-            echo "✓ Analyzer is running on port ${{ env.ANALYZER_PORT }}"
+          # Check if analyzer is running using PID file
+          if [ -f "${{ env.DEPLOY_PATH }}/analyzer/server.pid" ]; then
+            PID=$(cat ${{ env.DEPLOY_PATH }}/analyzer/server.pid)
+            if ps -p $PID > /dev/null 2>&1; then
+              echo "✓ Analyzer is running (PID: $PID) on port ${{ env.ANALYZER_PORT }}"
+            else
+              echo "✗ Analyzer process not found (PID: $PID)"
+              exit 1
+            fi
           else
-            echo "✗ Analyzer is not running!"
+            echo "✗ Analyzer PID file not found!"
             exit 1
+          fi
+
+          # Verify port is listening
+          if lsof -i:${{ env.ANALYZER_PORT }} > /dev/null 2>&1; then
+            echo "✓ Port ${{ env.ANALYZER_PORT }} is listening"
+          else
+            echo "⚠ Warning: Port ${{ env.ANALYZER_PORT }} is not listening yet"
+            echo "Checking analyzer logs..."
+            tail -20 ${{ env.DEPLOY_PATH }}/logs/analyzer.log || echo "No analyzer logs found"
           fi
 
       - name: Deployment summary
