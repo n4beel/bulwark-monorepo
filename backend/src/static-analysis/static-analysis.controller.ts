@@ -35,12 +35,17 @@ export class StaticAnalysisController {
     @Post('analyze-rust-contract')
     @UseGuards(OptionalJwtAuthGuard)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Analyze a Rust contract from a GitHub repository' })
+    @ApiOperation({
+        summary: 'Analyze a Rust contract from a GitHub repository (public or private)',
+        description: 'Analyzes Rust smart contracts from GitHub repositories. Supports both public repositories (no access token required) and private repositories (access token required). Performs comprehensive static analysis including Rust semantic analysis, AI analysis, and generates detailed security and complexity scores.'
+    })
     @ApiBody({ type: StaticAnalysisDto })
     @ApiResponse({ status: 201, description: 'The analysis report has been successfully generated.', type: StaticAnalysisReport })
-    @ApiResponse({ status: 400, description: 'Bad Request' })
-    @ApiResponse({ status: 401, description: 'Unauthorized' })
-    @ApiResponse({ status: 404, description: 'Not Found' })
+    @ApiResponse({ status: 400, description: 'Bad Request - Missing required fields (owner and repo)' })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Invalid GitHub access token' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Access denied (likely a private repository without token or insufficient permissions)' })
+    @ApiResponse({ status: 404, description: 'Not Found - Repository does not exist or is inaccessible' })
+    @ApiResponse({ status: 429, description: 'Too Many Requests - GitHub API rate limit exceeded' })
     @ApiResponse({ status: 500, description: 'Internal Server Error' })
     async analyzeRustContract(
         @Body() dto: StaticAnalysisDto,
@@ -48,13 +53,13 @@ export class StaticAnalysisController {
     ): Promise<StaticAnalysisReport> {
         try {
             this.logger.log(
-                `Received request to analyze Rust contract for ${dto.owner}/${dto.repo}`,
+                `Received request to analyze Rust contract for ${dto.owner}/${dto.repo}${dto.accessToken ? ' (private)' : ' (public)'}`,
             );
 
             // Validate input
-            if (!dto.owner || !dto.repo || !dto.accessToken) {
+            if (!dto.owner || !dto.repo) {
                 throw new HttpException(
-                    'Missing required fields: owner, repo, and accessToken are required',
+                    'Missing required fields: owner and repo are required',
                     HttpStatus.BAD_REQUEST,
                 );
             }
@@ -80,18 +85,36 @@ export class StaticAnalysisController {
                 throw error;
             }
 
-            // Handle specific GitHub API errors
-            if (error.message.includes('Not Found')) {
+            // Handle specific GitHub errors
+            if (error.message.includes('Not Found') || error.message.includes('404')) {
                 throw new HttpException(
-                    'Repository not found or access denied',
+                    dto.accessToken
+                        ? 'Repository not found or access denied. Please check the repository name and your access token.'
+                        : 'Repository not found. Please verify the repository name or provide an access token if this is a private repository.',
                     HttpStatus.NOT_FOUND,
                 );
             }
 
-            if (error.message.includes('Bad credentials')) {
+            if (error.message.includes('Bad credentials') || error.message.includes('401')) {
                 throw new HttpException(
-                    'Invalid GitHub access token',
+                    'Invalid GitHub access token. Please check your token and ensure it has the necessary permissions.',
                     HttpStatus.UNAUTHORIZED,
+                );
+            }
+
+            if (error.message.includes('403') || error.message.includes('Forbidden')) {
+                throw new HttpException(
+                    dto.accessToken
+                        ? 'Access forbidden. Your token may not have the required permissions for this private repository.'
+                        : 'Access forbidden. This appears to be a private repository. Please provide a valid access token.',
+                    HttpStatus.FORBIDDEN,
+                );
+            }
+
+            if (error.message.includes('rate limit')) {
+                throw new HttpException(
+                    'GitHub API rate limit exceeded. Please try again later or provide an access token for higher rate limits.',
+                    HttpStatus.TOO_MANY_REQUESTS,
                 );
             }
 

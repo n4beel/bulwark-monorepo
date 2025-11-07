@@ -363,12 +363,12 @@ export class StaticAnalysisService {
     async analyzeRustContractWithWorkspace(
         owner: string,
         repo: string,
-        accessToken: string,
+        accessToken?: string,
         selectedFiles?: string[],
         analysisOptions?: any,
         userId?: string,
     ): Promise<StaticAnalysisReport> {
-        this.logger.log(`Starting workspace-based analysis for ${owner}/${repo}`);
+        this.logger.log(`Starting workspace-based analysis for ${owner}/${repo}${accessToken ? ' (authenticated)' : ' (public)'}`);
 
         let repoPath: string | null = null;
 

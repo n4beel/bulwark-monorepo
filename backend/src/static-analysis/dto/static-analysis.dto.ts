@@ -1,7 +1,7 @@
 export class StaticAnalysisDto {
   owner: string;
   repo: string;
-  accessToken: string;
+  accessToken?: string; // Optional - required only for private repos
   selectedFiles?: string[];
   analysisOptions?: {
     includeTests?: boolean;
