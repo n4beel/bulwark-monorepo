@@ -1,0 +1,19 @@
+{
+  "singleQuote": true,
+  "semi": true,
+  "plugins": ["@ianvs/prettier-plugin-sort-imports"],
+  "importOrder": [
+    "^react$",
+    "^next",
+    "^@/app/(.*)$",
+    "^@/modules/(.*)$",
+    "^@/shared/(.*)$",
+    "^@/store/(.*)$",
+    "^@/services/(.*)$",
+    "^@/types/(.*)$",
+    "^@/utils/(.*)$",
+    "^[./]"
+  ],
+  "importOrderSortSpecifiers": true,
+  "importOrderSeparation": true
+}

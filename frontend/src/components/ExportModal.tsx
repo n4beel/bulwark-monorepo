@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
 import {
-  X,
-  Download,
+  AlertCircle,
   CheckSquare,
-  Square,
+  Database,
+  Download,
   FileText,
   Filter,
-  Database,
-  AlertCircle,
   Loader,
-} from "lucide-react";
-import { StaticAnalysisReport } from "@/types/api";
+  Square,
+  X,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import {
-  staticAnalysisApi,
-  FactorsResponse,
   FactorInfo as APIFactorInfo,
-} from "@/services/api";
+  FactorsResponse,
+  staticAnalysisApi,
+} from '@/services/api';
+import { StaticAnalysisReport } from '@/types/api';
 
 interface ExportModalProps {
   reports: StaticAnalysisReport[];
@@ -36,23 +36,23 @@ interface FactorGroup {
 
 export default function ExportModal({ reports, onClose }: ExportModalProps) {
   const [selectedReports, setSelectedReports] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [availableFactors, setAvailableFactors] = useState<string[]>([]);
   const [selectedFactors, setSelectedFactors] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [factorGroups, setFactorGroups] = useState<FactorGroup[]>([]);
   const [isLoadingFactors, setIsLoadingFactors] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
-  const [error, setError] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [factorSearchTerm, setFactorSearchTerm] = useState("");
+  const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [factorSearchTerm, setFactorSearchTerm] = useState('');
 
   // Helper function to get report ID regardless of format
   const getReportId = (report: StaticAnalysisReport): string => {
     // Handle both formats: { $oid: "id" } and "id"
-    if (typeof report._id === "string") {
+    if (typeof report._id === 'string') {
       return report._id;
     }
     // @ts-ignore
@@ -69,8 +69,8 @@ export default function ExportModal({ reports, onClose }: ExportModalProps) {
       const factorsResponse = await staticAnalysisApi.getAvailableFactors();
       organizeFactorsIntoGroups(factorsResponse);
     } catch (err) {
-      setError("Failed to load available factors");
-      console.error("Error loading factors:", err);
+      setError('Failed to load available factors');
+      console.error('Error loading factors:', err);
     } finally {
       setIsLoadingFactors(false);
     }
@@ -88,7 +88,7 @@ export default function ExportModal({ reports, onClose }: ExportModalProps) {
             key: factorKey,
             info: factorInfo as FactorInfo,
           };
-        }
+        },
       );
 
       organizedGroups.push({
@@ -96,7 +96,7 @@ export default function ExportModal({ reports, onClose }: ExportModalProps) {
         category: groupData.category,
         description: groupData.description,
         factors: factors,
-        expanded: groupKey === "basic" || groupKey === "scores", // Expand common groups by default
+        expanded: groupKey === 'basic' || groupKey === 'scores', // Expand common groups by default
       });
     });
 
@@ -106,7 +106,7 @@ export default function ExportModal({ reports, onClose }: ExportModalProps) {
 
   const toggleReportSelection = (reportId: string) => {
     // Validate reportId to prevent null/undefined values
-    if (!reportId || reportId === "undefined" || reportId === "null") {
+    if (!reportId || reportId === 'undefined' || reportId === 'null') {
       return;
     }
 
@@ -153,13 +153,13 @@ export default function ExportModal({ reports, onClose }: ExportModalProps) {
 
   const handleExport = async () => {
     setIsExporting(true);
-    setError("");
+    setError('');
 
     try {
       const reportIds =
         selectedReports.size > 0
           ? Array.from(selectedReports).filter(
-              (id) => id != null && id !== undefined
+              (id) => id != null && id !== undefined,
             )
           : undefined;
       const factors =
@@ -171,12 +171,12 @@ export default function ExportModal({ reports, onClose }: ExportModalProps) {
 
       const { blob, filename } = await staticAnalysisApi.exportReportsCSV(
         validReportIds,
-        factors
+        factors,
       );
 
       // Create download link
       const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
+      const link = document.createElement('a');
       link.href = url;
       link.download = filename;
 
@@ -188,9 +188,9 @@ export default function ExportModal({ reports, onClose }: ExportModalProps) {
       onClose();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Export failed. Please try again."
+        err instanceof Error ? err.message : 'Export failed. Please try again.',
       );
-      console.error("Export error:", err);
+      console.error('Export error:', err);
     } finally {
       setIsExporting(false);
     }
@@ -200,7 +200,7 @@ export default function ExportModal({ reports, onClose }: ExportModalProps) {
     (report) =>
       report.repository.toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.language.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.framework.toLowerCase().includes(searchTerm.toLowerCase())
+      report.framework.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   const filteredFactorGroups = factorGroups
@@ -214,7 +214,7 @@ export default function ExportModal({ reports, onClose }: ExportModalProps) {
             .includes(factorSearchTerm.toLowerCase()) ||
           factor.info.description
             .toLowerCase()
-            .includes(factorSearchTerm.toLowerCase())
+            .includes(factorSearchTerm.toLowerCase()),
       ),
     }))
     .filter((group) => group.factors.length > 0);
@@ -388,7 +388,7 @@ export default function ExportModal({ reports, onClose }: ExportModalProps) {
                           <span className="text-sm text-gray-500">
                             {
                               group.factors.filter((f) =>
-                                selectedFactors.has(f.key)
+                                selectedFactors.has(f.key),
                               ).length
                             }
                             /{group.factors.length}
