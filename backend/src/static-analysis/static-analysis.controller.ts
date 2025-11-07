@@ -126,6 +126,24 @@ export class StaticAnalysisController {
         }
     }
 
+    @Get('reports/count')
+    @ApiOperation({ summary: 'Get the total number of analysis reports' })
+    @ApiResponse({ status: 200, description: 'Returns all analysis reports.', type: Number })
+    @ApiResponse({ status: 500, description: 'Internal Server Error' })
+    async getReportCount(): Promise<number> {
+        try {
+            this.logger.log(`Retrieving analysis reports count`);
+            const count = await this.staticAnalysisService.getAllReportsCount();
+            return count;
+        } catch (error) {
+            this.logger.error(`Failed to retrieve reports: ${error.message}`);
+            throw new HttpException(
+                'Failed to retrieve analysis reports',
+                HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
+
 
 
     @Get('reports/:id')
