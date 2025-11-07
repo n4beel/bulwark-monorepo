@@ -190,7 +190,7 @@ jobs:
       - name: Start analyzer service
         run: |
           cd ${{ env.DEPLOY_PATH }}/analyzer
-          nohup ./server --port ${{ env.ANALYZER_PORT }} \
+          PORT=${{ env.ANALYZER_PORT }} nohup ./server \
             > ${{ env.DEPLOY_PATH }}/logs/analyzer.log 2>&1 &
           echo $! > ${{ env.DEPLOY_PATH }}/analyzer/server.pid
 
