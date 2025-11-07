@@ -158,10 +158,23 @@ jobs:
           pm2 stop ${{ env.PM2_APP_NAME }} || true
           pm2 delete ${{ env.PM2_APP_NAME }} || true
 
-          # Stop analyzer (server binary)
-          if pgrep -f "server.*${{ env.ANALYZER_PORT }}" > /dev/null; then
-            pkill -f "server.*${{ env.ANALYZER_PORT }}"
-            sleep 2
+          # Stop analyzer using PID file
+          if [ -f "${{ env.DEPLOY_PATH }}/analyzer/server.pid" ]; then
+            PID=$(cat ${{ env.DEPLOY_PATH }}/analyzer/server.pid)
+            if ps -p $PID > /dev/null 2>&1; then
+              echo "Stopping analyzer (PID: $PID) on port ${{ env.ANALYZER_PORT }}"
+              kill $PID
+              sleep 2
+              # Force kill if still running
+              ps -p $PID > /dev/null 2>&1 && kill -9 $PID || true
+            fi
+          fi
+          
+          # Also try to kill by port as a fallback (using lsof)
+          if lsof -ti:${{ env.ANALYZER_PORT }} > /dev/null 2>&1; then
+            echo "Found process on port ${{ env.ANALYZER_PORT }}, killing..."
+            kill $(lsof -ti:${{ env.ANALYZER_PORT }}) || true
+            sleep 1
           fi
 
       - name: Start backend with PM2
