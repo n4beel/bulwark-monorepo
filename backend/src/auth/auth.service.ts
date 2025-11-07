@@ -127,6 +127,10 @@ export class AuthService {
       throw new Error('GitHub OAuth credentials not configured');
     }
 
+    // 🔍 DEBUG: Log the redirect URI being used
+    this.logger.log(`🔍 GitHub OAuth Client ID: ${clientId}`);
+    this.logger.log(`🔍 GitHub OAuth redirect_uri: ${redirectUri}`);
+
     // 2. Use the 'fromPath' as the state.
     //    Default to '/' if no path is provided.
     const state = { path: fromPath || '/', mode: mode || 'auth', reportId: reportId || '' };
@@ -138,7 +142,10 @@ export class AuthService {
       state: JSON.stringify(state), // <-- 3. Use the path here
     });
 
-    return `https://github.com/login/oauth/authorize?${params.toString()}`;
+    const fullUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
+    this.logger.log(`🔍 Full GitHub OAuth URL: ${fullUrl}`);
+
+    return fullUrl;
   }
 
   /**
@@ -165,6 +172,9 @@ export class AuthService {
       throw new Error('Google OAuth credentials not configured');
     }
 
+    // 🔍 DEBUG: Log the redirect URI being used
+    this.logger.log(`🔍 Google OAuth redirect_uri: ${redirectUri}`);
+
     const state = { path: fromPath || '/', mode: mode || 'auth', reportId: reportId || '' };
 
     const params = new URLSearchParams({
@@ -176,7 +186,10 @@ export class AuthService {
       state: JSON.stringify(state),
     });
 
-    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    const fullUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    this.logger.log(`🔍 Full Google OAuth URL: ${fullUrl}`);
+
+    return fullUrl;
   }
 
   /**
