@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",
+    "@highlight-run/next": "^7.9.38",
+    "@highlight-run/react": "^21.0.0",
     "@reduxjs/toolkit": "^2.9.2",
     "axios": "^1.11.0",
     "firebase": "^12.4.0",

@@ -1,3 +1,4 @@
+import { H } from '@highlight-run/next/client';
 import axios from 'axios';
 import { logout } from '@/store/slices/authSlice';
 import store from '@/store/store';
@@ -32,6 +33,8 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
+    H.consumeError?.(error);
+
     return Promise.reject(error);
   },
 );
@@ -105,6 +108,11 @@ export const staticAnalysisApi = {
     const response = await api.post(
       `/static-analysis/reports/${reportId}/associate`,
     );
+    return response.data;
+  },
+
+  getReportCount: async (): Promise<number> => {
+    const response = await api.get('/static-analysis/reports/count');
     return response.data;
   },
 

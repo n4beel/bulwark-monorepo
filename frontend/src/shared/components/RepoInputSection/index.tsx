@@ -2,7 +2,8 @@
 
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { staticAnalysisApi } from '@/services/api';
 
 interface RepoInputSectionProps {
   onConnectGitHub: () => void;
@@ -23,11 +24,19 @@ export default function RepoInputSection({
 }: RepoInputSectionProps) {
   const [repoInput, setRepoInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [repoCount, setRepoCount] = useState<number | null>(null);
 
   const handleAnalyze = async () => {
     await onAnalyze(repoInput.trim());
     setRepoInput('');
   };
+
+  useEffect(() => {
+    staticAnalysisApi
+      .getReportCount()
+      .then((count) => setRepoCount(count))
+      .catch(() => {}); // silent fail, no UI noise
+  }, []);
 
   return (
     <div className={`relative ${className}`}>
@@ -131,7 +140,9 @@ export default function RepoInputSection({
           <div className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--green-light)] rounded-full shadow-md border border-[var(--border-color)]">
             <span className="inline-block w-2 h-2 bg-[var(--green-medium)] rounded-full"></span>
             <span className="text-[var(--text-primary)] font-semibold">
-              100 Repos Analyzed
+              {repoCount !== null
+                ? `${repoCount} Repos Analyzed`
+                : 'Loading...'}
             </span>
           </div>
         </div>
