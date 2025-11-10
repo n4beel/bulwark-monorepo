@@ -33,7 +33,7 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
-    H.consumeError?.(error);
+    // H.consumeError?.(error);
 
     return Promise.reject(error);
   },
@@ -147,9 +147,8 @@ export const staticAnalysisApi = {
     if (response.data instanceof Blob) {
       return {
         blob: response.data,
-        filename: `analysis-reports-${
-          new Date().toISOString().split('T')[0]
-        }.csv`,
+        filename: `analysis-reports-${new Date().toISOString().split('T')[0]
+          }.csv`,
       };
     }
 
