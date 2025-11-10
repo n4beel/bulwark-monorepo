@@ -40,26 +40,32 @@ export class GitHubService {
 
   /**
    * Get repository metadata from GitHub API
+   * Works with both public repos (no token) and private repos (with token)
    */
   async getRepositoryInfo(
     owner: string,
     repo: string,
-    accessToken: string,
+    accessToken?: string,
   ): Promise<any> {
     try {
+      const headers: any = {
+        Accept: 'application/vnd.github.v3+json',
+      };
+
+      // Add authorization header only if token is provided
+      if (accessToken) {
+        headers.Authorization = `token ${accessToken}`;
+      }
+
       const response = await axios.get(
         `https://api.github.com/repos/${owner}/${repo}`,
-        {
-          headers: {
-            Authorization: `token ${accessToken}`,
-            Accept: 'application/vnd.github.v3+json',
-          },
-        },
+        { headers },
       );
       return response.data;
     } catch (error) {
       this.logger.error(`Failed to get repository info: ${error.message}`);
-      throw new Error(`Failed to get repository info: ${error.message}`);
+      // Preserve the original error message for better error handling upstream
+      throw error;
     }
   }
 
@@ -481,7 +487,7 @@ export class GitHubService {
   async getLatestCommitHash(
     owner: string,
     repo: string,
-    accessToken: string,
+    accessToken?: string,
     branch: string = 'main',
   ): Promise<string> {
     try {
@@ -492,15 +498,19 @@ export class GitHubService {
       const repoInfo = await this.getRepositoryInfo(owner, repo, accessToken);
       const defaultBranch = repoInfo.default_branch || branch;
 
+      const headers: any = {
+        Accept: 'application/vnd.github.v3+json',
+      };
+
+      // Add authorization header only if token is provided
+      if (accessToken) {
+        headers.Authorization = `token ${accessToken}`;
+      }
+
       try {
         const response = await axios.get(
           `https://api.github.com/repos/${owner}/${repo}/commits/${defaultBranch}`,
-          {
-            headers: {
-              Authorization: `token ${accessToken}`,
-              Accept: 'application/vnd.github.v3+json',
-            },
-          },
+          { headers },
         );
         commitHash = response.data.sha;
       } catch (error) {
@@ -509,12 +519,7 @@ export class GitHubService {
           try {
             const response = await axios.get(
               `https://api.github.com/repos/${owner}/${repo}/commits/master`,
-              {
-                headers: {
-                  Authorization: `token ${accessToken}`,
-                  Accept: 'application/vnd.github.v3+json',
-                },
-              },
+              { headers },
             );
             commitHash = response.data.sha;
           } catch (masterError) {
@@ -522,10 +527,7 @@ export class GitHubService {
             const response = await axios.get(
               `https://api.github.com/repos/${owner}/${repo}/commits`,
               {
-                headers: {
-                  Authorization: `token ${accessToken}`,
-                  Accept: 'application/vnd.github.v3+json',
-                },
+                headers,
                 params: {
                   per_page: 1,
                 },

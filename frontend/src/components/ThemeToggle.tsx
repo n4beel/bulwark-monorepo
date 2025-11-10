@@ -1,21 +1,21 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Sun, Moon } from "lucide-react";
+import { Moon, Sun } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 export default function ThemeToggle() {
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     // Check for saved theme preference or default to light mode
-    const savedTheme = localStorage.getItem("theme");
+    const savedTheme = localStorage.getItem('theme');
     const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)"
+      '(prefers-color-scheme: dark)',
     ).matches;
 
-    if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
       setIsDark(true);
-      document.documentElement.classList.add("dark");
+      document.documentElement.classList.add('dark');
     }
   }, []);
 
@@ -24,11 +24,11 @@ export default function ThemeToggle() {
     setIsDark(newTheme);
 
     if (newTheme) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
     } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
     }
   };
 

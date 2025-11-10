@@ -39,7 +39,7 @@ export class User {
 export const UserSchema = SchemaFactory.createForClass(User);
 
 // Create compound index to ensure at least one OAuth provider is connected
-UserSchema.index(
+/* UserSchema.index(
     { githubId: 1 },
     { unique: true, sparse: true }
 );
@@ -47,5 +47,5 @@ UserSchema.index(
 UserSchema.index(
     { googleId: 1 },
     { unique: true, sparse: true }
-);
+); */
 

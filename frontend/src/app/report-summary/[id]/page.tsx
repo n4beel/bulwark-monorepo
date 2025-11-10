@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import StaticAnalysisReportDisplay from "@/components/StaticAnalysisReportDisplay";
-import { staticAnalysisApi } from "@/services/api";
-import { StaticAnalysisReport } from "@/types/api";
-import { useSelector } from "react-redux";
-import { RootState } from "@/store/store";
-import AuthModal from "@/components/auth/AuthModal";
-import DashboardNavbar from "@/components/Dashboard/DashboardNavBar";
+import StaticAnalysisReportDisplay from '@/components/StaticAnalysisReportDisplay';
+import { useSelector } from 'react-redux';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import DashboardNavbar from '@/modules/dashboard/components/NavBar/DashboardNavBar';
+import AuthModal from '@/shared/components/AuthModal/AuthModal';
+import { RootState } from '@/store/store';
+import { staticAnalysisApi } from '@/services/api';
+import { StaticAnalysisReport } from '@/types/api';
 
 export default function ReportSummaryPage() {
   const { id } = useParams();
@@ -27,7 +27,7 @@ export default function ReportSummaryPage() {
         const report = await staticAnalysisApi.getReportById(id as string);
         setReport(report);
       } catch (err) {
-        console.error("Error loading report:", err);
+        console.error('Error loading report:', err);
         setReport(null);
       } finally {
         setLoading(false);
@@ -53,7 +53,7 @@ export default function ReportSummaryPage() {
       <div className="p-10 text-red-600">
         Report not found — maybe removed?
         <button
-          onClick={() => router.push("/reports")}
+          onClick={() => router.push('/reports')}
           className="ml-3 underline"
         >
           Go back
@@ -67,13 +67,13 @@ export default function ReportSummaryPage() {
       <DashboardNavbar />
       <StaticAnalysisReportDisplay
         report={report}
-        onBack={() => router.push("/dashboard")}
-        onNewAnalysis={() => router.push("/")}
+        onBack={() => router.push('/dashboard')}
+        onNewAnalysis={() => router.push('/')}
       />
       <AuthModal
         open={!user}
         onClose={() => {
-          router.push("/dashboard");
+          router.push('/dashboard');
         }}
         shouldRedirect={false}
       />

@@ -190,7 +190,7 @@ jobs:
       - name: Start analyzer service
         run: |
           cd ${{ env.DEPLOY_PATH }}/analyzer
-          nohup ./server --port ${{ env.ANALYZER_PORT }} \
+          PORT=${{ env.ANALYZER_PORT }} nohup ./server \
             > ${{ env.DEPLOY_PATH }}/logs/analyzer.log 2>&1 &
           echo $! > ${{ env.DEPLOY_PATH }}/analyzer/server.pid
 
@@ -232,12 +232,27 @@ jobs:
           echo "Checking analyzer..."
           sleep 5
 
-          if pgrep -f "server.*${{ env.ANALYZER_PORT }}" > /dev/null; then
-            echo "✓ Analyzer is running on port ${{ env.ANALYZER_PORT }}"
-          else
-            echo "✗ Analyzer is not running!"
-            exit 1
-          fi
+          MAX_RETRIES=10
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if curl -f http://localhost:${{ env.ANALYZER_PORT }}/health > /dev/null 2>&1; then
+              echo "✓ Analyzer is healthy on port ${{ env.ANALYZER_PORT }}"
+              exit 0
+            fi
+            echo "Waiting for analyzer... (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+            sleep 2
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+          done
+
+          echo "✗ Analyzer health check failed!"
+          echo "=== Checking if analyzer process is running ==="
+          pgrep -f "server" || echo "No server process found"
+          echo "=== Analyzer Log (last 50 lines) ==="
+          tail -50 ${{ env.DEPLOY_PATH }}/logs/analyzer.log || echo "No analyzer log found"
+          echo "=== Checking if port is in use ==="
+          netstat -tuln | grep ${{ env.ANALYZER_PORT }} || echo "Port ${{ env.ANALYZER_PORT }} is not listening"
+          exit 1
 
       - name: Deployment summary
         if: success()

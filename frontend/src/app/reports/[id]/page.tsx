@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import StaticAnalysisReportDisplay from '@/components/StaticAnalysisReportDisplay';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import DashboardNavbar from '@/modules/dashboard/components/NavBar/DashboardNavBar';
+import { staticAnalysisApi } from '@/services/api';
 // Removed unused imports
-import { StaticAnalysisReport } from "@/types/api";
-import { staticAnalysisApi } from "@/services/api";
-import StaticAnalysisReportDisplay from "@/components/StaticAnalysisReportDisplay";
-import DashboardNavbar from "@/components/Dashboard/DashboardNavBar";
+import { StaticAnalysisReport } from '@/types/api';
 
 export default function ReportDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [report, setReport] = useState<StaticAnalysisReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (params.id) {
@@ -24,7 +24,7 @@ export default function ReportDetailPage() {
   const loadReport = async (reportId: string) => {
     try {
       setIsLoading(true);
-      setError("");
+      setError('');
 
       // Get all reports and find the one with matching ID
       const report = await staticAnalysisApi.getReportById(reportId);
@@ -32,21 +32,21 @@ export default function ReportDetailPage() {
       if (report) {
         setReport(report);
       } else {
-        setError("Report not found");
+        setError('Report not found');
       }
     } catch (err) {
-      setError("Failed to load report. Please try again.");
+      setError('Failed to load report. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleBack = () => {
-    router.push("/dashboard");
+    router.push('/dashboard');
   };
 
   const handleNewAnalysis = () => {
-    router.push("/");
+    router.push('/');
   };
 
   if (isLoading) {

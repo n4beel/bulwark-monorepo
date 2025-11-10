@@ -1,8 +1,9 @@
-"use client";
-import { useSelector } from "react-redux";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { RootState } from "@/store/store";
+'use client';
+
+import { useSelector } from 'react-redux';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { RootState } from '@/store/store';
 
 export default function ProtectedRoute({
   children,
@@ -13,7 +14,7 @@ export default function ProtectedRoute({
   const router = useRouter();
 
   useEffect(() => {
-    if (!user) router.push("/");
+    if (!user) router.push('/');
   }, [user, router]);
 
   if (!user) return null;

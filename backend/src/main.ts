@@ -1,6 +1,18 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { H } from '@highlight-run/node';
+
+// Initialize Highlight.io for error tracking
+if (process.env.HIGHLIGHT_PROJECT_ID) {
+  H.init({
+    projectID: process.env.HIGHLIGHT_PROJECT_ID,
+    serviceName: 'bulwark-backend',
+    serviceVersion: '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+  });
+  console.log('✅ Highlight.io initialized for error tracking');
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -22,6 +34,7 @@ async function bootstrap() {
       'http://localhost:3000',
       'https://my-security-ivory.vercel.app',
       'https://bulwark.blockapex.io',
+      'https://bulwark-staging.blockapex.io',
       process.env.FRONTEND_URL,
     ].filter(Boolean),
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

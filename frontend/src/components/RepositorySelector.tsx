@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import { Search, GitBranch, Lock, Globe, Calendar } from "lucide-react";
-import { GitHubRepository } from "@/types/api";
-import { githubApi } from "@/services/api";
+import { githubApi } from '@/services/api';
+import { GitHubRepository } from '@/types/api';
+import { Calendar, GitBranch, Globe, Lock, Search } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface RepositorySelectorProps {
   accessToken: string;
@@ -18,21 +18,21 @@ export default function RepositorySelector({
 }: RepositorySelectorProps) {
   const [repositories, setRepositories] = useState<GitHubRepository[]>([]);
   const [filteredRepos, setFilteredRepos] = useState<GitHubRepository[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [analyzingRepoId, setAnalyzingRepoId] = useState<number | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   const loadRepositories = useCallback(async () => {
     try {
       setIsLoading(true);
-      setError("");
+      setError('');
       const repos = await githubApi.getUserRepositories(accessToken);
       setRepositories(repos);
       setFilteredRepos(repos);
     } catch (err) {
-      setError("Failed to load repositories. Please check your access token.");
-      console.error("Error loading repositories:", err);
+      setError('Failed to load repositories. Please check your access token.');
+      console.error('Error loading repositories:', err);
     } finally {
       setIsLoading(false);
     }
@@ -46,7 +46,7 @@ export default function RepositorySelector({
     const filtered = repositories.filter(
       (repo) =>
         repo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        repo.description?.toLowerCase().includes(searchTerm.toLowerCase())
+        repo.description?.toLowerCase().includes(searchTerm.toLowerCase()),
     );
     setFilteredRepos(filtered);
   }, [searchTerm, repositories]);
@@ -65,20 +65,20 @@ export default function RepositorySelector({
 
   const getLanguageColor = (language: string) => {
     const colors: { [key: string]: string } = {
-      TypeScript: "bg-blue-500",
-      JavaScript: "bg-yellow-500",
-      Solidity: "bg-purple-500",
-      Rust: "bg-orange-500",
-      Python: "bg-green-500",
-      Go: "bg-cyan-500",
+      TypeScript: 'bg-blue-500',
+      JavaScript: 'bg-yellow-500',
+      Solidity: 'bg-purple-500',
+      Rust: 'bg-orange-500',
+      Python: 'bg-green-500',
+      Go: 'bg-cyan-500',
     };
-    return colors[language] || "bg-gray-500";
+    return colors[language] || 'bg-gray-500';
   };
 
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="bg-white rounded-lg  p-6">
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <span className="ml-3 text-gray-600">Loading repositories...</span>
@@ -90,7 +90,7 @@ export default function RepositorySelector({
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-lg p-6">
+      <div className="bg-white rounded-lg  p-0 md:p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">
             Select Repository
@@ -122,8 +122,8 @@ export default function RepositorySelector({
           {filteredRepos.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               {searchTerm
-                ? "No repositories found matching your search."
-                : "No repositories found."}
+                ? 'No repositories found matching your search.'
+                : 'No repositories found.'}
             </div>
           ) : (
             filteredRepos.map((repo) => {
@@ -135,8 +135,8 @@ export default function RepositorySelector({
                   key={repo.id}
                   className={`border border-gray-300 rounded-lg p-5 transition-all bg-gray-50 ${
                     disableAll
-                      ? "opacity-60"
-                      : "hover:border-blue-400 hover:shadow-lg hover:bg-white"
+                      ? 'opacity-60'
+                      : 'hover:border-blue-400 hover:shadow-lg hover:bg-white'
                   }`}
                 >
                   <div className="flex items-start justify-between">
@@ -164,7 +164,7 @@ export default function RepositorySelector({
                           <div className="flex items-center">
                             <div
                               className={`w-4 h-4 rounded-full ${getLanguageColor(
-                                repo.language
+                                repo.language,
                               )} mr-2`}
                             ></div>
                             <span className="font-medium">{repo.language}</span>
@@ -190,10 +190,10 @@ export default function RepositorySelector({
                         disabled={disableAll || isAnalyzingThis}
                         className={`px-4 py-2 rounded-md text-white flex items-center justify-center transition-colors ${
                           isAnalyzingThis
-                            ? "bg-blue-400 cursor-wait"
+                            ? 'bg-blue-400 cursor-wait'
                             : disableAll
-                            ? "bg-gray-300 cursor-not-allowed"
-                            : "bg-blue-600 hover:bg-blue-700 cursor-pointer"
+                              ? 'bg-gray-300 cursor-not-allowed'
+                              : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
                         }`}
                       >
                         {isAnalyzingThis ? (
@@ -221,7 +221,7 @@ export default function RepositorySelector({
                             Analyzing...
                           </>
                         ) : (
-                          "Analyze"
+                          'Analyze'
                         )}
                       </button>
                     </div>

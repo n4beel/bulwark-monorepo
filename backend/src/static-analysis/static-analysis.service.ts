@@ -271,6 +271,21 @@ export class StaticAnalysisService {
     /**
      * Get analysis report by ID
      */
+    async getAllReportsCount(): Promise<any | null> {
+        try {
+            const count = await this.staticAnalysisModel.countDocuments().exec();
+            return count;
+        }
+        catch (error) {
+            this.logger.error(`Failed to retrieve report count: ${error.message}`);
+            throw new NotFoundException(`Failed to retrieve report count: ${error.message}`);
+        }
+    }
+
+
+    /**
+     * Get analysis report by ID
+     */
     async getReportById(id: string): Promise<any | null> {
         try {
             const report = await this.staticAnalysisModel.findById(id).exec();
@@ -348,12 +363,12 @@ export class StaticAnalysisService {
     async analyzeRustContractWithWorkspace(
         owner: string,
         repo: string,
-        accessToken: string,
+        accessToken?: string,
         selectedFiles?: string[],
         analysisOptions?: any,
         userId?: string,
     ): Promise<StaticAnalysisReport> {
-        this.logger.log(`Starting workspace-based analysis for ${owner}/${repo}`);
+        this.logger.log(`Starting workspace-based analysis for ${owner}/${repo}${accessToken ? ' (authenticated)' : ' (public)'}`);
 
         let repoPath: string | null = null;
 

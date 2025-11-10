@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import DashboardPageContent from "@/components/Dashboard/DageboardPageContent";
-import { Suspense } from "react";
+import { Suspense } from 'react';
+import DashboardPageContent from '@/modules/dashboard/components/DashboardPageContent/DageboardPageContent';
 
 export default function DashboardPage() {
   return (
