@@ -6,13 +6,16 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-bulwark_storage = "25kmZvexST8MZ1pbUbHECzapos78v2SMmySnxsSYr3vE"
+bulwark_storage = "SGn4NkCwTLFZ46HsKzNaPxobdzXFJ7LHNCea68kiL2u"
+
+[programs.devnet]
+bulwark_storage = "SGn4NkCwTLFZ46HsKzNaPxobdzXFJ7LHNCea68kiL2u"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

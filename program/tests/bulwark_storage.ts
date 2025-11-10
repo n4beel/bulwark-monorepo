@@ -49,18 +49,18 @@ describe("BulwarkStorage", () => {
 
   const arciumEnv = getArciumEnv();
 
-  it("Is initialized!", async () => {
+  it("initializes and shares a commit-hash chunk via MPC", async () => {
     const owner = readKpJson(`${os.homedir()}/.config/solana/id.json`);
 
-    console.log("Initializing audit storage computation definition");
-    const initSig = await initAuditStorageCompDef(
+    console.log("Initializing share_commit_hash computation definition");
+    const initSig = await initShareCommitHashCompDef(
       program,
       owner,
       false,
       false
     );
     console.log(
-      "Audit storage computation definition initialized with signature",
+      "share_commit_hash computation definition initialized with signature",
       initSig
     );
 
@@ -77,21 +77,22 @@ describe("BulwarkStorage", () => {
     const sharedSecret = x25519.getSharedSecret(privateKey, mxePublicKey);
     const cipher = new RescueCipher(sharedSecret);
 
-    // Create sample audit data
-    const auditData = randomBytes(32); // Simulated encrypted audit results
-    const plaintext = Array.from(auditData).map(x => BigInt(x));
+    // We'll encrypt two single-byte chunks that represent part of a commit hash
+    const upperByte = BigInt(0x12);
+    const lowerByte = BigInt(0x34);
+    const plaintext = [upperByte, lowerByte];
 
     const nonce = randomBytes(16);
     const ciphertext = cipher.encrypt(plaintext, nonce);
 
-    const auditStoredEventPromise = awaitEvent("auditStoredEvent");
+    const eventPromise = awaitEvent("commitHashSharedEvent");
     const computationOffset = new anchor.BN(randomBytes(8), "hex");
 
-    console.log("Storing audit results...");
     const queueSig = await program.methods
-      .storeAuditResults(
+      .shareCommitHashChunk(
         computationOffset,
         Array.from(ciphertext[0]),
+        Array.from(ciphertext[1]),
         Array.from(publicKey),
         new anchor.BN(deserializeLE(nonce).toString())
       )
@@ -106,7 +107,7 @@ describe("BulwarkStorage", () => {
         executingPool: getExecutingPoolAccAddress(program.programId),
         compDefAccount: getCompDefAccAddress(
           program.programId,
-          Buffer.from(getCompDefAccOffset("store_audit_results")).readUInt32LE()
+          Buffer.from(getCompDefAccOffset("share_commit_hash")).readUInt32LE()
         ),
       })
       .rpc({ skipPreflight: true, commitment: "confirmed" });
@@ -120,74 +121,13 @@ describe("BulwarkStorage", () => {
     );
     console.log("Finalize sig is ", finalizeSig);
 
-    const auditStoredEvent = await auditStoredEventPromise;
-    console.log("Audit stored event:", auditStoredEvent);
-    expect(auditStoredEvent.success).to.be.true;
+    const chunkEvent = await eventPromise;
+    const decrypted = cipher.decrypt([chunkEvent.chunkCiphertext], chunkEvent.nonce)[0];
+    const combined = ((upperByte as bigint) << 8n) | lowerByte;
+    expect(decrypted).to.equal(combined);
   });
 
-  it("Retrieves audit results by commit hash", async () => {
-    const owner = readKpJson(`${os.homedir()}/.config/solana/id.json`);
-
-    const mxePublicKey = await getMXEPublicKeyWithRetry(
-      provider as anchor.AnchorProvider,
-      program.programId
-    );
-
-    const privateKey = x25519.utils.randomSecretKey();
-    const publicKey = x25519.getPublicKey(privateKey);
-
-    const sharedSecret = x25519.getSharedSecret(privateKey, mxePublicKey);
-    const cipher = new RescueCipher(sharedSecret);
-
-    // Create sample commit hash
-    const commitHash = randomBytes(32);
-    const plaintext = Array.from(commitHash).map(x => BigInt(x));
-
-    const nonce = randomBytes(16);
-    const ciphertext = cipher.encrypt(plaintext, nonce);
-
-    const auditRetrievedEventPromise = awaitEvent("auditRetrievedEvent");
-    const computationOffset = new anchor.BN(randomBytes(8), "hex");
-
-    console.log("Retrieving audit results by commit hash...");
-    const queueSig = await program.methods
-      .retrieveByCommit(
-        computationOffset,
-        Array.from(commitHash),
-        Array.from(publicKey),
-        new anchor.BN(deserializeLE(nonce).toString())
-      )
-      .accountsPartial({
-        computationAccount: getComputationAccAddress(
-          program.programId,
-          computationOffset
-        ),
-        clusterAccount: arciumEnv.arciumClusterPubkey,
-        mxeAccount: getMXEAccAddress(program.programId),
-        mempoolAccount: getMempoolAccAddress(program.programId),
-        executingPool: getExecutingPoolAccAddress(program.programId),
-        compDefAccount: getCompDefAccAddress(
-          program.programId,
-          Buffer.from(getCompDefAccOffset("retrieve_by_commit")).readUInt32LE()
-        ),
-      })
-      .rpc({ skipPreflight: true, commitment: "confirmed" });
-    console.log("Queue sig is ", queueSig);
-
-    const finalizeSig = await awaitComputationFinalization(
-      provider as anchor.AnchorProvider,
-      computationOffset,
-      program.programId,
-      "confirmed"
-    );
-    console.log("Finalize sig is ", finalizeSig);
-
-    const auditRetrievedEvent = await auditRetrievedEventPromise;
-    console.log("Audit retrieved event:", auditRetrievedEvent);
-    expect(auditRetrievedEvent.id).to.be.a('number');
-  });
-
-  async function initAuditStorageCompDef(
+  async function initShareCommitHashCompDef(
     program: Program<BulwarkStorage>,
     owner: anchor.web3.Keypair,
     uploadRawCircuit: boolean,
@@ -196,7 +136,7 @@ describe("BulwarkStorage", () => {
     const baseSeedCompDefAcc = getArciumAccountBaseSeed(
       "ComputationDefinitionAccount"
     );
-    const offset = getCompDefAccOffset("store_audit_results");
+    const offset = getCompDefAccOffset("share_commit_hash");
 
     const compDefPDA = PublicKey.findProgramAddressSync(
       [baseSeedCompDefAcc, program.programId.toBuffer(), offset],
@@ -206,7 +146,7 @@ describe("BulwarkStorage", () => {
     console.log("Comp def pda is ", compDefPDA);
 
     const sig = await program.methods
-      .initAuditStorageCompDefs()
+      .initShareCommitHashCompDef()
       .accounts({
         compDefAccount: compDefPDA,
         payer: owner.publicKey,
@@ -216,14 +156,17 @@ describe("BulwarkStorage", () => {
       .rpc({
         commitment: "confirmed",
       });
-    console.log("Init audit storage computation definition transaction", sig);
+    console.log(
+      "Init share_commit_hash computation definition transaction",
+      sig
+    );
 
     if (uploadRawCircuit) {
-      const rawCircuit = fs.readFileSync("build/store_audit_results.arcis");
+      const rawCircuit = fs.readFileSync("build/share_commit_hash.arcis");
 
       await uploadCircuit(
         provider as anchor.AnchorProvider,
-        "store_audit_results",
+        "share_commit_hash",
         program.programId,
         rawCircuit,
         true
