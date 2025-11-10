@@ -25,6 +25,7 @@ export default function RepoInputSection({
   const [repoInput, setRepoInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [repoCount, setRepoCount] = useState<number | null>(null);
+  const [displayCount, setDisplayCount] = useState(0);
 
   const handleAnalyze = async () => {
     await onAnalyze(repoInput.trim());
@@ -37,6 +38,26 @@ export default function RepoInputSection({
       .then((count) => setRepoCount(count))
       .catch(() => {}); // silent fail, no UI noise
   }, []);
+
+  useEffect(() => {
+    if (repoCount === null) return;
+
+    let start = 0;
+    const duration = 1000;
+    const stepTime = 16;
+    const increment = repoCount / (duration / stepTime);
+
+    const interval = setInterval(() => {
+      start += increment;
+      if (start >= repoCount) {
+        start = repoCount;
+        clearInterval(interval);
+      }
+      setDisplayCount(Math.floor(start));
+    }, stepTime);
+
+    return () => clearInterval(interval);
+  }, [repoCount]);
 
   return (
     <div className={`relative ${className}`}>
@@ -133,15 +154,14 @@ export default function RepoInputSection({
           Max 100MB
         </p>
       </div>
-
-      {/* Stats Badge */}
       {showStats && (
         <div className="mt-5 flex justify-center">
           <div className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--green-light)] rounded-full shadow-md border border-[var(--border-color)]">
-            <span className="inline-block w-2 h-2 bg-[var(--green-medium)] rounded-full"></span>
+            <span className="inline-block w-2 h-2 bg-[var(--green-medium)] rounded-full animate-pulse  [animation-duration:0.9s]"></span>
+
             <span className="text-[var(--text-primary)] font-semibold">
               {repoCount !== null
-                ? `${repoCount} Repos Analyzed`
+                ? `${displayCount} Repos Analyzed`
                 : 'Loading...'}
             </span>
           </div>
