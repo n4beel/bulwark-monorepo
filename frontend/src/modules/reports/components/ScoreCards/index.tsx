@@ -18,8 +18,8 @@ const ICONS: Record<string, JSX.Element> = {
 const WEIGHTS: Record<string, string> = {
   structural: 'Structural Complexity (weightage: 20/100)',
   security: 'Security Analysis Complexity (weightage: 30/100)',
-  systemic: 'Systemic Analysis (weightage: 20/100)',
-  economic: 'Economic Score',
+  systemic: 'Systemic Analysis (weightage: 30/100)',
+  economic: 'Economic Complexity (weightage: 20/100)',
 };
 
 export default function ScoreCards({ report }: ScoreCardsProps) {
