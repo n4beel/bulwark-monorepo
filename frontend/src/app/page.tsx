@@ -27,7 +27,11 @@ export default function Home() {
 
   useEffect(() => {
     const shouldOpenFlow = sessionStorage.getItem('open_github_flow');
-
+    console.log(
+      'GitHub Auth Flow Trigger:',
+      { shouldOpenFlow, githubToken },
+      shouldOpenFlow,
+    );
     if (shouldOpenFlow === 'true') {
       sessionStorage.removeItem('open_github_flow');
 
