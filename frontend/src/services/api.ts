@@ -1,4 +1,3 @@
-import { H } from '@highlight-run/next/client';
 import axios from 'axios';
 import { logout } from '@/store/slices/authSlice';
 import store from '@/store/store';
@@ -147,8 +146,9 @@ export const staticAnalysisApi = {
     if (response.data instanceof Blob) {
       return {
         blob: response.data,
-        filename: `analysis-reports-${new Date().toISOString().split('T')[0]
-          }.csv`,
+        filename: `analysis-reports-${
+          new Date().toISOString().split('T')[0]
+        }.csv`,
       };
     }
 
@@ -210,6 +210,10 @@ export const authApi = {
       `/auth/validate?token=${encodeURIComponent(token)}`,
     );
     return response.data;
+  },
+  getMe: async () => {
+    const res = await api.get('/auth/me');
+    return res.data; // { user, githubConnected, reportCount }
   },
 };
 
