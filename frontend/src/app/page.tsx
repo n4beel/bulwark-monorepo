@@ -11,11 +11,9 @@ import NewsletterSection from '@/modules/home/components/NewsLetter';
 import PricingSection from '@/modules/home/components/Pricing';
 import Web3TeamsSection from '@/modules/home/components/Web3TeamSection';
 import { features, teamItems } from '@/modules/home/constants';
+import AnalysisModals from '@/shared/components/AnalysisModals';
 import Footer from '@/shared/components/Footer';
 import Navbar from '@/shared/components/Navbar/NavBar';
-import ReceiptModal from '@/shared/components/Receipt/Receipt';
-import UploadFlowModal from '@/shared/components/uploadFlow/UploadFlowModal';
-import GitHubFlowModal from '@/shared/components/UploadGihubFlow/GitHubModalFlow';
 import { useAnalysisFlows } from '@/shared/hooks/useAnalysisFlow';
 import { useAppSelector } from '@/shared/hooks/useAppSelector';
 import { GitHubFlowStep } from '@/shared/hooks/useGitHubFlow';
@@ -38,7 +36,7 @@ export default function Home() {
         setStep(GitHubFlowStep.REPO_SELECT);
       }
     }
-  }, [handleAuthSuccess, setStep]);
+  }, [handleAuthSuccess, setStep, githubToken]);
   return (
     <div className="min-h-screen bg-white ">
       <Navbar />
@@ -81,49 +79,17 @@ export default function Home() {
       <Footer />
       <div className="hidden"> </div>
 
-      {uploadFlow.isOpen && (
-        <UploadFlowModal
-          step={uploadFlow.step}
-          contractFiles={uploadFlow.contractFiles}
-          startFileSelect={uploadFlow.startFileSelect}
-          runAnalysis={uploadFlow.runAnalysis}
-          report={uploadFlow.report}
-          apiReady={!uploadFlow.isAnalyzing}
-          goToPreviousStep={uploadFlow.goToPreviousStep}
-          completeAnalysis={uploadFlow.completeAnalysis}
-          onClose={() => {
-            uploadFlow.resetFlow();
-            uploadFlow.setOpen(false);
-          }}
-          onOpenResults={(r) => {
-            results.setReport(r);
-            results.setOpen(true);
-          }}
-        />
-      )}
-
-      <GitHubFlowModal
-        step={githubFlow.step}
-        accessToken={githubFlow.accessToken}
-        selectedRepo={githubFlow.selectedRepo}
-        contractFiles={githubFlow.contractFiles}
-        selectRepository={githubFlow.selectRepository}
-        runAnalysis={githubFlow.runAnalysis}
-        apiReady={!githubFlow.isAnalyzing}
-        completeAnalysis={githubFlow.completeAnalysis}
-        onClose={githubFlow.resetFlow}
-        report={githubFlow.report}
-        onOpenResults={(r) => {
-          results.setReport(r);
-          results.setOpen(true);
-        }}
+      <AnalysisModals
+        uploadFlow={uploadFlow}
+        githubFlow={githubFlow}
+        results={results}
       />
 
-      <ReceiptModal
+      {/* <ReceiptModal
         open={results.isOpen}
         report={results.report}
         onClose={() => results.setOpen(false)}
-      />
+      /> */}
     </div>
   );
 }

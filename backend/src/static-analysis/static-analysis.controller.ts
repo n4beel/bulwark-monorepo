@@ -159,7 +159,7 @@ export class StaticAnalysisController {
             const count = await this.staticAnalysisService.getAllReportsCount();
             return count;
         } catch (error) {
-            this.logger.error(`Failed to retrieve reports: ${error.message}`);
+            this.logger.error(`Failed to retrieve reports: ${error.message}.`);
             throw new HttpException(
                 'Failed to retrieve analysis reports',
                 HttpStatus.INTERNAL_SERVER_ERROR,
