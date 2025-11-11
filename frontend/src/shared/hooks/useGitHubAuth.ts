@@ -75,5 +75,5 @@ export const useGitHubAuth = () => {
     //   localStorage.removeItem('jwt_token');
     //   router.push('/'); // stay or reload homepage
     // }
-  }, [dispatch, router]);
+  }, [dispatch, router, githubToken]);
 };
