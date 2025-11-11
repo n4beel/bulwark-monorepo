@@ -26,14 +26,10 @@ export default function Home() {
   const { handleAuthSuccess, setStep } = githubFlow;
 
   useEffect(() => {
-    const shouldOpenFlow = sessionStorage.getItem('open_github_flow');
-    console.log(
-      'GitHub Auth Flow Trigger:',
-      { shouldOpenFlow, githubToken },
-      shouldOpenFlow,
-    );
+    const shouldOpenFlow = localStorage.getItem('open_github_flow');
+
     if (shouldOpenFlow === 'true') {
-      sessionStorage.removeItem('open_github_flow');
+      localStorage.removeItem('open_github_flow');
 
       if (githubToken) {
         handleAuthSuccess(githubToken);

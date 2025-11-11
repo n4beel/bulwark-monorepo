@@ -16,7 +16,7 @@ export const useGitHubAuth = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     const userStr = urlParams.get('user');
-    console.log('GitHub Auth Params:', { token });
+
     if (token && userStr) {
       try {
         const user = JSON.parse(decodeURIComponent(userStr));
@@ -45,11 +45,10 @@ export const useGitHubAuth = () => {
         }
 
         const fromPathname = from.split('?')[0];
-        console.log('GitHub Auth User:', { user, mode, from, reportId });
 
         // ✅ Logic based on from + mode
         if (mode === 'connect') {
-          sessionStorage.setItem('open_github_flow', 'true');
+          localStorage.setItem('open_github_flow', 'true');
           window.history.replaceState({}, '', from);
           router.push(from);
         } else if (mode === 'auth') {
