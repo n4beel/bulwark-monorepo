@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
+use arcium_client::idl::arcium::types::{CircuitSource, OffChainCircuitSource};
 
 const COMP_DEF_OFFSET_SHARE_COMMIT_HASH: u32 = comp_def_offset("share_commit_hash");
 
@@ -12,7 +13,7 @@ pub mod bulwark_storage {
     /// Stores audit results with transparent pricing and encrypted commit hash.
     ///
     /// This function demonstrates Arcium's encryption capabilities by storing:
-    /// - PLAINTEXT: report_id, timestamp, effort estimates, resources, cost range, score
+    /// - PLAINTEXT: report_id, effort estimates, resources, cost range (USD), score
     /// - ENCRYPTED: commit_hash (encrypted client-side using Arcium's RescueCipher)
     ///
     /// The encrypted commit hash is provided as a 32-byte array that was encrypted
@@ -20,25 +21,23 @@ pub mod bulwark_storage {
     ///
     /// # Arguments
     /// * `report_id` - Unique identifier for this audit report
-    /// * `timestamp` - Unix timestamp when audit was performed
     /// * `min_days` - Minimum days estimate
     /// * `max_days` - Maximum days estimate
     /// * `min_resources` - Minimum auditors needed
     /// * `max_resources` - Maximum auditors needed
-    /// * `min_cost` - Minimum cost estimate (e.g., in cents)
-    /// * `max_cost` - Maximum cost estimate (e.g., in cents)
+    /// * `min_cost_usd` - Minimum cost estimate in USD
+    /// * `max_cost_usd` - Maximum cost estimate in USD
     /// * `score` - Audit score (0-100)
     /// * `encrypted_commit_hash` - Commit hash encrypted using Arcium RescueCipher
     pub fn store_audit_results(
         ctx: Context<StoreAuditResults>,
         report_id: u64,
-        timestamp: i64,
         min_days: u16,
         max_days: u16,
         min_resources: u8,
         max_resources: u8,
-        min_cost: u64,
-        max_cost: u64,
+        min_cost_usd: u64,
+        max_cost_usd: u64,
         score: u8,
         encrypted_commit_hash: [u8; 32],
     ) -> Result<()> {
@@ -46,13 +45,12 @@ pub mod bulwark_storage {
 
         // Store plaintext data (visible on Solscan)
         audit_record.report_id = report_id;
-        audit_record.timestamp = timestamp;
         audit_record.min_days = min_days;
         audit_record.max_days = max_days;
         audit_record.min_resources = min_resources;
         audit_record.max_resources = max_resources;
-        audit_record.min_cost = min_cost;
-        audit_record.max_cost = max_cost;
+        audit_record.min_cost_usd = min_cost_usd;
+        audit_record.max_cost_usd = max_cost_usd;
         audit_record.score = score;
 
         // Store encrypted commit hash (protected by Arcium encryption)
@@ -60,9 +58,8 @@ pub mod bulwark_storage {
 
         emit!(AuditStoredEvent {
             report_id,
-            timestamp,
-            min_cost,
-            max_cost,
+            min_cost_usd,
+            max_cost_usd,
             score,
         });
 
@@ -79,7 +76,19 @@ pub mod bulwark_storage {
 
     /// Initializes the computation definition for the `share_commit_hash` circuit.
     pub fn init_share_commit_hash_comp_def(ctx: Context<InitShareCommitHashCompDef>) -> Result<()> {
-        init_comp_def(ctx.accounts, true, 0, None, None)?;
+        // Circuit stored on GitHub (publicly accessible)
+        let circuit_url = "https://raw.githubusercontent.com/n4beel/bulwark-monorepo/refs/heads/main/program/build/share_commit_hash.arcis";
+
+        init_comp_def(
+            ctx.accounts,
+            true,
+            0,
+            Some(CircuitSource::OffChain(OffChainCircuitSource {
+                source: circuit_url.to_string(),
+                hash: [0; 32], // Hash verification not enforced yet
+            })),
+            None,
+        )?;
         Ok(())
     }
 
@@ -235,28 +244,26 @@ pub struct AuditRecord {
     // PLAINTEXT - Visible on Solscan (Transparent Pricing)
     // ═══════════════════════════════════════════════════════════
     pub report_id: u64,    // Unique report identifier (8 bytes)
-    pub timestamp: i64,    // When audit was performed (8 bytes)
     pub min_days: u16,     // Minimum days estimate (2 bytes)
     pub max_days: u16,     // Maximum days estimate (2 bytes)
     pub min_resources: u8, // Minimum auditors needed (1 byte)
     pub max_resources: u8, // Maximum auditors needed (1 byte)
-    pub min_cost: u64,     // Minimum cost estimate (8 bytes)
-    pub max_cost: u64,     // Maximum cost estimate (8 bytes)
+    pub min_cost_usd: u64, // Minimum cost estimate in USD (8 bytes)
+    pub max_cost_usd: u64, // Maximum cost estimate in USD (8 bytes)
     pub score: u8,         // Audit score 0-100 (1 byte)
 
     // ═══════════════════════════════════════════════════════════
     // ENCRYPTED - Private (Protected by Arcium Encryption)
     // ═══════════════════════════════════════════════════════════
     pub encrypted_commit_hash: [u8; 32], // Encrypted commit hash (32 bytes)
-                                         // Total: ~81 bytes per audit record
+                                         // Total: ~73 bytes per audit record
 }
 
 #[event]
 pub struct AuditStoredEvent {
     pub report_id: u64,
-    pub timestamp: i64,
-    pub min_cost: u64,
-    pub max_cost: u64,
+    pub min_cost_usd: u64,
+    pub max_cost_usd: u64,
     pub score: u8,
 }
 
@@ -270,8 +277,6 @@ pub struct CommitHashSharedEvent {
 pub enum ErrorCode {
     #[msg("Invalid report ID")]
     InvalidReportId,
-    #[msg("Invalid timestamp")]
-    InvalidTimestamp,
     #[msg("Invalid score (must be 0-100)")]
     InvalidScore,
     #[msg("The computation was aborted")]

@@ -200,30 +200,4 @@ export class StaticAnalysisUtils {
 
         return estimates;
     }
-
-    transformForSafeStorage(aiAnalysisFactors: CodeMetrics): AuditStorageData {
-        return {
-            "auditEffort": {
-                "timeRange": {
-                    "minimumDays": Math.floor(Math.random() * (10 - 5 + 1)) + 5,
-                    "maximumDays": Math.floor(Math.random() * (20 - 10 + 1)) + 10
-                },
-                "resourceRange": (() => {
-                    const min = Math.floor(Math.random() * (3 - 1 + 1)) + 1;
-                    const max = Math.floor(Math.random() * (3 - min + 1)) + min;
-                    return {
-                        "minimumCount": min,
-                        "maximumCount": max
-                    };
-                })(),
-                "totalCost": Math.round((Math.random() * (6000 - 2000) + 2000) / 1000) * 1000
-            },
-            "hotspots": {
-                "totalCount": aiAnalysisFactors?.highRiskHotspots?.length + aiAnalysisFactors?.mediumRiskHotspots?.length + aiAnalysisFactors?.findings?.length || 0,
-                "highRiskCount": aiAnalysisFactors?.highRiskHotspots?.length || 0,
-                "mediumRiskCount": aiAnalysisFactors?.mediumRiskHotspots?.length || 0
-            },
-            "commitHash": Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(""),
-        }
-    }
 }
