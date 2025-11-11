@@ -21,10 +21,7 @@ export default function AnalysisModals({
 
   useEffect(() => {
     const shouldOpenFlow = sessionStorage.getItem('open_github_flow');
-    console.log('GitHub Auth Flow Trigger in Modals:', {
-      shouldOpenFlow,
-      githubToken,
-    });
+
     if (shouldOpenFlow === 'true' && githubToken) {
       sessionStorage.removeItem('open_github_flow');
       githubFlow.handleAuthSuccess(githubToken);
