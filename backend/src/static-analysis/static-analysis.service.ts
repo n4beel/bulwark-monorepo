@@ -587,16 +587,71 @@ export class StaticAnalysisService {
                 },
             }
 
-            // Create triple analysis report
+            // Calculate scores and audit effort estimates first
+            const calculatedScoresAndReport = this.staticAnalysisUtils.calculateTotalScore(
+                staticAnalysisScores,
+                aiAnalysisFactors?.codeAnalysis || {},
+                {
+                    "filesCount": selectedFiles?.length || 0,
+                    "commitUrl": commitUrl,
+                    "receiptId": "",  // Will be updated after Arcium storage
+                    "hrefUrl": "",    // Will be updated after Arcium storage
+                }
+            );
+
+            // Step 6: Store encrypted report results to Arcium storage (Solana devnet)
+            let storageResult: any = null;
+            try {
+                // Check if Arcium storage service is enabled
+                if (this.arciumStorageService.isServiceEnabled()) {
+                    // Extract audit effort estimates from the calculated report
+                    const lowerEffort = calculatedScoresAndReport.report?.lowerAuditEffort;
+                    const upperEffort = calculatedScoresAndReport.report?.upperAuditEffort;
+                    const totalScore = calculatedScoresAndReport.scores?.total || 0;
+
+                    // Prepare audit data for Solana storage
+                    // PUBLIC on blockchain: pricing, effort, score
+                    // ENCRYPTED: commit hash (encrypted with Arcium)
+                    const auditData = {
+                        minDays: lowerEffort?.timeRange?.minimumDays || 7,
+                        maxDays: upperEffort?.timeRange?.maximumDays || 14,
+                        minResources: lowerEffort?.resources || 2,
+                        maxResources: upperEffort?.resources || 3,
+                        minCostUsd: lowerEffort?.costRange?.minimumCost || 5000, // Convert cents to USD
+                        maxCostUsd: upperEffort?.costRange?.maximumCost || 18000, // Convert cents to USD
+                        score: Math.min(100, Math.max(0, Math.round(totalScore))), // Ensure 0-100
+                        commitHash: commitHash || 'unknown', // Will be encrypted
+                    };
+
+                    this.logger.log('Storing audit results to Solana devnet with Arcium encryption...');
+                    storageResult = await this.arciumStorageService.storeAuditResults(auditData);
+
+                    if (storageResult.success) {
+                        this.logger.log(`✅ Audit results stored to Solana devnet!`);
+                        this.logger.log(`   Report ID: ${storageResult.reportId}`);
+                        this.logger.log(`   Transaction: ${storageResult.transactionSignature}`);
+                        this.logger.log(`   Explorer: ${storageResult.explorerUrl}`);
+
+                        // Update report data with Arcium storage info
+                        calculatedScoresAndReport.report.receiptId = storageResult.transactionSignature;
+                        calculatedScoresAndReport.report.hrefUrl = storageResult.explorerUrl;
+                    } else {
+                        this.logger.warn(`Failed to store audit results to Arcium: ${storageResult.message}`);
+                    }
+                } else {
+                    this.logger.debug('Arcium storage service is disabled. Skipping blockchain storage.');
+                }
+            } catch (arciumError) {
+                this.logger.error(`Arcium storage error: ${arciumError.message}`, arciumError.stack);
+                // Don't fail the entire analysis if Arcium storage fails
+            }
+
+            // Create triple analysis report with all data
             const report: StaticAnalysisReport = {
                 repository: projectName,
                 repositoryUrl: `uploaded://${originalFilename}`,
                 language: 'rust',
                 framework,
-
-                // Use TypeScript analysis as base for backward compatibility
-                // analysisFactors: typescriptAnalysisFactors,
-                // scores: typescriptScores,
 
                 // Analysis metadata
                 analysis_engine: 'dual-analyzer',
@@ -641,32 +696,12 @@ export class StaticAnalysisService {
                 createdAt: new Date(),
                 updatedAt: new Date(),
 
-                // Calculate scores and result (audit effort estimates)
-                ...this.staticAnalysisUtils.calculateTotalScore(staticAnalysisScores, aiAnalysisFactors?.codeAnalysis || {}, {
-                    "filesCount": selectedFiles?.length || 0,
-                    "commitUrl": commitUrl,
-                    "receiptId": "52pwAr2w8uXCgY76aak9CQz5GZdLdn3KQ6xmzvDZUjvJAq54xEY8VvqQybAkQdPcS6g9vB1Wgn1MSgJFqTsiXTwW",
-                    "hrefUrl": "https://solscan.io/tx/5je68BW8Q77sEpfQCyxNWFSWbeyrxM6eRhKNJtoASi4NBm1C1bWu3RAdcx4soYZke4ZrJPj75z9p5xnLb8VLAa7h?cluster=devnet",
-                }),
+                // Add calculated scores and audit effort estimates
+                ...calculatedScoresAndReport,
                 commitHash: commitHash,
             } as StaticAnalysisReport;
 
-            // Step 5: Store encrypted report results to Arcium storage
-            // try {
-            //     const auditData = this.staticAnalysisUtils.transformForSafeStorage(aiAnalysisFactors?.codeAnalysis || {});
-            //     const storageResult = await this.arciumStorageService.storeAuditResults(auditData);
-
-            //     if (storageResult.success) {
-            //         this.logger.log(`Audit results stored to Arcium: ${storageResult.message}`);
-            //     } else {
-            //         this.logger.warn(`Failed to store audit results to Arcium: ${storageResult.message}`);
-            //     }
-            // } catch (arciumError) {
-            //     this.logger.error(`Arcium storage error: ${arciumError.message}`, arciumError.stack);
-            //     // Don't fail the entire analysis if Arcium storage fails
-            // }
-
-            // Step 6: Save report to MongoDB
+            // Step 7: Save report to MongoDB
             try {
                 savedReport = new this.staticAnalysisModel(report);
                 await savedReport.save();
@@ -689,7 +724,7 @@ export class StaticAnalysisService {
                 this.logger.log(`AI analysis failed: ${aiAnalysisError}. Using Rust analysis only.`);
             }
 
-            // Step 6: Cleanup extracted directory and upload session after analysis
+            // Step 8: Cleanup extracted directory and upload session after analysis
             try {
                 await this.cleanupExtractedDirectory(extractedPath);
                 this.uploadsService.removeUploadSession(extractedPath);
