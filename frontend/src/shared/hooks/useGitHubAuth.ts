@@ -50,7 +50,7 @@ export const useGitHubAuth = () => {
         // ✅ Logic based on from + mode
         if (mode === 'connect') {
           sessionStorage.setItem('open_github_flow', 'true');
-          setOpenGithubAuthModal(true);
+          dispatch(setOpenGithubAuthModal(true));
           window.history.replaceState({}, '', from);
           router.push(from);
         } else if (mode === 'auth') {
