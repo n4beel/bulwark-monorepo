@@ -3,6 +3,7 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { setOpenGithubAuthModal } from '@/store/slices/appSlice';
 import { setTokens, setUser } from '@/store/slices/authSlice';
 import { RootState } from '@/store/store';
 
@@ -49,6 +50,7 @@ export const useGitHubAuth = () => {
         // ✅ Logic based on from + mode
         if (mode === 'connect') {
           sessionStorage.setItem('open_github_flow', 'true');
+          setOpenGithubAuthModal(true);
           window.history.replaceState({}, '', from);
           router.push(from);
         } else if (mode === 'auth') {
