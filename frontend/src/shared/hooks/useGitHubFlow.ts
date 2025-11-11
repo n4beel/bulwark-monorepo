@@ -25,10 +25,12 @@ export function useGitHubFlow() {
   const [contractFiles, setContractFiles] = useState<ContractFile[]>([]);
   const [report, setReport] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isOpen, setOpen] = useState(false);
 
   const handleAuthSuccess = (token: string) => {
     setAccessToken(token);
     setStep(GitHubFlowStep.REPO_SELECT);
+    setOpen(true);
   };
 
   // Recursively find all .rs files in repository
@@ -139,6 +141,7 @@ export function useGitHubFlow() {
       localStorage.removeItem('github_user');
     }
     localStorage.removeItem('github_token');
+    setOpen(false);
     setAccessToken('');
   };
 
@@ -148,6 +151,7 @@ export function useGitHubFlow() {
     // setSelectedRepo(null);
     setContractFiles([]);
     setReport(null);
+    setOpen(false);
     setIsAnalyzing(false);
   };
 
@@ -166,5 +170,7 @@ export function useGitHubFlow() {
     runAnalysis,
     completeAnalysis,
     resetFlow,
+    isOpen,
+    setOpen,
   };
 }
