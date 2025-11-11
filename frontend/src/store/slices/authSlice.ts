@@ -12,14 +12,14 @@ export interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null;
-  githubToken: string | null; // ✅ Store GitHub token
-  jwtToken: string | null; // ✅ Store JWT token
+  githubToken: string;
+  jwtToken: string | null;
   loading: boolean;
 }
 
 const initialState: AuthState = {
   user: null,
-  githubToken: null,
+  githubToken: '',
   jwtToken: null,
   loading: true,
 };
@@ -45,7 +45,7 @@ const authSlice = createSlice({
     },
     logout: (state) => {
       state.user = null;
-      state.githubToken = null;
+      state.githubToken = '';
       state.jwtToken = null;
       state.loading = false;
     },

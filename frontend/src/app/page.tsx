@@ -1,7 +1,5 @@
 'use client';
 
-import { useDispatch } from 'react-redux';
-import { useEffect } from 'react';
 import Image from 'next/image';
 import AuditorMarketplace from '@/modules/home/components/AuditorMarketplace';
 import BulwarkAnimated from '@/modules/home/components/BulwarkAnimated';
@@ -16,35 +14,10 @@ import AnalysisModals from '@/shared/components/AnalysisModals';
 import Footer from '@/shared/components/Footer';
 import Navbar from '@/shared/components/Navbar/NavBar';
 import { useAnalysisFlows } from '@/shared/hooks/useAnalysisFlow';
-import { useAppSelector } from '@/shared/hooks/useAppSelector';
-import { GitHubFlowStep } from '@/shared/hooks/useGitHubFlow';
-import { setOpenGithubAuthModal } from '@/store/slices/appSlice';
-import { RootState } from '@/store/store';
 
 export default function Home() {
-  const { githubToken } = useAppSelector((state: RootState) => state.auth);
-  const { openGithubAuthModal } = useAppSelector(
-    (state: RootState) => state.app,
-  );
-
-  const dispatch = useDispatch();
-
   const { uploadFlow, githubFlow, results, handlers } = useAnalysisFlows();
-  const { handleAuthSuccess, setStep } = githubFlow;
 
-  useEffect(() => {
-    const shouldOpenFlow = sessionStorage.getItem('open_github_flow');
-    console.log('openGithubAuthModal', { openGithubAuthModal });
-    if (openGithubAuthModal) {
-      sessionStorage.removeItem('open_github_flow');
-      dispatch(setOpenGithubAuthModal(false));
-
-      if (githubToken) {
-        handleAuthSuccess(githubToken);
-        setStep(GitHubFlowStep.REPO_SELECT);
-      }
-    }
-  }, [handleAuthSuccess, setStep, githubToken]);
   return (
     <div className="min-h-screen bg-white ">
       <Navbar />
@@ -92,12 +65,6 @@ export default function Home() {
         githubFlow={githubFlow}
         results={results}
       />
-
-      {/* <ReceiptModal
-        open={results.isOpen}
-        report={results.report}
-        onClose={() => results.setOpen(false)}
-      /> */}
     </div>
   );
 }

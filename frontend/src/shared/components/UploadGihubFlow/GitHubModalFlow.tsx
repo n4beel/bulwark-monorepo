@@ -1,5 +1,6 @@
 'use client';
 
+import { useAppSelector } from '@/shared/hooks/useAppSelector';
 import { GitHubFlowStep } from '@/shared/hooks/useGitHubFlow';
 import RepositorySelector from '../../../components/RepositorySelector';
 import UploadedContractFileSelector from '../../../components/UploadedContractFileSelector';
@@ -22,7 +23,7 @@ interface Props {
 
 export default function GitHubFlowModal({
   step,
-  accessToken,
+
   onClose,
   selectedRepo,
   contractFiles,
@@ -38,6 +39,7 @@ export default function GitHubFlowModal({
   // Don't show modal during AUTH step - that's handled separately
   if (step === GitHubFlowStep.AUTH) return null;
 
+  const { githubToken } = useAppSelector((state) => state.auth);
   return (
     <div className="fixed inset-0 z-[9999] bg-black/40 overflow-hidden backdrop-blur-sm flex items-center justify-center">
       <div
@@ -83,7 +85,7 @@ export default function GitHubFlowModal({
             {step === GitHubFlowStep.REPO_SELECT && (
               <div className="px-4 md:px-10 py-6 min-h-[520px]">
                 <RepositorySelector
-                  accessToken={accessToken}
+                  accessToken={githubToken}
                   onSelect={selectRepository}
                   onBack={onClose}
                 />
