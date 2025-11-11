@@ -15,16 +15,13 @@ export const useHomepageLogout = () => {
   );
 
   useEffect(() => {
-    // ✅ If user is logged in and visits homepage → logout
     if ((githubToken || jwtToken) && pathname === '/') {
       dispatch(logout());
 
-      // Clear all localStorage tokens
       localStorage.removeItem('github_token');
       localStorage.removeItem('github_user');
       localStorage.removeItem('jwt_token');
 
-      // Optionally reload or redirect
       router.push('/');
     }
   }, [pathname, githubToken, jwtToken, dispatch, router]);
