@@ -45,7 +45,6 @@ const authSlice = createSlice({
     },
     logout: (state) => {
       state.user = null;
-      state.githubToken = '';
       state.jwtToken = null;
       state.loading = false;
     },
