@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import ReceiptModal from '@/shared/components/Receipt/Receipt';
 import UploadFlowModal from '@/shared/components/uploadFlow/UploadFlowModal';
 import GitHubFlowModal from '@/shared/components/UploadGihubFlow/GitHubModalFlow';
+import { useAppSelector } from '@/shared/hooks/useAppSelector';
+import { GitHubFlowStep } from '@/shared/hooks/useGitHubFlow';
 
 interface AnalysisModalsProps {
   uploadFlow: any;
@@ -15,6 +17,20 @@ export default function AnalysisModals({
   githubFlow,
   results,
 }: AnalysisModalsProps) {
+  const { githubToken } = useAppSelector((state) => state.auth);
+
+  useEffect(() => {
+    const shouldOpenFlow = sessionStorage.getItem('open_github_flow');
+    console.log('GitHub Auth Flow Trigger in Modals:', {
+      shouldOpenFlow,
+      githubToken,
+    });
+    if (shouldOpenFlow === 'true' && githubToken) {
+      sessionStorage.removeItem('open_github_flow');
+      githubFlow.handleAuthSuccess(githubToken);
+      githubFlow.setStep(GitHubFlowStep.REPO_SELECT);
+    }
+  }, [githubToken, githubFlow]);
   useEffect(() => {
     const isAnyModalOpen =
       uploadFlow.isOpen || githubFlow.isOpen || results.isOpen;
