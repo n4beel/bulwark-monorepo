@@ -9,6 +9,7 @@ import {
     Param,
     UseGuards,
     Request,
+    Delete,
 } from '@nestjs/common';
 import {
     StaticAnalysisService,
@@ -178,6 +179,22 @@ export class StaticAnalysisController {
         this.logger.log(`Retrieving report for ${id}`);
         return await this.staticAnalysisService.getReportById(id);
 
+    }
+
+    /**
+     * Delete analysis reports by IDs
+     */
+    @Delete('reports')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Delete analysis reports by IDs' })
+    @ApiBody({ schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } } } })
+    @ApiResponse({ status: 200, description: 'The reports have been successfully deleted.' })
+    @ApiResponse({ status: 404, description: 'Not Found' })
+    @ApiResponse({ status: 500, description: 'Internal Server Error' })
+    async deleteReports(@Body() body: { ids: string[] }): Promise<void> {
+        this.logger.log(`Deleting reports for ${body.ids.join(', ')}`);
+        await this.staticAnalysisService.deleteReports(body.ids);
     }
 
     /**
