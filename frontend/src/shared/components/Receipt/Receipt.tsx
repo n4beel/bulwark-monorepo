@@ -134,11 +134,12 @@ export default function ReceiptModal({
               )}
 
               <button
-                onClick={() =>
+                onClick={() => {
                   oid &&
-                  (onViewDetailed?.(oid) ??
-                    router.push(`/dashboard?report=${oid}`))
-                }
+                    (onViewDetailed?.(oid) ??
+                      router.push(`/dashboard?report=${oid}`));
+                  onClose();
+                }}
                 className="px-6 py-2 text-white bg-[var(--blue-primary)] rounded-lg cursor-pointer"
               >
                 View Detailed Report →
