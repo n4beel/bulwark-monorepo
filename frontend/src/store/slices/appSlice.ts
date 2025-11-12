@@ -3,11 +3,13 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 interface AppState {
   isLoading: boolean;
   error: string | null;
+  openGithubAuthModal: boolean;
 }
 
 const initialState: AppState = {
   isLoading: false,
   error: null,
+  openGithubAuthModal: false,
 };
 
 const apppSlice = createSlice({
@@ -28,9 +30,18 @@ const apppSlice = createSlice({
       state.isLoading = false;
       state.error = null;
     },
+
+    setOpenGithubAuthModal: (state, action: PayloadAction<boolean>) => {
+      state.openGithubAuthModal = action.payload;
+    },
   },
 });
 
-export const { setLoading, setError, clearError, resetState } =
-  apppSlice.actions;
+export const {
+  setLoading,
+  setError,
+  clearError,
+  resetState,
+  setOpenGithubAuthModal,
+} = apppSlice.actions;
 export default apppSlice.reducer;

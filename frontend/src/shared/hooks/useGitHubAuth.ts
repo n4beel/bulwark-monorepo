@@ -3,6 +3,7 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { setOpenGithubAuthModal } from '@/store/slices/appSlice';
 import { setTokens, setUser } from '@/store/slices/authSlice';
 import { RootState } from '@/store/store';
 
@@ -20,7 +21,6 @@ export const useGitHubAuth = () => {
     if (token && userStr) {
       try {
         const user = JSON.parse(decodeURIComponent(userStr));
-
         const mode = user.mode || 'auth';
         let from = user.from || '/dashboard';
         const reportId =
@@ -50,6 +50,7 @@ export const useGitHubAuth = () => {
         // ✅ Logic based on from + mode
         if (mode === 'connect') {
           sessionStorage.setItem('open_github_flow', 'true');
+          dispatch(setOpenGithubAuthModal(true));
           window.history.replaceState({}, '', from);
           router.push(from);
         } else if (mode === 'auth') {
@@ -75,5 +76,5 @@ export const useGitHubAuth = () => {
     //   localStorage.removeItem('jwt_token');
     //   router.push('/'); // stay or reload homepage
     // }
-  }, [dispatch, router]);
+  }, [dispatch, router, githubToken]);
 };

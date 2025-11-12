@@ -1,24 +1,55 @@
-// components/shared/AnalysisModals.tsx (SIMPLE VERSION)
 'use client';
 
+import { useDispatch } from 'react-redux';
+import { useEffect } from 'react';
 import ReceiptModal from '@/shared/components/Receipt/Receipt';
 import UploadFlowModal from '@/shared/components/uploadFlow/UploadFlowModal';
 import GitHubFlowModal from '@/shared/components/UploadGihubFlow/GitHubModalFlow';
+import { useAppSelector } from '@/shared/hooks/useAppSelector';
+import { GitHubFlowStep } from '@/shared/hooks/useGitHubFlow';
+import { setOpenGithubAuthModal } from '@/store/slices/appSlice';
 
 interface AnalysisModalsProps {
   uploadFlow: any;
   githubFlow: any;
   results: any;
 }
-
-const AnalysisModals = ({
+export default function AnalysisModals({
   uploadFlow,
   githubFlow,
   results,
-}: AnalysisModalsProps) => {
+}: AnalysisModalsProps) {
+  const { handleAuthSuccess, setStep } = githubFlow;
+  const { openGithubAuthModal } = useAppSelector((state) => state.app);
+  const { githubToken } = useAppSelector((state) => state.auth);
+  const dispatch = useDispatch();
+  useEffect(() => {
+    const isAnyOpen =
+      uploadFlow.isOpen ||
+      githubFlow.step !== GitHubFlowStep.AUTH ||
+      results.isOpen;
+
+    document.body.style.overflow = isAnyOpen ? 'hidden' : 'auto';
+
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [uploadFlow.isOpen, githubFlow.step, results.isOpen]);
+
+  useEffect(() => {
+    if (openGithubAuthModal) {
+      sessionStorage.removeItem('open_github_flow');
+      dispatch(setOpenGithubAuthModal(false));
+
+      if (githubToken) {
+        handleAuthSuccess(githubToken);
+        setStep(GitHubFlowStep.REPO_SELECT);
+      }
+    }
+  }, [handleAuthSuccess, setStep, githubToken]);
+
   return (
     <>
-      {/* Upload Flow Modal */}
       {uploadFlow.isOpen && (
         <UploadFlowModal
           step={uploadFlow.step}
@@ -32,7 +63,6 @@ const AnalysisModals = ({
           onClose={() => {
             uploadFlow.resetFlow();
             uploadFlow.setOpen(false);
-            document.body.style.overflow = 'auto';
           }}
           onOpenResults={(r: any) => {
             results.setReport(r);
@@ -40,8 +70,6 @@ const AnalysisModals = ({
           }}
         />
       )}
-
-      {/* GitHub Flow Modal */}
 
       <GitHubFlowModal
         step={githubFlow.step}
@@ -66,17 +94,11 @@ const AnalysisModals = ({
         report={githubFlow.report}
       />
 
-      {/* Results/Receipt Modal */}
       <ReceiptModal
         open={results.isOpen}
         report={results.report}
         onClose={() => results.setOpen(false)}
-        onViewDetailed={(report: any) => {
-          results.setOpen(false);
-        }}
       />
     </>
   );
-};
-
-export default AnalysisModals;
+}

@@ -169,7 +169,9 @@ export default function StepFileSelect({
                     </p>
                     {file.language && (
                       <span className="text-xs text-[var(--text-secondary)] flex-shrink-0">
-                        {file.language}
+                        {file.language.includes('Rust')
+                          ? 'Rust'
+                          : file.language}
                       </span>
                     )}
                   </div>
