@@ -269,6 +269,20 @@ export class StaticAnalysisService {
     }
 
     /**
+     * Get all saved analysis reports
+     * @param userId Optional user ID to filter reports by user
+     */
+    async getUserReportCount(userId: string): Promise<number> {
+        try {
+            const count = await this.staticAnalysisModel.countDocuments({ userId }).exec();
+            return count;
+        } catch (error) {
+            this.logger.error(`Failed to retrieve reports: ${error.message}`);
+            throw new Error(`Failed to retrieve reports: ${error.message}`);
+        }
+    }
+
+    /**
      * Get analysis report by ID
      */
     async getAllReportsCount(): Promise<any | null> {
@@ -297,6 +311,18 @@ export class StaticAnalysisService {
         catch (error) {
             this.logger.error(`Failed to retrieve report for ${id}: ${error.message}`);
             throw new NotFoundException(`Failed to retrieve report for ${id}: ${error.message}`);
+        }
+    }
+
+    /**
+     * Delete analysis reports by IDs
+     */
+    async deleteReports(ids: string[]): Promise<void> {
+        try {
+            await this.staticAnalysisModel.deleteMany({ _id: { $in: ids } }).exec();
+        } catch (error) {
+            this.logger.error(`Failed to delete reports: ${error.message}`);
+            throw new Error(`Failed to delete reports: ${error.message}`);
         }
     }
 

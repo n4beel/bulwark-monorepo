@@ -5,12 +5,17 @@ import {
   Res,
   HttpException,
   HttpStatus,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { UserService } from '../users/user.service';
 import { StaticAnalysisService } from 'src/static-analysis/static-analysis.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from 'src/users/guards/jwt-auth.guard';
+import { CurrentUser } from 'src/users/decorators/current-user.decorator';
+import { UserDocument } from 'src/users/schemas/user.schema';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -356,6 +361,23 @@ export class AuthController {
         'Failed to generate Google link URL',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user' })
+  @ApiResponse({ status: 200, description: 'Returns the current user.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  @ApiResponse({ status: 500, description: 'Failed to get current user.' })
+  async getCurrentUser(@CurrentUser() user: UserDocument): Promise<UserDocument> {
+    try {
+      const reportCount = await this.staticAnalysisService.getUserReportCount(String(user._id));
+      return { ...user.toObject(), reportCount };
+    } catch (error) {
+      throw new HttpException('Failed to get current user', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }

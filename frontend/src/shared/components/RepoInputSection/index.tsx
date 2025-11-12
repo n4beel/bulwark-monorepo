@@ -12,6 +12,7 @@ interface RepoInputSectionProps {
   showStats?: boolean;
   compact?: boolean;
   className?: string;
+  githubConnected?: boolean;
 }
 
 export default function RepoInputSection({
@@ -21,6 +22,7 @@ export default function RepoInputSection({
   showStats = true,
   compact = false,
   className = '',
+  githubConnected = false,
 }: RepoInputSectionProps) {
   const [repoInput, setRepoInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -92,7 +94,7 @@ export default function RepoInputSection({
             className="w-full md:w-auto"
             disabled={isAnalyzing}
           >
-            Connect GitHub
+            {githubConnected ? 'Select Repository' : 'Connect GitHub'}
           </Button>
 
           <Button
