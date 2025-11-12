@@ -2,11 +2,12 @@
 'use client';
 
 import StaticAnalysisReportDisplay from '@/components/StaticAnalysisReportDisplay';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import ReportsPage from '@/app/reports/page';
 import RepoInputSection from '@/shared/components/RepoInputSection';
+import { useAppSelector } from '@/shared/hooks/useAppSelector';
 import { setOpenGithubAuthModal } from '@/store/slices/appSlice';
 import { RootState } from '@/store/store';
 import { staticAnalysisApi } from '@/services/api';
@@ -46,7 +47,7 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
 
   const dispatch = useDispatch();
 
-  const githubId = useSelector((state: RootState) => state.auth.githubId);
+  const githubId = useAppSelector((state: RootState) => state.auth.githubId);
 
   // Load initial report if ID provided (from URL)
   useEffect(() => {

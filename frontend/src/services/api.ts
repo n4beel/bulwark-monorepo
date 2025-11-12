@@ -47,7 +47,10 @@ api.interceptors.response.use(
       localStorage.removeItem('github_token');
       localStorage.removeItem('github_user');
       store.dispatch(logout());
-      window.location.href = '/';
+
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      }
     }
 
     return Promise.reject(error);
