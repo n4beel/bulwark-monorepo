@@ -158,6 +158,7 @@ pub fn calculate_workspace_tsc(
 /// Analyze Total Statement Count in a single file
 pub fn analyze_file_tsc(content: &str) -> Result<TscMetrics, Box<dyn std::error::Error>> {
     // Parse the Rust file using syn
+    // TODO: don't pass content, pass the file path instead.
     let syntax_tree: syn::File =
         syn::parse_file(content).map_err(|e| format!("Failed to parse Rust file: {}", e))?;
 

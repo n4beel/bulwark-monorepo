@@ -113,12 +113,14 @@ export class AuthService {
   }
 
   /**
-     * Generate GitHub OAuth URL
-     */
-  getGitHubAuthUrl(fromPath?: string, mode?: string, reportId?: string): string { // <-- 1. Accept the path
-
-    this.logger.log(`Generating GitHub Auth URL for mode: ${mode}`);
-    this.logger.log(`From path: ${fromPath}`);
+   * Generate GitHub OAuth URL
+   * @param fromPath - Path to redirect to after authentication
+   * @param mode - OAuth mode (passed through to frontend, not used for backend logic)
+   * @param reportId - Optional report ID to associate with user
+   * @param userId - Optional user ID for account linking (when user is already authenticated)
+   */
+  getGitHubAuthUrl(fromPath?: string, mode?: string, reportId?: string, userId?: string): string {
+    this.logger.log(`Generating GitHub Auth URL - fromPath: ${fromPath}, mode: ${mode}, linking: ${!!userId}`);
 
     const clientId = this.configService.get<string>('GIT_CLIENT_ID');
     const redirectUri = this.configService.get<string>('GIT_CALLBACK_URL');
@@ -127,19 +129,19 @@ export class AuthService {
       throw new Error('GitHub OAuth credentials not configured');
     }
 
-    // 🔍 DEBUG: Log the redirect URI being used
-    this.logger.log(`🔍 GitHub OAuth Client ID: ${clientId}`);
-    this.logger.log(`🔍 GitHub OAuth redirect_uri: ${redirectUri}`);
-
-    // 2. Use the 'fromPath' as the state.
-    //    Default to '/' if no path is provided.
-    const state = { path: fromPath || '/', mode: mode || 'auth', reportId: reportId || '' };
+    // Build state object - mode is passed through for frontend use only
+    const state = {
+      path: fromPath || '/',
+      reportId: reportId || '',
+      userId: userId || '',
+      mode: mode || 'auth', // Default to 'auth' if not provided
+    };
 
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
       scope: 'repo read:user user:email',
-      state: JSON.stringify(state), // <-- 3. Use the path here
+      state: JSON.stringify(state),
     });
 
     const fullUrl = `https://github.com/login/oauth/authorize?${params.toString()}`;
@@ -160,10 +162,13 @@ export class AuthService {
 
   /**
    * Generate Google OAuth URL
+   * @param fromPath - Path to redirect to after authentication
+   * @param mode - OAuth mode (passed through to frontend, not used for backend logic)
+   * @param reportId - Optional report ID to associate with user
+   * @param userId - Optional user ID for account linking (when user is already authenticated)
    */
-  getGoogleAuthUrl(fromPath?: string, mode?: string, reportId?: string): string {
-    this.logger.log(`Generating Google Auth URL for mode: ${mode}`);
-    this.logger.log(`From path: ${fromPath}`);
+  getGoogleAuthUrl(fromPath?: string, mode?: string, reportId?: string, userId?: string): string {
+    this.logger.log(`Generating Google Auth URL - fromPath: ${fromPath}, mode: ${mode}, linking: ${!!userId}`);
 
     const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
     const redirectUri = this.configService.get<string>('GOOGLE_CALLBACK_URL');
@@ -172,10 +177,13 @@ export class AuthService {
       throw new Error('Google OAuth credentials not configured');
     }
 
-    // 🔍 DEBUG: Log the redirect URI being used
-    this.logger.log(`🔍 Google OAuth redirect_uri: ${redirectUri}`);
-
-    const state = { path: fromPath || '/', mode: mode || 'auth', reportId: reportId || '' };
+    // Build state object - mode is passed through for frontend use only
+    const state = {
+      path: fromPath || '/',
+      reportId: reportId || '',
+      userId: userId || '',
+      mode: mode || 'auth', // Default to 'auth' if not provided
+    };
 
     const params = new URLSearchParams({
       client_id: clientId,

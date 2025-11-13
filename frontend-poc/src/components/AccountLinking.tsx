@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { getGitHubLinkUrl, getGoogleLinkUrl, User } from '@/lib/auth';
+import { getGitHubAuthUrl, getGoogleAuthUrl, User } from '@/lib/auth';
 
 interface AccountLinkingProps {
   user: User;
@@ -19,10 +19,14 @@ export default function AccountLinking({ user }: AccountLinkingProps) {
     setLoading('github');
     setError(null);
     try {
-      const linkUrl = await getGitHubLinkUrl(user.id);
+      if (!user.jwtToken) {
+        throw new Error('Authentication required. Please log in again.');
+      }
+      // Use the new flow: pass mode='connect' and JWT token
+      const linkUrl = await getGitHubAuthUrl('/dashboard', 'connect', undefined, user.jwtToken);
       window.location.href = linkUrl;
     } catch (err) {
-      setError('Failed to initiate GitHub linking');
+      setError(err instanceof Error ? err.message : 'Failed to initiate GitHub linking');
       setLoading(null);
     }
   };
@@ -31,10 +35,14 @@ export default function AccountLinking({ user }: AccountLinkingProps) {
     setLoading('google');
     setError(null);
     try {
-      const linkUrl = await getGoogleLinkUrl(user.id);
+      if (!user.jwtToken) {
+        throw new Error('Authentication required. Please log in again.');
+      }
+      // Use the new flow: pass mode='connect' and JWT token
+      const linkUrl = await getGoogleAuthUrl('/dashboard', 'connect', undefined, user.jwtToken);
       window.location.href = linkUrl;
     } catch (err) {
-      setError('Failed to initiate Google linking');
+      setError(err instanceof Error ? err.message : 'Failed to initiate Google linking');
       setLoading(null);
     }
   };
