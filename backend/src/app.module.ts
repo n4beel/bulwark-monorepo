@@ -9,6 +9,7 @@ import { DatabaseModule } from './database/database.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { TestModule } from './test/test.module';
 import { UserModule } from './users/user.module';
+import { WhitelistModule } from './whitelist/whitelist.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { UserModule } from './users/user.module';
     StaticAnalysisModule,
     UploadsModule,
     TestModule,
+    WhitelistModule,
   ],
   controllers: [AppController],
   providers: [AppService],

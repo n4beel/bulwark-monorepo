@@ -8,6 +8,7 @@ import { UploadsModule } from '../uploads/uploads.module';
 import { AiAnalysisModule } from '../ai-analysis/ai-analysis.module';
 import { ArciumStorageModule } from '../arcium-storage/arcium-storage.module';
 import { UserModule } from '../users/user.module';
+import { WhitelistModule } from '../whitelist/whitelist.module';
 import { StaticAnalysisReport, StaticAnalysisSchema } from './schemas/static-analysis.schema';
 import { StaticAnalysisUtils } from './static-analysis.utils';
 
@@ -18,6 +19,7 @@ import { StaticAnalysisUtils } from './static-analysis.utils';
     AiAnalysisModule,
     ArciumStorageModule,
     UserModule,
+    WhitelistModule,
     MongooseModule.forFeature([
       { name: StaticAnalysisReport.name, schema: StaticAnalysisSchema },
     ]),

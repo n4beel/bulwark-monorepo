@@ -5,9 +5,12 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 import { ScopingService, PreAuditReport } from './scoping.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { OptionalJwtAuthGuard } from '../users/guards/optional-jwt-auth.guard';
+import { WhitelistGuard } from '../whitelist/guards/whitelist.guard';
 
 export class GenerateReportDto {
   owner: string;
@@ -18,6 +21,7 @@ export class GenerateReportDto {
 
 @ApiTags('scoping')
 @Controller('scoping')
+@UseGuards(OptionalJwtAuthGuard, WhitelistGuard)
 export class ScopingController {
   private readonly logger = new Logger(ScopingController.name);
 

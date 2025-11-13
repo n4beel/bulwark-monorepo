@@ -300,6 +300,8 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
     let mut computed_factors = Vec::new();
     let mut notes = Vec::new();
 
+    // TODO: check if selected files are being passed again and again to the functions.
+
     // Calculate actual lines of code from workspace files using TSC metrics
     let selected_files = request.selected_files.as_deref().unwrap_or(&[]);
     match calculate_workspace_tsc(&full_path, selected_files) {

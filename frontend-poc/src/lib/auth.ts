@@ -8,7 +8,8 @@ export interface User {
   githubUsername?: string;
   googleId?: string;
   googleEmail?: string;
-  email?: string;
+  email?: string; // Primary email (backward compatibility)
+  emails?: string[]; // Array of all emails from all providers
   name?: string;
   avatarUrl?: string;
   jwtToken?: string;
@@ -16,6 +17,7 @@ export interface User {
   linkedAccount?: boolean;
   reportId?: string;
   from?: string;
+  admin?: boolean;
 }
 
 export interface AuthResponse {
@@ -24,13 +26,30 @@ export interface AuthResponse {
 
 /**
  * Get GitHub OAuth URL
+ * @param from - Path to redirect to after authentication
+ * @param mode - OAuth mode: 'auth' for new login, 'connect' for linking additional provider
+ * @param reportId - Optional report ID to associate with user
+ * @param jwtToken - Optional JWT token for authenticated requests (required for 'connect' mode)
  */
-export async function getGitHubAuthUrl(from: string = '/dashboard', mode: string = 'auth', reportId?: string): Promise<string> {
+export async function getGitHubAuthUrl(
+  from: string = '/dashboard',
+  mode: string = 'auth',
+  reportId?: string,
+  jwtToken?: string
+): Promise<string> {
   try {
     const params = new URLSearchParams({ from, mode });
     if (reportId) params.append('reportId', reportId);
 
-    const response = await axios.get<AuthResponse>(`${API_URL}/auth/github/url?${params.toString()}`);
+    const headers: Record<string, string> = {};
+    if (jwtToken) {
+      headers.Authorization = `Bearer ${jwtToken}`;
+    }
+
+    const response = await axios.get<AuthResponse>(
+      `${API_URL}/auth/github/url?${params.toString()}`,
+      { headers }
+    );
     return response.data.authUrl;
   } catch (error) {
     console.error('Failed to get GitHub auth URL:', error);
@@ -40,13 +59,30 @@ export async function getGitHubAuthUrl(from: string = '/dashboard', mode: string
 
 /**
  * Get Google OAuth URL
+ * @param from - Path to redirect to after authentication
+ * @param mode - OAuth mode: 'auth' for new login, 'connect' for linking additional provider
+ * @param reportId - Optional report ID to associate with user
+ * @param jwtToken - Optional JWT token for authenticated requests (required for 'connect' mode)
  */
-export async function getGoogleAuthUrl(from: string = '/dashboard', mode: string = 'auth', reportId?: string): Promise<string> {
+export async function getGoogleAuthUrl(
+  from: string = '/dashboard',
+  mode: string = 'auth',
+  reportId?: string,
+  jwtToken?: string
+): Promise<string> {
   try {
     const params = new URLSearchParams({ from, mode });
     if (reportId) params.append('reportId', reportId);
 
-    const response = await axios.get<AuthResponse>(`${API_URL}/auth/google/url?${params.toString()}`);
+    const headers: Record<string, string> = {};
+    if (jwtToken) {
+      headers.Authorization = `Bearer ${jwtToken}`;
+    }
+
+    const response = await axios.get<AuthResponse>(
+      `${API_URL}/auth/google/url?${params.toString()}`,
+      { headers }
+    );
     return response.data.authUrl;
   } catch (error) {
     console.error('Failed to get Google auth URL:', error);
@@ -55,27 +91,23 @@ export async function getGoogleAuthUrl(from: string = '/dashboard', mode: string
 }
 
 /**
- * Get GitHub link URL (for linking accounts)
+ * Get current user from backend
  */
-export async function getGitHubLinkUrl(userId: string): Promise<string> {
+export async function getCurrentUser(): Promise<User> {
   try {
-    const response = await axios.get<AuthResponse>(`${API_URL}/auth/github/link?userId=${userId}`);
-    return response.data.authUrl;
-  } catch (error) {
-    console.error('Failed to get GitHub link URL:', error);
-    throw error;
-  }
-}
+    const storedUser = getStoredUser();
+    if (!storedUser?.jwtToken) {
+      throw new Error('No authentication token found');
+    }
 
-/**
- * Get Google link URL (for linking accounts)
- */
-export async function getGoogleLinkUrl(userId: string): Promise<string> {
-  try {
-    const response = await axios.get<AuthResponse>(`${API_URL}/auth/google/link?userId=${userId}`);
-    return response.data.authUrl;
+    const response = await axios.get<User>(`${API_URL}/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${storedUser.jwtToken}`,
+      },
+    });
+    return response.data;
   } catch (error) {
-    console.error('Failed to get Google link URL:', error);
+    console.error('Failed to get current user:', error);
     throw error;
   }
 }

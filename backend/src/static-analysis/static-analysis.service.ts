@@ -1343,6 +1343,7 @@ export class StaticAnalysisService {
         return codeLines;
     }
 
+    // TODO: Migrate to syn based framework detection.
     /**
      * Detect the framework used (Anchor, Native Solana, etc.)
      */

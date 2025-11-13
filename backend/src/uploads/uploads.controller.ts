@@ -14,9 +14,13 @@ import { UploadsService } from './uploads.service';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { UseGuards } from '@nestjs/common';
+import { OptionalJwtAuthGuard } from '../users/guards/optional-jwt-auth.guard';
+import { WhitelistGuard } from '../whitelist/guards/whitelist.guard';
 
 @ApiTags('uploads')
 @Controller('uploads')
+@UseGuards(OptionalJwtAuthGuard, WhitelistGuard)
 export class UploadsController {
     private readonly logger = new Logger(UploadsController.name);
 

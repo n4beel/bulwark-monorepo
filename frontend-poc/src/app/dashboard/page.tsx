@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import UserProfile from '@/components/UserProfile';
 import AccountLinking from '@/components/AccountLinking';
 import { getStoredUser, clearUser, storeUser, User } from '@/lib/auth';
 
-export default function Dashboard() {
+function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [user, setUser] = useState<User | null>(null);
@@ -30,7 +30,7 @@ export default function Dashboard() {
             type: 'success',
             text: 'Account linked successfully! Your accounts have been merged.',
           });
-          
+
           // Clear the message after 5 seconds
           setTimeout(() => setMessage(null), 5000);
         }
@@ -88,6 +88,17 @@ export default function Dashboard() {
               <p className="text-gray-600 mt-1">Manage your account and connected services</p>
             </div>
             <div className="flex gap-2">
+              {user.admin && (
+                <button
+                  onClick={() => router.push('/admin/whitelist')}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors text-sm font-medium flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  Admin
+                </button>
+              )}
               <button
                 onClick={() => router.push('/profile')}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors text-sm font-medium flex items-center gap-2"
@@ -110,11 +121,10 @@ export default function Dashboard() {
         {/* Success/Error Message */}
         {message && (
           <div
-            className={`mb-6 p-4 rounded-lg ${
-              message.type === 'success'
-                ? 'bg-green-50 text-green-800 border border-green-200'
-                : 'bg-red-50 text-red-800 border border-red-200'
-            }`}
+            className={`mb-6 p-4 rounded-lg ${message.type === 'success'
+              ? 'bg-green-50 text-green-800 border border-green-200'
+              : 'bg-red-50 text-red-800 border border-red-200'
+              }`}
           >
             <div className="flex items-center">
               {message.type === 'success' ? (
@@ -141,8 +151,8 @@ export default function Dashboard() {
         <div className="mt-6 bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Repository Analysis</h2>
           <p className="text-gray-600 mb-4">
-            Analyze Rust smart contracts for security vulnerabilities and complexity metrics. 
-            {user.githubId 
+            Analyze Rust smart contracts for security vulnerabilities and complexity metrics.
+            {user.githubId
               ? ' Select from your repositories or analyze any public repository.'
               : ' Analyze any public GitHub repository.'
             }
@@ -163,7 +173,7 @@ export default function Dashboard() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">About This POC</h2>
           <div className="prose prose-sm text-gray-600">
             <p className="mb-3">
-              This is a proof-of-concept demonstrating dual OAuth authentication (GitHub and Google) 
+              This is a proof-of-concept demonstrating dual OAuth authentication (GitHub and Google)
               with account linking and merging capabilities.
             </p>
             <p className="mb-3">
@@ -177,13 +187,28 @@ export default function Dashboard() {
               <li>JWT-based session management</li>
             </ul>
             <p>
-              The backend handles all OAuth flows, account linking logic, and database operations. 
+              The backend handles all OAuth flows, account linking logic, and database operations.
               The frontend provides a clean UI for authentication and account management.
             </p>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 font-medium">Loading dashboard...</p>
+        </div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
 
