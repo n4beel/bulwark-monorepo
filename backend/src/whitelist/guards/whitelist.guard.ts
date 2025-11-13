@@ -19,7 +19,7 @@ export class WhitelistGuard implements CanActivate {
     constructor(
         private whitelistService: WhitelistService,
         private userService: UserService,
-    ) {}
+    ) { }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context.switchToHttp().getRequest();
@@ -58,15 +58,15 @@ export class WhitelistGuard implements CanActivate {
 
         // Fallback: Check whitelist in database (for old tokens without whitelisted field)
         // Check all emails in the user's emails array
-        const emailsToCheck = user.emails && user.emails.length > 0 
-            ? user.emails 
+        const emailsToCheck = user.emails && user.emails.length > 0
+            ? user.emails
             : (user.email ? [user.email] : []);
-        
+
         // Also check googleEmail if it's different
         if (user.googleEmail && !emailsToCheck.includes(user.googleEmail.toLowerCase().trim())) {
             emailsToCheck.push(user.googleEmail.toLowerCase().trim());
         }
-        
+
         if (emailsToCheck.length === 0) {
             throw new ForbiddenException('User email not found');
         }
