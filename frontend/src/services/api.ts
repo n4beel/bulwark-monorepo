@@ -46,11 +46,10 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('github_token');
       localStorage.removeItem('github_user');
-
       store.dispatch(logout());
 
       if (typeof window !== 'undefined') {
-        window.location.href = '/dashboard';
+        window.location.href = '/';
       }
     }
 
@@ -84,6 +83,12 @@ export const staticAnalysisApi = {
       request,
     );
     return response.data;
+  },
+  deleteReports: async (ids: string[]) => {
+    const response = await api.delete('/static-analysis/reports', {
+      data: { ids },
+    });
+    return response;
   },
 
   // Get all reports

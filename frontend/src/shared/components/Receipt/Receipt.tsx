@@ -122,22 +122,24 @@ export default function ReceiptModal({
               {!user && (
                 <button
                   className="border px-4 flex py-2 rounded-lg bg-white/80 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={() =>
+                  onClick={() => {
                     oid &&
-                    (onViewDetailed?.(oid) ??
-                      router.push(`/dashboard?report=${oid}`))
-                  }
+                      (onViewDetailed?.(oid) ??
+                        router.push(`/dashboard?report=${oid}`));
+                    onClose();
+                  }}
                 >
                   Signup to save
                 </button>
               )}
 
               <button
-                onClick={() =>
+                onClick={() => {
                   oid &&
-                  (onViewDetailed?.(oid) ??
-                    router.push(`/dashboard?report=${oid}`))
-                }
+                    (onViewDetailed?.(oid) ??
+                      router.push(`/dashboard?report=${oid}`));
+                  onClose();
+                }}
                 className="px-6 py-2 text-white bg-[var(--blue-primary)] rounded-lg cursor-pointer"
               >
                 View Detailed Report →

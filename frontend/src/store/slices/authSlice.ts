@@ -15,6 +15,7 @@ interface AuthState {
   githubToken: string;
   jwtToken: string | null;
   loading: boolean;
+  githubId: number | null;
 }
 
 const initialState: AuthState = {
@@ -22,6 +23,7 @@ const initialState: AuthState = {
   githubToken: '',
   jwtToken: null,
   loading: true,
+  githubId: null,
 };
 
 const authSlice = createSlice({
@@ -43,10 +45,15 @@ const authSlice = createSlice({
         state.jwtToken = action.payload.jwtToken;
       }
     },
+    setGithubId: (state, action: PayloadAction<number | null>) => {
+      state.githubId = action.payload;
+    },
     logout: (state) => {
       state.user = null;
       state.jwtToken = null;
       state.loading = false;
+
+      state.githubId = null;
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;
@@ -54,5 +61,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { setUser, setTokens, logout, setLoading } = authSlice.actions;
+export const { setUser, setTokens, logout, setLoading, setGithubId } =
+  authSlice.actions;
 export default authSlice.reducer;

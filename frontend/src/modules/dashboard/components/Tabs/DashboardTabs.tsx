@@ -2,10 +2,14 @@
 'use client';
 
 import StaticAnalysisReportDisplay from '@/components/StaticAnalysisReportDisplay';
+import { useDispatch } from 'react-redux';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import ReportsPage from '@/app/reports/page';
 import RepoInputSection from '@/shared/components/RepoInputSection';
+import { useAppSelector } from '@/shared/hooks/useAppSelector';
+import { setOpenGithubAuthModal } from '@/store/slices/appSlice';
+import { RootState } from '@/store/store';
 import { staticAnalysisApi } from '@/services/api';
 import { StaticAnalysisReport } from '@/types/api';
 import DashboardHeroHeader from '../Hero/DashboardHeroHeader';
@@ -41,6 +45,10 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
     useState<StaticAnalysisReport | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
 
+  const dispatch = useDispatch();
+
+  const githubId = useAppSelector((state: RootState) => state.auth.githubId);
+
   // Load initial report if ID provided (from URL)
   useEffect(() => {
     if (initialReportId) {
@@ -73,8 +81,15 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
     setActiveTab(Tab.ANALYZE);
   };
   const dashboardHandlers = {
-    // ✅ For "Connect GitHub" button - mode: "connect"
-    onConnectGitHub: () => handlers.onConnectGitHub('/dashboard', 'connect'),
+    onConnectGitHub: () => {
+      // ✅ If GitHub already connected
+      if (githubId) {
+        dispatch(setOpenGithubAuthModal(true)); // This triggers the modal
+      } else {
+        // ✅ If not connected, do OAuth
+        handlers.onConnectGitHub('/dashboard', 'connect');
+      }
+    },
     onUploadZip: handlers.onUploadZip,
     onAnalyze: handlers.onAnalyze,
   };
@@ -99,6 +114,7 @@ const DashboardTabs = ({ handlers, initialReportId }: DashboardTabsProps) => {
               onAnalyze={dashboardHandlers.onAnalyze}
               showStats={false}
               compact={true}
+              githubConnected={!!githubId}
             />
           </div>
         )}
