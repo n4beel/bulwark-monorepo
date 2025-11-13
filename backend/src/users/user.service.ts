@@ -1,10 +1,11 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from './schemas/user.schema';
 import { GitHubUser, GoogleUser } from '../auth/auth.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { WhitelistService } from '../whitelist/whitelist.service';
 
 @Injectable()
 export class UserService {
@@ -14,7 +15,26 @@ export class UserService {
         @InjectModel(User.name) private userModel: Model<UserDocument>,
         private jwtService: JwtService,
         private configService: ConfigService,
+        @Inject(forwardRef(() => WhitelistService))
+        private whitelistService?: WhitelistService,
     ) {}
+
+    /**
+     * Helper method to add email to emails array if not already present
+     */
+    private addEmailToArray(user: UserDocument, email: string): void {
+        if (!email) return;
+        
+        const normalizedEmail = email.toLowerCase().trim();
+        if (!user.emails) {
+            user.emails = [];
+        }
+        
+        // Add email if not already in array
+        if (!user.emails.includes(normalizedEmail)) {
+            user.emails.push(normalizedEmail);
+        }
+    }
 
     /**
      * Find or create user from GitHub data
@@ -26,10 +46,16 @@ export class UserService {
 
             if (!user) {
                 // Create new user
+                const emails: string[] = [];
+                if (githubUser.email) {
+                    emails.push(githubUser.email.toLowerCase().trim());
+                }
+                
                 user = new this.userModel({
                     githubId: githubUser.id,
                     githubUsername: githubUser.login,
                     email: githubUser.email || undefined,
+                    emails: emails,
                     name: githubUser.name || undefined,
                     avatarUrl: githubUser.avatar_url || undefined,
                 });
@@ -38,7 +64,10 @@ export class UserService {
             } else {
                 // Update existing user info (in case GitHub data changed)
                 user.githubUsername = githubUser.login;
-                if (githubUser.email) user.email = githubUser.email;
+                if (githubUser.email) {
+                    if (!user.email) user.email = githubUser.email;
+                    this.addEmailToArray(user, githubUser.email);
+                }
                 if (githubUser.name) user.name = githubUser.name;
                 if (githubUser.avatar_url) user.avatarUrl = githubUser.avatar_url;
                 await user.save();
@@ -62,10 +91,16 @@ export class UserService {
 
             if (!user) {
                 // Create new user
+                const emails: string[] = [];
+                if (googleUser.email) {
+                    emails.push(googleUser.email.toLowerCase().trim());
+                }
+                
                 user = new this.userModel({
                     googleId: googleUser.id,
                     googleEmail: googleUser.email,
                     email: googleUser.email,
+                    emails: emails,
                     name: googleUser.name || undefined,
                     avatarUrl: googleUser.picture || undefined,
                 });
@@ -73,8 +108,11 @@ export class UserService {
                 this.logger.log(`Created new user with Google: ${googleUser.email} (${googleUser.id})`);
             } else {
                 // Update existing user info (in case Google data changed)
-                if (googleUser.email) user.googleEmail = googleUser.email;
-                if (googleUser.email && !user.email) user.email = googleUser.email;
+                if (googleUser.email) {
+                    user.googleEmail = googleUser.email;
+                    if (!user.email) user.email = googleUser.email;
+                    this.addEmailToArray(user, googleUser.email);
+                }
                 if (googleUser.name && !user.name) user.name = googleUser.name;
                 if (googleUser.picture && !user.avatarUrl) user.avatarUrl = googleUser.picture;
                 await user.save();
@@ -112,6 +150,7 @@ export class UserService {
             
             // Update common fields only if they don't exist
             if (!user.email && githubUser.email) user.email = githubUser.email;
+            if (githubUser.email) this.addEmailToArray(user, githubUser.email);
             if (!user.name && githubUser.name) user.name = githubUser.name;
             if (!user.avatarUrl && githubUser.avatar_url) user.avatarUrl = githubUser.avatar_url;
 
@@ -149,6 +188,7 @@ export class UserService {
             
             // Update common fields only if they don't exist
             if (!user.email && googleUser.email) user.email = googleUser.email;
+            if (googleUser.email) this.addEmailToArray(user, googleUser.email);
             if (!user.name && googleUser.name) user.name = googleUser.name;
             if (!user.avatarUrl && googleUser.picture) user.avatarUrl = googleUser.picture;
 
@@ -181,6 +221,7 @@ export class UserService {
                 googleId: secondaryUser.googleId,
                 googleEmail: secondaryUser.googleEmail,
                 email: secondaryUser.email,
+                emails: secondaryUser.emails || [],
                 name: secondaryUser.name,
                 avatarUrl: secondaryUser.avatarUrl,
             };
@@ -201,6 +242,13 @@ export class UserService {
             }
 
             if (!primaryUser.email && secondaryData.email) primaryUser.email = secondaryData.email;
+            // Merge emails array
+            if (secondaryData.emails && secondaryData.emails.length > 0) {
+                if (!primaryUser.emails) primaryUser.emails = [];
+                secondaryData.emails.forEach(email => {
+                    this.addEmailToArray(primaryUser, email);
+                });
+            }
             if (!primaryUser.name && secondaryData.name) primaryUser.name = secondaryData.name;
             if (!primaryUser.avatarUrl && secondaryData.avatarUrl) primaryUser.avatarUrl = secondaryData.avatarUrl;
 
@@ -221,14 +269,38 @@ export class UserService {
 
     /**
      * Generate JWT token for user
+     * Includes whitelist status in the token payload
      */
-    generateToken(user: UserDocument): string {
+    async generateToken(user: UserDocument): Promise<string> {
+        // Check if any of user's emails are whitelisted
+        let whitelisted = false;
+        if (this.whitelistService) {
+            try {
+                // Check all emails in the array
+                const emailsToCheck = user.emails && user.emails.length > 0 
+                    ? user.emails 
+                    : (user.email ? [user.email] : []);
+                
+                for (const email of emailsToCheck) {
+                    if (await this.whitelistService.isEmailWhitelisted(email)) {
+                        whitelisted = true;
+                        break;
+                    }
+                }
+            } catch (error) {
+                this.logger.warn(`Failed to check whitelist status for user ${user._id}: ${error.message}`);
+                // Default to false if check fails
+            }
+        }
+
         const payload = {
             userId: String(user._id),
             githubId: user.githubId,
             githubUsername: user.githubUsername,
             googleId: user.googleId,
             googleEmail: user.googleEmail,
+            admin: user.admin || false,
+            whitelisted: whitelisted,
         };
 
         return this.jwtService.sign(payload);

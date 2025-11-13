@@ -19,12 +19,14 @@ import { StaticAnalysisDto, StaticAnalysisReportDocument } from './dto/static-an
 import { UploadsService } from '../uploads/uploads.service';
 import { JwtAuthGuard } from '../users/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../users/guards/optional-jwt-auth.guard';
+import { WhitelistGuard } from '../whitelist/guards/whitelist.guard';
 import { CurrentUser } from '../users/decorators/current-user.decorator';
 import { UserDocument } from '../users/schemas/user.schema';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('static-analysis')
 @Controller('static-analysis')
+@UseGuards(OptionalJwtAuthGuard, WhitelistGuard)
 export class StaticAnalysisController {
     private readonly logger = new Logger(StaticAnalysisController.name);
 
@@ -34,7 +36,6 @@ export class StaticAnalysisController {
     ) { }
 
     @Post('analyze-rust-contract')
-    @UseGuards(OptionalJwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({
         summary: 'Analyze a Rust contract from a GitHub repository (public or private)',
@@ -128,7 +129,6 @@ export class StaticAnalysisController {
 
 
     @Post('reports')
-    @UseGuards(OptionalJwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get all analysis reports for the authenticated user' })
     @ApiResponse({ status: 200, description: 'Returns all analysis reports.', type: [StaticAnalysisReportDocument] })
@@ -300,7 +300,6 @@ export class StaticAnalysisController {
     }
 
     @Post('analyze-uploaded-contract')
-    @UseGuards(OptionalJwtAuthGuard)
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Analyze an uploaded contract' })
     @ApiBody({ schema: { type: 'object', properties: { extractedPath: { type: 'string' }, selectedFiles: { type: 'array', items: { type: 'string' } } } } })

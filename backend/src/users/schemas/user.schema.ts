@@ -21,13 +21,19 @@ export class User {
 
     // Common fields
     @Prop()
-    email?: string;
+    email?: string; // Primary email (kept for backward compatibility)
+
+    @Prop({ type: [String], default: [] })
+    emails?: string[]; // Array of all emails from all providers
 
     @Prop()
     name?: string;
 
     @Prop()
     avatarUrl?: string;
+
+    @Prop({ default: false })
+    admin?: boolean;
 
     @Prop({ default: Date.now })
     createdAt: Date;

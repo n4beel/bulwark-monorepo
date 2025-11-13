@@ -8,7 +8,8 @@ export interface User {
   githubUsername?: string;
   googleId?: string;
   googleEmail?: string;
-  email?: string;
+  email?: string; // Primary email (backward compatibility)
+  emails?: string[]; // Array of all emails from all providers
   name?: string;
   avatarUrl?: string;
   jwtToken?: string;
@@ -16,6 +17,7 @@ export interface User {
   linkedAccount?: boolean;
   reportId?: string;
   from?: string;
+  admin?: boolean;
 }
 
 export interface AuthResponse {

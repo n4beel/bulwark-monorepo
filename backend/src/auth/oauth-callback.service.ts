@@ -134,8 +134,10 @@ export class OAuthCallbackService {
             googleId: user.googleId,
             googleEmail: user.googleEmail,
             email: user.email,
+            emails: user.emails || (user.email ? [user.email] : []), // Array of all emails
             name: user.name,
             avatarUrl: user.avatarUrl,
+            admin: user.admin || false,
             jwtToken: jwtToken,
             linkedAccount: linkedAccount,
             reportId: reportId,
@@ -196,8 +198,8 @@ export class OAuthCallbackService {
                 user = await provider.findOrCreateUser(userInfo);
             }
 
-            // Generate JWT token
-            const jwtToken = this.userService.generateToken(user);
+            // Generate JWT token (includes whitelist status)
+            const jwtToken = await this.userService.generateToken(user);
 
             // Associate report with user if needed (only if not linking)
             await this.associateReportIfNeeded(reportId, String(user._id), isLinking);
