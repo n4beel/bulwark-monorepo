@@ -12,8 +12,13 @@ export interface OAuthState {
     origin?: string;
 }
 
+export interface TokenExchangeResult {
+    accessToken: string;
+    expiresIn?: number; // Token expiration in seconds (if applicable)
+}
+
 export interface OAuthProviderStrategy {
-    exchangeCodeForToken(code: string): Promise<string>;
+    exchangeCodeForToken(code: string): Promise<string | TokenExchangeResult>;
     getUserInfo(accessToken: string): Promise<GitHubUser | GoogleUser>;
     findExistingUser(userId: string | number): Promise<UserDocument | null>;
     findOrCreateUser(userInfo: GitHubUser | GoogleUser): Promise<UserDocument>;
@@ -118,17 +123,36 @@ export class OAuthCallbackService {
 
     /**
      * Build redirect URL with user data
+     * Includes GitHub access token only if user has connected GitHub account
+     * @param accessToken - Current OAuth token (GitHub token if GitHub flow, null if Google flow)
      */
-    buildRedirectUrl(
+    async buildRedirectUrl(
         returnPath: string,
-        accessToken: string,
+        accessToken: string | null,
         user: UserDocument,
         jwtToken: string,
         linkedAccount: boolean,
         reportId: string,
         mode: string,
         origin: string,
-    ): string {
+    ): Promise<string> {
+        // Get GitHub token: use current token if provided (GitHub flow), otherwise get from DB
+        let githubToken: string | null = null;
+
+        if (user.githubId) {
+            if (accessToken) {
+                // User just authenticated via GitHub - use the token we just got
+                githubToken = accessToken;
+            } else {
+                // User authenticated via Google but has GitHub account - get token from DB
+                try {
+                    githubToken = await this.userService.getGitHubToken(String(user._id));
+                } catch (error) {
+                    this.logger.warn(`Failed to retrieve GitHub token for user ${user._id}: ${error.message}`);
+                }
+            }
+        }
+
         const userData = {
             id: String(user._id),
             githubId: user.githubId,
@@ -147,7 +171,13 @@ export class OAuthCallbackService {
             from: returnPath,
         };
 
-        return `${origin || this.frontendUrl}${returnPath}?token=${encodeURIComponent(accessToken)}&user=${encodeURIComponent(JSON.stringify(userData))}`;
+        // Only include GitHub token if user has connected GitHub account
+        if (githubToken) {
+            return `${origin || this.frontendUrl}${returnPath}?token=${encodeURIComponent(githubToken)}&user=${encodeURIComponent(JSON.stringify(userData))}`;
+        } else {
+            // No GitHub token available - redirect without token
+            return `${origin || this.frontendUrl}${returnPath}?user=${encodeURIComponent(JSON.stringify(userData))}`;
+        }
     }
 
     /**
@@ -170,7 +200,18 @@ export class OAuthCallbackService {
     ): Promise<{ redirectUrl: string }> {
         try {
             // Exchange code for access token
-            const accessToken = await provider.exchangeCodeForToken(code);
+            const tokenResult = await provider.exchangeCodeForToken(code);
+
+            // Handle both string (backward compatibility) and TokenExchangeResult
+            let accessToken: string;
+            let expiresIn: number | undefined;
+
+            if (typeof tokenResult === 'string') {
+                accessToken = tokenResult;
+            } else {
+                accessToken = tokenResult.accessToken;
+                expiresIn = tokenResult.expiresIn;
+            }
 
             // Get user info from provider
             const userInfo = await provider.getUserInfo(accessToken);
@@ -207,13 +248,28 @@ export class OAuthCallbackService {
             // Generate JWT token (includes whitelist status)
             const jwtToken = await this.userService.generateToken(user);
 
+            // Determine if this is a GitHub OAuth flow
+            const isGitHub = 'login' in userInfo || 'githubId' in userInfo;
+
+            // Save GitHub access token to database (encrypted) - only for GitHub OAuth
+            // We don't save Google tokens as they're not needed
+            if (isGitHub) {
+                try {
+                    await this.userService.saveGitHubToken(String(user._id), accessToken, expiresIn);
+                    this.logger.log(`Saved GitHub access token for user ${user._id}`);
+                } catch (error) {
+                    // Don't fail the auth flow if token saving fails
+                    this.logger.warn(`Failed to save access token: ${error.message}`);
+                }
+            }
+
             // Associate report with user if needed (only if not linking)
             await this.associateReportIfNeeded(reportId, String(user._id), isLinking);
 
-            // Build redirect URL
-            const redirectUrl = this.buildRedirectUrl(
+            // Build redirect URL (includes GitHub token only if user has connected GitHub account)
+            const redirectUrl = await this.buildRedirectUrl(
                 returnPath,
-                accessToken,
+                isGitHub ? accessToken : null, // Only pass GitHub token, not Google token
                 user,
                 jwtToken,
                 linkedAccount,

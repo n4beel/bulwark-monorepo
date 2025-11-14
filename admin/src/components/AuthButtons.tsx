@@ -39,7 +39,7 @@ export default function AuthButtons() {
         </div>
       )}
 
-      {/* <button
+      <button
         onClick={handleGitHubLogin}
         disabled={loading !== null}
         className="w-full flex items-center justify-center px-4 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -57,7 +57,7 @@ export default function AuthButtons() {
             Continue with GitHub
           </>
         )}
-      </button> */}
+      </button>
 
       <button
         onClick={handleGoogleLogin}

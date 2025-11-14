@@ -7,6 +7,7 @@ import { UserService } from './user.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
 import { WhitelistModule } from '../whitelist/whitelist.module';
+import { TokenEncryptionService } from './services/token-encryption.service';
 
 @Module({
     imports: [
@@ -23,8 +24,8 @@ import { WhitelistModule } from '../whitelist/whitelist.module';
         }),
         forwardRef(() => WhitelistModule),
     ],
-    providers: [UserService, JwtAuthGuard, OptionalJwtAuthGuard],
-    exports: [UserService, JwtAuthGuard, OptionalJwtAuthGuard],
+    providers: [UserService, TokenEncryptionService, JwtAuthGuard, OptionalJwtAuthGuard],
+    exports: [UserService, TokenEncryptionService, JwtAuthGuard, OptionalJwtAuthGuard],
 })
 export class UserModule {}
 

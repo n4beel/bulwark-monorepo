@@ -6,6 +6,7 @@ import { GitHubUser, GoogleUser } from '../auth/auth.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { WhitelistService } from '../whitelist/whitelist.service';
+import { TokenEncryptionService } from './services/token-encryption.service';
 
 @Injectable()
 export class UserService {
@@ -15,6 +16,7 @@ export class UserService {
         @InjectModel(User.name) private userModel: Model<UserDocument>,
         private jwtService: JwtService,
         private configService: ConfigService,
+        private tokenEncryptionService: TokenEncryptionService,
         @Inject(forwardRef(() => WhitelistService))
         private whitelistService?: WhitelistService,
     ) {}
@@ -332,6 +334,124 @@ export class UserService {
      */
     async findByGoogleId(googleId: string): Promise<UserDocument | null> {
         return this.userModel.findOne({ googleId }).exec();
+    }
+
+    /**
+     * Save GitHub access token for user (encrypted)
+     */
+    async saveGitHubToken(userId: string, accessToken: string, expiresIn?: number): Promise<void> {
+        try {
+            const user = await this.userModel.findById(userId).exec();
+            if (!user) {
+                throw new BadRequestException('User not found');
+            }
+
+            const encryptedToken = this.tokenEncryptionService.encrypt(accessToken);
+            user.githubAccessToken = encryptedToken;
+
+            // Set expiration if provided (GitHub tokens typically don't expire, but we'll track if they do)
+            if (expiresIn) {
+                user.githubTokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
+            }
+
+            await user.save();
+            this.logger.log(`Saved GitHub access token for user ${userId}`);
+        } catch (error) {
+            this.logger.error(`Failed to save GitHub token: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Save Google access token for user (encrypted)
+     */
+    async saveGoogleToken(userId: string, accessToken: string, expiresIn?: number): Promise<void> {
+        try {
+            const user = await this.userModel.findById(userId).exec();
+            if (!user) {
+                throw new BadRequestException('User not found');
+            }
+
+            const encryptedToken = this.tokenEncryptionService.encrypt(accessToken);
+            user.googleAccessToken = encryptedToken;
+
+            // Set expiration if provided
+            if (expiresIn) {
+                user.googleTokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
+            }
+
+            await user.save();
+            this.logger.log(`Saved Google access token for user ${userId}`);
+        } catch (error) {
+            this.logger.error(`Failed to save Google token: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Get decrypted GitHub access token for user
+     * Returns null if token doesn't exist or is expired
+     */
+    async getGitHubToken(userId: string): Promise<string | null> {
+        try {
+            const user = await this.userModel.findById(userId).exec();
+            if (!user || !user.githubAccessToken) {
+                return null;
+            }
+
+            // Check if token is expired
+            if (user.githubTokenExpiresAt && user.githubTokenExpiresAt < new Date()) {
+                this.logger.warn(`GitHub token expired for user ${userId}`);
+                return null;
+            }
+
+            const decryptedToken = this.tokenEncryptionService.decrypt(user.githubAccessToken);
+            return decryptedToken;
+        } catch (error) {
+            this.logger.error(`Failed to get GitHub token: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Get decrypted Google access token for user
+     * Returns null if token doesn't exist or is expired
+     */
+    async getGoogleToken(userId: string): Promise<string | null> {
+        try {
+            const user = await this.userModel.findById(userId).exec();
+            if (!user || !user.googleAccessToken) {
+                return null;
+            }
+
+            // Check if token is expired
+            if (user.googleTokenExpiresAt && user.googleTokenExpiresAt < new Date()) {
+                this.logger.warn(`Google token expired for user ${userId}`);
+                return null;
+            }
+
+            const decryptedToken = this.tokenEncryptionService.decrypt(user.googleAccessToken);
+            return decryptedToken;
+        } catch (error) {
+            this.logger.error(`Failed to get Google token: ${error.message}`);
+            return null;
+        }
+    }
+
+    /**
+     * Check if user's GitHub token is valid (exists and not expired)
+     */
+    async hasValidGitHubToken(userId: string): Promise<boolean> {
+        const token = await this.getGitHubToken(userId);
+        return token !== null;
+    }
+
+    /**
+     * Check if user's Google token is valid (exists and not expired)
+     */
+    async hasValidGoogleToken(userId: string): Promise<boolean> {
+        const token = await this.getGoogleToken(userId);
+        return token !== null;
     }
 }
 

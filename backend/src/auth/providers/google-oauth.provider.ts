@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AuthService, GoogleUser } from '../auth.service';
 import { UserService } from '../../users/user.service';
 import { UserDocument } from '../../users/schemas/user.schema';
-import { OAuthProviderStrategy } from '../oauth-callback.service';
+import { OAuthProviderStrategy, TokenExchangeResult } from '../oauth-callback.service';
 
 @Injectable()
 export class GoogleOAuthProvider implements OAuthProviderStrategy {
@@ -11,7 +11,7 @@ export class GoogleOAuthProvider implements OAuthProviderStrategy {
     private readonly userService: UserService,
   ) {}
 
-  async exchangeCodeForToken(code: string): Promise<string> {
+  async exchangeCodeForToken(code: string): Promise<string | TokenExchangeResult> {
     return this.authService.exchangeGoogleCodeForToken(code);
   }
 
