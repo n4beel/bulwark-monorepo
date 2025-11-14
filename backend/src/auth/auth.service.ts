@@ -167,7 +167,7 @@ export class AuthService {
    * @param reportId - Optional report ID to associate with user
    * @param userId - Optional user ID for account linking (when user is already authenticated)
    */
-  getGoogleAuthUrl(fromPath?: string, mode?: string, reportId?: string, userId?: string): string {
+  getGoogleAuthUrl(fromPath?: string, mode?: string, reportId?: string, origin?: string, userId?: string): string {
     this.logger.log(`Generating Google Auth URL - fromPath: ${fromPath}, mode: ${mode}, linking: ${!!userId}`);
 
     const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
@@ -183,6 +183,7 @@ export class AuthService {
       reportId: reportId || '',
       userId: userId || '',
       mode: mode || 'auth', // Default to 'auth' if not provided
+      origin: origin || '',
     };
 
     const params = new URLSearchParams({

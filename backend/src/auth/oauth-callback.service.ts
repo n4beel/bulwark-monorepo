@@ -9,6 +9,7 @@ export interface OAuthState {
     reportId?: string;
     userId?: string;
     mode?: 'auth' | 'connect'; // Explicit mode: 'auth' for new login, 'connect' for linking additional provider
+    origin?: string;
 }
 
 export interface OAuthProviderStrategy {
@@ -126,6 +127,7 @@ export class OAuthCallbackService {
         linkedAccount: boolean,
         reportId: string,
         mode: string,
+        origin: string,
     ): string {
         const userData = {
             id: String(user._id),
@@ -145,14 +147,17 @@ export class OAuthCallbackService {
             from: returnPath,
         };
 
-        return `${this.frontendUrl}${returnPath}?token=${encodeURIComponent(accessToken)}&user=${encodeURIComponent(JSON.stringify(userData))}`;
+        return `${origin || this.frontendUrl}${returnPath}?token=${encodeURIComponent(accessToken)}&user=${encodeURIComponent(JSON.stringify(userData))}`;
     }
 
     /**
      * Build error redirect URL
+     * @param errorMessage - Error message to display
+     * @param origin - Optional origin URL from request (falls back to frontendUrl)
      */
-    buildErrorUrl(errorMessage: string): string {
-        return `${this.frontendUrl}/auth/error?message=${encodeURIComponent(errorMessage)}`;
+    buildErrorUrl(errorMessage: string, origin?: string): string {
+        const baseUrl = origin || this.frontendUrl;
+        return `${baseUrl}/auth/error?message=${encodeURIComponent(errorMessage)}`;
     }
 
     /**
@@ -176,6 +181,7 @@ export class OAuthCallbackService {
             const reportId = stateObject.reportId || '';
             const userId = stateObject.userId || '';
             const mode = stateObject.mode || 'auth'; // Passed through to frontend
+            const origin = stateObject.origin || '';
 
             // Detect if this is a linking request (based on userId presence, not mode)
             const isLinking = !!userId;
@@ -213,6 +219,7 @@ export class OAuthCallbackService {
                 linkedAccount,
                 reportId,
                 mode,
+                origin,
             );
 
             return { redirectUrl };

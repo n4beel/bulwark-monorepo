@@ -8,7 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
 import { UserService } from '../users/user.service';
 import { StaticAnalysisService } from 'src/static-analysis/static-analysis.service';
@@ -78,6 +78,7 @@ export class AuthController {
     @Query('code') code: string,
     @Query('state') state: string,
     @Res() res: Response,
+    @Req() req: Request,
   ) {
     try {
       const { redirectUrl } = await this.oauthCallbackService.processOAuthCallback(
@@ -88,7 +89,19 @@ export class AuthController {
       res.redirect(redirectUrl);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'GitHub OAuth callback error';
-      const errorUrl = this.oauthCallbackService.buildErrorUrl(errorMessage);
+
+      // Try to extract origin from state if available, otherwise use request origin
+      let origin: string | undefined;
+      try {
+        const stateObject = JSON.parse(state);
+        origin = stateObject.origin;
+      } catch {
+        // If state parsing fails, try to get origin from request
+        origin = req.headers.origin ||
+          (req.headers.referer ? new URL(req.headers.referer).origin : undefined);
+      }
+
+      const errorUrl = this.oauthCallbackService.buildErrorUrl(errorMessage, origin);
       res.redirect(errorUrl);
     }
   }
@@ -131,11 +144,19 @@ export class AuthController {
     @Query('mode') mode: string,
     @Query('reportId') reportId: string,
     @CurrentUser() user: UserDocument,
+    @Req() req: Request,
   ) {
     try {
+      // Get origin URL from request
+      const origin = req.headers.origin ||
+        (req.headers.referer ? new URL(req.headers.referer).origin : null) ||
+        `${req.protocol}://${req.get('host')}`;
+
+      console.log("🚀 ~ AuthController ~ getGoogleAuthUrl ~ origin:", origin)
+
       // If user is authenticated, include their ID for account linking
       const userId = user ? String(user._id) : undefined;
-      const authUrl = this.authService.getGoogleAuthUrl(from, mode, reportId, userId);
+      const authUrl = this.authService.getGoogleAuthUrl(from, mode, reportId, origin, userId);
       return { authUrl };
     } catch (error) {
       throw new HttpException(
@@ -158,6 +179,7 @@ export class AuthController {
     @Query('code') code: string,
     @Query('state') state: string,
     @Res() res: Response,
+    @Req() req: Request,
   ) {
     try {
       const { redirectUrl } = await this.oauthCallbackService.processOAuthCallback(
@@ -168,7 +190,19 @@ export class AuthController {
       res.redirect(redirectUrl);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Google OAuth callback error';
-      const errorUrl = this.oauthCallbackService.buildErrorUrl(errorMessage);
+
+      // Try to extract origin from state if available, otherwise use request origin
+      let origin: string | undefined;
+      try {
+        const stateObject = JSON.parse(state);
+        origin = stateObject.origin;
+      } catch {
+        // If state parsing fails, try to get origin from request
+        origin = req.headers.origin ||
+          (req.headers.referer ? new URL(req.headers.referer).origin : undefined);
+      }
+
+      const errorUrl = this.oauthCallbackService.buildErrorUrl(errorMessage, origin);
       res.redirect(errorUrl);
     }
   }
