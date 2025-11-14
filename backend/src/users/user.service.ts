@@ -19,19 +19,19 @@ export class UserService {
         private tokenEncryptionService: TokenEncryptionService,
         @Inject(forwardRef(() => WhitelistService))
         private whitelistService?: WhitelistService,
-    ) {}
+    ) { }
 
     /**
      * Helper method to add email to emails array if not already present
      */
     private addEmailToArray(user: UserDocument, email: string): void {
         if (!email) return;
-        
+
         const normalizedEmail = email.toLowerCase().trim();
         if (!user.emails) {
             user.emails = [];
         }
-        
+
         // Add email if not already in array
         if (!user.emails.includes(normalizedEmail)) {
             user.emails.push(normalizedEmail);
@@ -52,7 +52,7 @@ export class UserService {
                 if (githubUser.email) {
                     emails.push(githubUser.email.toLowerCase().trim());
                 }
-                
+
                 user = new this.userModel({
                     githubId: githubUser.id,
                     githubUsername: githubUser.login,
@@ -97,7 +97,7 @@ export class UserService {
                 if (googleUser.email) {
                     emails.push(googleUser.email.toLowerCase().trim());
                 }
-                
+
                 user = new this.userModel({
                     googleId: googleUser.id,
                     googleEmail: googleUser.email,
@@ -135,7 +135,7 @@ export class UserService {
         try {
             // Check if GitHub account is already linked to another user
             const existingGithubUser = await this.userModel.findOne({ githubId: githubUser.id }).exec();
-            
+
             if (existingGithubUser && String(existingGithubUser._id) !== userId) {
                 throw new BadRequestException('This GitHub account is already associated with another account');
             }
@@ -149,7 +149,7 @@ export class UserService {
             // Link GitHub account
             user.githubId = githubUser.id;
             user.githubUsername = githubUser.login;
-            
+
             // Update common fields only if they don't exist
             if (!user.email && githubUser.email) user.email = githubUser.email;
             if (githubUser.email) this.addEmailToArray(user, githubUser.email);
@@ -173,7 +173,7 @@ export class UserService {
         try {
             // Check if Google account is already linked to another user
             const existingGoogleUser = await this.userModel.findOne({ googleId: googleUser.id }).exec();
-            
+
             if (existingGoogleUser && String(existingGoogleUser._id) !== userId) {
                 throw new BadRequestException('This Google account is already associated with another account');
             }
@@ -187,7 +187,7 @@ export class UserService {
             // Link Google account
             user.googleId = googleUser.id;
             user.googleEmail = googleUser.email;
-            
+
             // Update common fields only if they don't exist
             if (!user.email && googleUser.email) user.email = googleUser.email;
             if (googleUser.email) this.addEmailToArray(user, googleUser.email);
@@ -279,10 +279,10 @@ export class UserService {
         if (this.whitelistService) {
             try {
                 // Check all emails in the array
-                const emailsToCheck = user.emails && user.emails.length > 0 
-                    ? user.emails 
+                const emailsToCheck = user.emails && user.emails.length > 0
+                    ? user.emails
                     : (user.email ? [user.email] : []);
-                
+
                 for (const email of emailsToCheck) {
                     if (await this.whitelistService.isEmailWhitelisted(email)) {
                         whitelisted = true;
