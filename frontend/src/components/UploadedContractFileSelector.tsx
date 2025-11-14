@@ -35,7 +35,7 @@ export default function UploadedContractFileSelector({
 
   const getLanguageFromExtension = (filename: string): string => {
     if (filename.endsWith('.sol')) return 'Solidity (EVM)';
-    if (filename.endsWith('.rs')) return 'Rust (Solana/Near)';
+    if (filename.endsWith('.rs')) return 'Rust';
     return 'Unknown';
   };
 
