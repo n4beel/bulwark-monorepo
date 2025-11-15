@@ -15,10 +15,10 @@ export const useGitHubAuth = () => {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    // const token = urlParams.get('token');
+    const token = urlParams.get('token');
     const userStr = urlParams.get('user');
 
-    if (userStr) {
+    if (token && userStr) {
       try {
         const user = JSON.parse(decodeURIComponent(userStr));
         const mode = user.mode || 'auth';
@@ -36,7 +36,7 @@ export const useGitHubAuth = () => {
         dispatch(setUser(userInfo));
         dispatch(
           setTokens({
-            githubToken: user.githubToken || '',
+            githubToken: token,
             jwtToken: user.jwtToken,
           }),
         );
