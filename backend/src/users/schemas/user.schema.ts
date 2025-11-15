@@ -19,6 +19,20 @@ export class User {
     @Prop()
     googleEmail?: string; // Google email
 
+    // OAuth Access Tokens (encrypted)
+    @Prop()
+    githubAccessToken?: string; // Encrypted GitHub access token
+
+    @Prop()
+    googleAccessToken?: string; // Encrypted Google access token
+
+    // Token metadata
+    @Prop()
+    githubTokenExpiresAt?: Date; // When GitHub token expires (if applicable)
+
+    @Prop()
+    googleTokenExpiresAt?: Date; // When Google token expires (if applicable)
+
     // Common fields
     @Prop()
     email?: string; // Primary email (kept for backward compatibility)

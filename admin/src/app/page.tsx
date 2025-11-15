@@ -66,7 +66,7 @@ function HomeContent() {
               Welcome
             </h1>
             <p className="text-gray-600">
-              Sign in with your preferred account
+              Sign in with your Google account
             </p>
           </div>
 
@@ -103,7 +103,7 @@ function HomeContent() {
           </div>
         </div>
 
-        <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+        {/* <div className="mt-8 bg-white rounded-lg shadow-md p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">
             Features
           </h2>
@@ -133,7 +133,7 @@ function HomeContent() {
               Analyze public & private Rust repositories
             </li>
           </ul>
-        </div>
+        </div> */}
       </div>
     </main>
   );

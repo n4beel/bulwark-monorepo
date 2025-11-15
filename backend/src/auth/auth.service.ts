@@ -46,6 +46,7 @@ export class AuthService {
 
   /**
    * Exchange authorization code for access token
+   * Returns token string (GitHub tokens typically don't expire)
    */
   async exchangeCodeForToken(code: string): Promise<string> {
     try {
@@ -167,7 +168,7 @@ export class AuthService {
    * @param reportId - Optional report ID to associate with user
    * @param userId - Optional user ID for account linking (when user is already authenticated)
    */
-  getGoogleAuthUrl(fromPath?: string, mode?: string, reportId?: string, userId?: string): string {
+  getGoogleAuthUrl(fromPath?: string, mode?: string, reportId?: string, origin?: string, userId?: string): string {
     this.logger.log(`Generating Google Auth URL - fromPath: ${fromPath}, mode: ${mode}, linking: ${!!userId}`);
 
     const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
@@ -183,6 +184,7 @@ export class AuthService {
       reportId: reportId || '',
       userId: userId || '',
       mode: mode || 'auth', // Default to 'auth' if not provided
+      origin: origin || '',
     };
 
     const params = new URLSearchParams({
@@ -202,8 +204,9 @@ export class AuthService {
 
   /**
    * Exchange Google authorization code for access token
+   * Returns token with expiration info
    */
-  async exchangeGoogleCodeForToken(code: string): Promise<string> {
+  async exchangeGoogleCodeForToken(code: string): Promise<{ accessToken: string; expiresIn?: number }> {
     try {
       const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
       const clientSecret = this.configService.get<string>('GOOGLE_CLIENT_SECRET');
@@ -239,7 +242,11 @@ export class AuthService {
         throw new Error('No access token received from Google');
       }
 
-      return response.data.access_token;
+      // Return token with expiration info
+      return {
+        accessToken: response.data.access_token,
+        expiresIn: response.data.expires_in,
+      };
     } catch (error) {
       this.logger.error(`Failed to exchange Google code for token: ${error.message}`);
       throw new Error('Failed to authenticate with Google');
