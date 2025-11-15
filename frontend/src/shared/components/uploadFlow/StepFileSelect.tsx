@@ -1,7 +1,13 @@
 'use client';
 
-import { FileText, Search } from 'lucide-react';
-import { useState } from 'react';
+import {
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Folder,
+  Search,
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
 import Image from 'next/image';
 import AnalysisActionBar from '../AnalysisActionBar/AnalysisActionBar';
 
@@ -11,33 +17,200 @@ interface Props {
   onBack: () => void;
 }
 
+type FileItem = {
+  path: string;
+  name?: string;
+  size?: number;
+  language?: string;
+  [key: string]: any;
+};
+
+type TreeNode = {
+  __files?: FileItem[];
+  [key: string]: TreeNode | FileItem[] | undefined;
+};
+
+const buildTree = (files: any[]): any[] => {
+  const tree: any = {};
+
+  files.forEach((file) => {
+    const parts = file.path.split('/');
+    let current = tree;
+
+    parts.forEach((part: string, index: number) => {
+      if (index === parts.length - 1) {
+        if (!(current as TreeNode).__files) (current as TreeNode).__files = [];
+        (current as TreeNode).__files!.push(file as FileItem);
+      } else {
+        if (!(current as Record<string, any>)[part]) {
+          (current as Record<string, any>)[part] = {};
+        }
+        current = (current as Record<string, any>)[part] as TreeNode;
+      }
+    });
+  });
+
+  const convertToArray = (obj: any, parentPath: string = ''): any[] => {
+    const result: any[] = [];
+
+    Object.keys(obj).forEach((key) => {
+      if (key === '__files') {
+        result.push(...obj[key]);
+      } else {
+        const path = parentPath ? `${parentPath}/${key}` : key;
+        const contents = convertToArray(obj[key], path);
+
+        result.push({
+          name: key,
+          path: path,
+          type: 'dir',
+          size: 0,
+          contents: contents,
+        });
+      }
+    });
+
+    return result;
+  };
+
+  return convertToArray(tree);
+};
+
+const isNested = (items: any[]): boolean => {
+  return items.some((item) => item.type === 'dir' && item.contents);
+};
+
+const flattenFiles = (items: any[]): any[] => {
+  const files: any[] = [];
+  const traverse = (items: any[]) => {
+    items.forEach((item) => {
+      if (item.type === 'file' || !item.type) {
+        files.push(item);
+      } else if (item.type === 'dir' && item.contents) {
+        traverse(item.contents);
+      }
+    });
+  };
+  traverse(items);
+  return files;
+};
+
+const getFilesInDir = (dir: any): string[] => {
+  const files: string[] = [];
+  const traverse = (items: any[]) => {
+    items.forEach((item) => {
+      if (item.type === 'file' || !item.type) {
+        files.push(item.path);
+      } else if (item.type === 'dir' && item.contents) {
+        traverse(item.contents);
+      }
+    });
+  };
+  if (dir.contents) traverse(dir.contents);
+  return files;
+};
+
 export default function StepFileSelect({
   contractFiles,
   onExecute,
   onBack,
 }: Props) {
+  const treeData = useMemo(() => {
+    if (!contractFiles || contractFiles.length === 0) return [];
+    return isNested(contractFiles) ? contractFiles : buildTree(contractFiles);
+  }, [contractFiles]);
+
+  const allFiles = useMemo(() => {
+    if (!contractFiles || contractFiles.length === 0) return [];
+    return isNested(contractFiles)
+      ? flattenFiles(contractFiles)
+      : contractFiles;
+  }, [contractFiles]);
+
   const [selected, setSelected] = useState(
-    new Set(contractFiles.map((f) => f.path)),
+    new Set(allFiles.map((f) => f.path)),
   );
   const [searchQuery, setSearchQuery] = useState('');
 
-  const toggle = (p: string) => {
+  const [expanded, setExpanded] = useState(() => {
+    const firstLevel = new Set<string>();
+    treeData.forEach((item) => {
+      if (item.type === 'dir') {
+        firstLevel.add(item.path);
+      }
+    });
+    return firstLevel;
+  });
+
+  const toggleFile = (path: string) => {
     const s = new Set(selected);
-    s.has(p) ? s.delete(p) : s.add(p);
+    s.has(path) ? s.delete(path) : s.add(path);
     setSelected(s);
   };
 
+  const toggleFolder = (dir: any) => {
+    const filesInDir = getFilesInDir(dir);
+    const s = new Set(selected);
+    const allSelected = filesInDir.every((f) => s.has(f));
+
+    filesInDir.forEach((f) => {
+      allSelected ? s.delete(f) : s.add(f);
+    });
+    setSelected(s);
+  };
+
+  const getFolderState = (dir: any): 'none' | 'partial' | 'full' => {
+    const filesInDir = getFilesInDir(dir);
+    if (filesInDir.length === 0) return 'none';
+    const selectedCount = filesInDir.filter((f) => selected.has(f)).length;
+    if (selectedCount === 0) return 'none';
+    if (selectedCount === filesInDir.length) return 'full';
+    return 'partial';
+  };
+
   const selectAll = () => {
-    setSelected(new Set(contractFiles.map((f) => f.path)));
+    setSelected(new Set(allFiles.map((f) => f.path)));
   };
 
   const deselectAll = () => {
     setSelected(new Set());
   };
 
-  const filteredFiles = contractFiles.filter((file) =>
-    file.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const matchesSearch = (item: any, query: string): boolean => {
+    const q = query.toLowerCase();
+    if (item.name.toLowerCase().includes(q)) return true;
+    if (item.type === 'dir' && item.contents) {
+      return item.contents.some((child: any) => matchesSearch(child, query));
+    }
+    return false;
+  };
+
+  const filteredItems = useMemo(() => {
+    if (!searchQuery) return treeData;
+
+    const filterItems = (items: any[]): any[] => {
+      return items
+        .map((item) => {
+          if (item.type === 'dir' && item.contents) {
+            const filteredContents = filterItems(item.contents);
+            if (
+              filteredContents.length > 0 ||
+              item.name.toLowerCase().includes(searchQuery.toLowerCase())
+            ) {
+              return { ...item, contents: filteredContents };
+            }
+            return null;
+          }
+          if (matchesSearch(item, searchQuery)) {
+            return item;
+          }
+          return null;
+        })
+        .filter(Boolean) as any[];
+    };
+
+    return filterItems(treeData);
+  }, [treeData, searchQuery]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
@@ -45,24 +218,148 @@ export default function StepFileSelect({
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const allSelected = selected.size === contractFiles.length;
+  const allSelected = selected.size === allFiles.length;
+
+  const renderTree = (items: any[], depth = 0) => {
+    return items.map((item, index) => {
+      if (item.type === 'dir') {
+        const isExpanded = expanded.has(item.path);
+        const folderState = getFolderState(item);
+        const filesInDir = getFilesInDir(item);
+
+        return (
+          <div key={item.path}>
+            <div
+              className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors border-b border-[var(--border-color)]"
+              style={{ paddingLeft: `${depth * 20 + 16}px` }}
+            >
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {/* Expand/Collapse */}
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newExpanded = new Set(expanded);
+                    if (newExpanded.has(item.path)) {
+                      newExpanded.delete(item.path);
+                    } else {
+                      newExpanded.add(item.path);
+                    }
+                    setExpanded(newExpanded);
+                  }}
+                  className="flex-shrink-0 cursor-pointer"
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-[var(--text-secondary)]" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-[var(--text-secondary)]" />
+                  )}
+                </div>
+
+                {/* Checkbox */}
+                <div
+                  onClick={() => toggleFolder(item)}
+                  className={`w-5 h-5 flex-shrink-0 rounded border-[2px] flex items-center justify-center cursor-pointer transition-colors border-[var(--blue-primary)]
+                    ${folderState === 'partial' ? 'bg-blue-100' : ''}
+                  `}
+                >
+                  {folderState === 'full' && (
+                    <svg
+                      className="w-3 h-3 text-[var(--blue-primary)]"
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path d="M5 13l4 4L19 7"></path>
+                    </svg>
+                  )}
+                  {folderState === 'partial' && (
+                    <div className="w-2 h-2 bg-[var(--blue-primary)] rounded-sm"></div>
+                  )}
+                </div>
+
+                {/* Folder Icon */}
+                <Folder className="w-5 h-5 flex-shrink-0 text-[var(--blue-primary)]" />
+
+                {/* Folder Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-[var(--text-primary)] text-sm truncate">
+                    {item.name}
+                  </p>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    {filesInDir.length} files
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {isExpanded && item.contents && (
+              <div>{renderTree(item.contents, depth + 1)}</div>
+            )}
+          </div>
+        );
+      } else {
+        // File
+        return (
+          <div
+            key={item.path}
+            className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors border-b border-[var(--border-color)]"
+            style={{ paddingLeft: `${depth * 20 + 56}px` }}
+            onClick={() => toggleFile(item.path)}
+          >
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              {/* Checkbox */}
+              <div className="w-5 h-5 flex-shrink-0 rounded border-[2px] flex items-center justify-center cursor-pointer transition-colors border-[var(--blue-primary)]">
+                {selected.has(item.path) && (
+                  <svg
+                    className="w-3 h-3 text-[var(--blue-primary)]"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
+              </div>
+
+              {/* File Icon */}
+              <FileText className="w-5 h-5 flex-shrink-0 text-[var(--blue-primary)]" />
+
+              {/* File Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-[var(--text-primary)] text-sm truncate">
+                    {item.name}
+                  </p>
+                  {item.language && (
+                    <span className="text-xs text-[var(--text-secondary)] flex-shrink-0">
+                      {item.language.includes('Rust') ? 'Rust' : item.language}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[var(--text-secondary)] truncate">
+                  {item.path}
+                </p>
+              </div>
+            </div>
+
+            {/* File Size */}
+            <span className="text-xs text-[var(--text-secondary)] ml-4 flex-shrink-0">
+              {formatFileSize(item.size || 0)}
+            </span>
+          </div>
+        );
+      }
+    });
+  };
 
   return (
-    <div
-      className="
-    flex flex-col justify-between
-  h-full
-    px-0 py-2
-   
-    overflow-y- md:overflow-hidden
-
-    sm:px-6
-    max-[420px]:px-0 
-
-   
-  "
-    >
-      {/* Header */}
+    <div className="flex flex-col justify-between h-full px-0 py-2 overflow-y- md:overflow-hidden sm:px-6 max-[420px]:px-0">
       <div className="">
         {/* Success Message */}
         <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">
@@ -74,7 +371,7 @@ export default function StepFileSelect({
               Upload Successful
             </p>
             <p className="text-sm text-[var(--text-secondary)]">
-              {contractFiles.length} contract files found in uploaded archive
+              {allFiles.length} contract files found in uploaded archive
             </p>
           </div>
         </div>
@@ -120,73 +417,13 @@ export default function StepFileSelect({
             </button>
           </div>
           <span className="text-sm text-[var(--text-secondary)]">
-            {selected.size} of {contractFiles.length} files selected
+            {selected.size} of {allFiles.length} files selected
           </span>
         </div>
 
-        {/* File List */}
-        <div className="border border-[var(--border-color)] rounded-xl overflow-hidden max-h-[180px]  md:max-h-[280px] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-[var(--blue-primary)] [&::-webkit-scrollbar-thumb]:rounded-full">
-          {filteredFiles.map((file, index) => (
-            <div
-              key={file.path}
-              className={`p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors ${
-                index !== filteredFiles.length - 1
-                  ? 'border-b border-[var(--border-color)]'
-                  : ''
-              }`}
-              onClick={() => toggle(file.path)}
-            >
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                {/* Custom Checkbox */}
-                <div
-                  className={`w-5 h-5 flex-shrink-0 rounded border-[2px] flex items-center justify-center cursor-pointer transition-colors
-                    border-[var(--blue-primary)]
-                  `}
-                >
-                  {selected.has(file.path) && (
-                    <svg
-                      className="w-3 h-3 text-[var(--blue-primary)]"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path d="M5 13l4 4L19 7"></path>
-                    </svg>
-                  )}
-                </div>
-
-                {/* File Icon */}
-                <FileText className="w-5 h-5 flex-shrink-0 text-[var(--blue-primary)]" />
-
-                {/* File Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-[var(--text-primary)] text-sm truncate">
-                      {file.name}
-                    </p>
-                    {file.language && (
-                      <span className="text-xs text-[var(--text-secondary)] flex-shrink-0">
-                        {file.language.includes('Rust')
-                          ? 'Rust'
-                          : file.language}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-[var(--text-secondary)] truncate">
-                    {file.path}
-                  </p>
-                </div>
-              </div>
-
-              {/* File Size */}
-              <span className="text-xs text-[var(--text-secondary)] ml-4 flex-shrink-0">
-                {formatFileSize(file.size || 0)}
-              </span>
-            </div>
-          ))}
+        {/* File Tree */}
+        <div className="border border-[var(--border-color)] rounded-xl overflow-hidden max-h-[180px] md:max-h-[280px] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-[var(--blue-primary)] [&::-webkit-scrollbar-thumb]:rounded-full">
+          {renderTree(filteredItems)}
         </div>
 
         {/* Info Message */}
