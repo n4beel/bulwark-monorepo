@@ -76,13 +76,13 @@ export interface CrossProgramInvocation {
 
 export interface DeFiPattern {
   type:
-  | 'amm'
-  | 'lending'
-  | 'oracle'
-  | 'token_transfer'
-  | 'vesting'
-  | 'staking'
-  | 'yield_farming';
+    | 'amm'
+    | 'lending'
+    | 'oracle'
+    | 'token_transfer'
+    | 'vesting'
+    | 'staking'
+    | 'yield_farming';
   complexity: 'low' | 'medium' | 'high';
   riskLevel: 'low' | 'medium' | 'high';
 }
@@ -230,15 +230,17 @@ export class StaticAnalysisReport {
   };
 
   // Analysis comparison
-  analysis_comparison?: {
-    lines_of_code_diff: number;
-    functions_diff: number;
-    math_operations_diff: number;
-    accuracy_notes: string[];
-  } | {
-    error: string;
-    fallback_used: string;
-  };
+  analysis_comparison?:
+    | {
+        lines_of_code_diff: number;
+        functions_diff: number;
+        math_operations_diff: number;
+        accuracy_notes: string[];
+      }
+    | {
+        error: string;
+        fallback_used: string;
+      };
 
   performance: {
     analysisTime: number;

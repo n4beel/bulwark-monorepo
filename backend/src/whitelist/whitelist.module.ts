@@ -8,13 +8,14 @@ import { AdminGuard } from './guards/admin.guard';
 import { UserModule } from '../users/user.module';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([{ name: Whitelist.name, schema: WhitelistSchema }]),
-        forwardRef(() => UserModule),
-    ],
-    providers: [WhitelistService, WhitelistGuard, AdminGuard],
-    controllers: [WhitelistController],
-    exports: [WhitelistService, WhitelistGuard, AdminGuard],
+  imports: [
+    MongooseModule.forFeature([
+      { name: Whitelist.name, schema: WhitelistSchema },
+    ]),
+    forwardRef(() => UserModule),
+  ],
+  providers: [WhitelistService, WhitelistGuard, AdminGuard],
+  controllers: [WhitelistController],
+  exports: [WhitelistService, WhitelistGuard, AdminGuard],
 })
 export class WhitelistModule {}
-

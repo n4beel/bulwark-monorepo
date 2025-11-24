@@ -10,22 +10,33 @@ import { WhitelistModule } from '../whitelist/whitelist.module';
 import { TokenEncryptionService } from './services/token-encryption.service';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            useFactory: async (configService: ConfigService) => ({
-                secret: configService.get<string>('JWT_SECRET') || 'your-secret-key-change-in-production',
-                signOptions: {
-                    expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '7d',
-                },
-            }),
-            inject: [ConfigService],
-        }),
-        forwardRef(() => WhitelistModule),
-    ],
-    providers: [UserService, TokenEncryptionService, JwtAuthGuard, OptionalJwtAuthGuard],
-    exports: [UserService, TokenEncryptionService, JwtAuthGuard, OptionalJwtAuthGuard],
+  imports: [
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret:
+          configService.get<string>('JWT_SECRET') ||
+          'your-secret-key-change-in-production',
+        signOptions: {
+          expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '7d',
+        },
+      }),
+      inject: [ConfigService],
+    }),
+    forwardRef(() => WhitelistModule),
+  ],
+  providers: [
+    UserService,
+    TokenEncryptionService,
+    JwtAuthGuard,
+    OptionalJwtAuthGuard,
+  ],
+  exports: [
+    UserService,
+    TokenEncryptionService,
+    JwtAuthGuard,
+    OptionalJwtAuthGuard,
+  ],
 })
 export class UserModule {}
-

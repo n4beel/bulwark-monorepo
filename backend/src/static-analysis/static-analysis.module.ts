@@ -9,7 +9,10 @@ import { AiAnalysisModule } from '../ai-analysis/ai-analysis.module';
 import { ArciumStorageModule } from '../arcium-storage/arcium-storage.module';
 import { UserModule } from '../users/user.module';
 import { WhitelistModule } from '../whitelist/whitelist.module';
-import { StaticAnalysisReport, StaticAnalysisSchema } from './schemas/static-analysis.schema';
+import {
+  StaticAnalysisReport,
+  StaticAnalysisSchema,
+} from './schemas/static-analysis.schema';
 import { StaticAnalysisUtils } from './static-analysis.utils';
 
 @Module({
@@ -28,4 +31,4 @@ import { StaticAnalysisUtils } from './static-analysis.utils';
   providers: [StaticAnalysisService, RustAnalyzerService, StaticAnalysisUtils],
   exports: [StaticAnalysisService, RustAnalyzerService],
 })
-export class StaticAnalysisModule { }
+export class StaticAnalysisModule {}

@@ -6,9 +6,9 @@ import { WhitelistModule } from '../whitelist/whitelist.module';
 import { UserModule } from '../users/user.module';
 
 @Module({
-    imports: [WhitelistModule, UserModule],
-    controllers: [UploadsController],
-    providers: [UploadsService, GitHubService],
-    exports: [UploadsService],
+  imports: [WhitelistModule, UserModule],
+  controllers: [UploadsController],
+  providers: [UploadsService, GitHubService],
+  exports: [UploadsService],
 })
-export class UploadsModule { }
+export class UploadsModule {}

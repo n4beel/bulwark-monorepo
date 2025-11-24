@@ -13,6 +13,16 @@ use syn::{
 // Import TSC functionality for AST-based code volume measurement
 use crate::factors::lines_of_code::analyze_file_tsc;
 
+/// Anchor file type classification based on location and purpose
+#[derive(Debug, Clone, PartialEq)]
+enum AnchorFileType {
+    LibRouter,   // src/lib.rs
+    Instruction, // src/instructions/*.rs
+    State,       // src/state/*.rs
+    Error,       // src/errors.rs
+    Other,       // utils, constants, or unorganized files
+}
+
 #[derive(Debug, Clone)]
 pub struct ModularityMetrics {
     pub total_files: usize,
@@ -28,6 +38,12 @@ pub struct ModularityMetrics {
     pub files_with_handlers: usize,
     pub instruction_handler_density: f64,
     pub anchor_modularity_score: f64,
+    // Architecture-aware metrics
+    pub has_instructions_folder: bool,
+    pub has_state_folder: bool,
+    pub thin_lib_compliance: bool,
+    pub separation_compliance: f64,
+    pub advanced_anchor_score: f64,
 }
 
 impl ModularityMetrics {
@@ -45,7 +61,12 @@ impl ModularityMetrics {
             "totalInstructionHandlers": self.total_instruction_handlers,
             "filesWithHandlers": self.files_with_handlers,
             "instructionHandlerDensity": self.instruction_handler_density,
-            "anchorModularityScore": self.anchor_modularity_score
+            "anchorModularityScore": self.anchor_modularity_score,
+            "hasInstructionsFolder": self.has_instructions_folder,
+            "hasStateFolder": self.has_state_folder,
+            "thinLibCompliance": self.thin_lib_compliance,
+            "separationCompliance": self.separation_compliance,
+            "advancedAnchorScore": self.advanced_anchor_score
         })
     }
 }
@@ -53,11 +74,13 @@ impl ModularityMetrics {
 #[derive(Debug, Clone)]
 struct FileAnalysis {
     path: String,
-    total_statements: usize, // AST-based Total Statement Count (TSC)
+    file_type: AnchorFileType, // Classification based on location
+    total_statements: usize,   // AST-based Total Statement Count (TSC)
     modules: Vec<ModuleInfo>,
     imports: Vec<ImportInfo>,
     max_depth: u32,
     handler_count: usize, // Count of Anchor instruction handlers in this file
+    defines_account_struct: bool, // Detects #[account] structs (State definitions)
 }
 
 #[derive(Debug, Clone)]
@@ -189,8 +212,15 @@ pub fn calculate_workspace_modularity(
         internal_cross_references,
     );
 
-    // Calculate Anchor-specific modularity score
+    // Calculate Anchor-specific modularity score (density-based)
     let anchor_modularity_score = calculate_anchor_modularity_score(instruction_handler_density);
+
+    // Evaluate architecture compliance
+    let arch_card = evaluate_architecture(&file_analyses);
+
+    // Calculate advanced Anchor architecture score
+    let advanced_anchor_score =
+        calculate_advanced_anchor_score(anchor_modularity_score, &arch_card);
 
     let result = ModularityMetrics {
         total_files,
@@ -205,10 +235,15 @@ pub fn calculate_workspace_modularity(
         files_with_handlers,
         instruction_handler_density,
         anchor_modularity_score,
+        has_instructions_folder: arch_card.has_instructions_folder,
+        has_state_folder: arch_card.has_state_folder,
+        thin_lib_compliance: arch_card.thin_lib_compliance,
+        separation_compliance: arch_card.separation_compliance,
+        advanced_anchor_score,
     };
 
     log::info!(
-        "Modularity analysis complete: {} files, {} modules, avg {:.1} statements/file, modularity score: {:.1}, {} handlers in {} files (IHD: {:.2}), anchor modularity: {:.1}",
+        "Modularity analysis complete: {} files, {} modules, avg {:.1} statements/file, modularity score: {:.1}, {} handlers in {} files (IHD: {:.2}), anchor modularity: {:.1}, advanced anchor score: {:.1}",
         total_files,
         total_modules,
         avg_statements_per_file,
@@ -216,10 +251,61 @@ pub fn calculate_workspace_modularity(
         total_instruction_handlers,
         files_with_handlers,
         instruction_handler_density,
-        anchor_modularity_score
+        anchor_modularity_score,
+        advanced_anchor_score
     );
 
     Ok(result)
+}
+
+/// Determine file type based on path
+fn determine_file_type(path: &str) -> AnchorFileType {
+    if path.ends_with("lib.rs") {
+        AnchorFileType::LibRouter
+    } else if path.contains("instructions/") {
+        AnchorFileType::Instruction
+    } else if path.contains("state/") {
+        AnchorFileType::State
+    } else if path.ends_with("errors.rs") {
+        AnchorFileType::Error
+    } else {
+        AnchorFileType::Other
+    }
+}
+
+/// Check if the file defines Account structs (State definitions)
+fn check_for_state_definitions(syntax_tree: &File) -> bool {
+    for item in &syntax_tree.items {
+        if let Item::Struct(item_struct) = item {
+            for attr in &item_struct.attrs {
+                // Check for #[account] attribute
+                if attr.path().is_ident("account") {
+                    return true;
+                }
+                // Also check for derive(Accounts) pattern
+                if let Ok(meta) = attr.parse_args::<Meta>() {
+                    match meta {
+                        Meta::Path(path) => {
+                            if path.is_ident("account") {
+                                return true;
+                            }
+                        }
+                        Meta::List(meta_list) => {
+                            if meta_list.path.is_ident("derive") {
+                                // Check if Accounts is in the derive list
+                                let tokens = meta_list.tokens.to_string();
+                                if tokens.contains("Accounts") {
+                                    return true;
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 /// Analyze modularity for a single file
@@ -231,6 +317,9 @@ fn analyze_file_modularity(
     let syntax_tree: File = syn::parse_file(content)
         .map_err(|e| format!("Failed to parse Rust file {}: {}", file_path, e))?;
 
+    // Determine file type based on path
+    let file_type = determine_file_type(file_path);
+
     let mut visitor = ModularityVisitor::new();
     visitor.visit_file(&syntax_tree);
 
@@ -238,17 +327,22 @@ fn analyze_file_modularity(
     let mut handler_counter = HandlerCounter::new();
     handler_counter.visit_file(&syntax_tree);
 
+    // Check for state definitions (Account structs)
+    let defines_account_struct = check_for_state_definitions(&syntax_tree);
+
     // Calculate AST-based Total Statement Count (TSC) for robust code volume measurement
     let tsc_metrics = analyze_file_tsc(content).unwrap_or_default();
     let total_statements = tsc_metrics.total_statements;
 
     Ok(FileAnalysis {
         path: file_path.to_string(),
+        file_type,
         total_statements,
         modules: visitor.modules,
         imports: visitor.imports,
         max_depth: visitor.max_nesting_depth,
         handler_count: handler_counter.handler_count,
+        defines_account_struct,
     })
 }
 
@@ -349,6 +443,110 @@ fn calculate_anchor_modularity_score(instruction_handler_density: f64) -> f64 {
         let penalty = (instruction_handler_density - 2.0) * 25.0;
         (50.0 - penalty).max(0.0)
     }
+}
+
+/// Architecture compliance scorecard
+#[derive(Debug, Default)]
+struct ArchitectureScoreCard {
+    has_instructions_folder: bool,
+    has_state_folder: bool,
+    thin_lib_compliance: bool,
+    separation_compliance: f64, // 0.0 to 1.0
+}
+
+/// Evaluate architecture compliance based on Anchor best practices
+fn evaluate_architecture(files: &[FileAnalysis]) -> ArchitectureScoreCard {
+    let mut card = ArchitectureScoreCard::default();
+    let mut valid_separations = 0;
+    let mut total_checked = 0;
+
+    for file in files {
+        match &file.file_type {
+            AnchorFileType::LibRouter => {
+                // RULE: lib.rs should be "Thin"
+                // It should have 0 handlers (it delegates) or imports instructions
+                // It should have low complexity
+                if file.handler_count == 0 && file.total_statements < 100 {
+                    card.thin_lib_compliance = true;
+                }
+            }
+            AnchorFileType::Instruction => {
+                card.has_instructions_folder = true;
+                total_checked += 1;
+
+                // RULE: Instruction files should contain Handlers
+                // RULE: Instruction files should NOT define global #[account] structs (local DTOs are ok)
+                // For now, we check if handlers exist (good practice)
+                if file.handler_count > 0 {
+                    valid_separations += 1;
+                }
+            }
+            AnchorFileType::State => {
+                card.has_state_folder = true;
+                total_checked += 1;
+
+                // RULE: State files should define Accounts
+                // RULE: State files should NEVER contain Handlers
+                if file.defines_account_struct && file.handler_count == 0 {
+                    valid_separations += 1;
+                } else if file.handler_count > 0 {
+                    // Violation: handlers in state files
+                    // Don't increment valid_separations, but count as checked
+                }
+            }
+            AnchorFileType::Other => {
+                // RULE: If an "Other" file has handlers, it violates architecture
+                // (unless it's a flat structure, which is a low score anyway)
+                if file.handler_count > 0 {
+                    total_checked += 1; // It counts as a check that failed
+                }
+            }
+            AnchorFileType::Error => {
+                // Error files are typically fine, no specific rules
+            }
+        }
+    }
+
+    if total_checked > 0 {
+        card.separation_compliance = valid_separations as f64 / total_checked as f64;
+    } else {
+        // If no files were checked, assume perfect compliance (edge case)
+        card.separation_compliance = 1.0;
+    }
+
+    card
+}
+
+/// Calculate advanced Anchor architecture score combining density and compliance
+fn calculate_advanced_anchor_score(
+    density_score: f64, // Existing density-based metric (0-100)
+    arch_card: &ArchitectureScoreCard,
+) -> f64 {
+    let mut score = 0.0;
+
+    // 1. Base Score: Folder Structure (30%)
+    if arch_card.has_instructions_folder {
+        score += 15.0;
+    }
+    if arch_card.has_state_folder {
+        score += 15.0;
+    }
+
+    // 2. Router Hygiene: Thin Lib (20%)
+    if arch_card.thin_lib_compliance {
+        score += 20.0;
+    }
+
+    // 3. Separation of Concerns (30%)
+    // Did they put handlers in instructions/ and state in state/?
+    score += arch_card.separation_compliance * 30.0;
+
+    // 4. Code Density (20%)
+    // Existing logic: Are individual files clean?
+    score += (density_score / 100.0) * 20.0;
+
+    // Ensure score is within bounds
+    score.max(0.0).min(100.0)
 }
 
 /// Visitor to analyze module structure and imports
@@ -675,19 +873,23 @@ mod tests {
         let file_analyses = vec![
             FileAnalysis {
                 path: "file1.rs".to_string(),
+                file_type: AnchorFileType::Other,
                 total_statements: 100,
                 modules: vec![],
                 imports: vec![],
                 max_depth: 0,
                 handler_count: 0,
+                defines_account_struct: false,
             },
             FileAnalysis {
                 path: "file2.rs".to_string(),
+                file_type: AnchorFileType::Other,
                 total_statements: 120,
                 modules: vec![],
                 imports: vec![],
                 max_depth: 0,
                 handler_count: 0,
+                defines_account_struct: false,
             },
         ];
 
@@ -715,6 +917,7 @@ mod tests {
 
         let result = analyze_file_modularity("test.rs", code).unwrap();
         assert_eq!(result.handler_count, 2); // initialize_handler and transfer_handler
+        assert_eq!(result.file_type, AnchorFileType::Other); // Not in instructions/ folder
     }
 
     #[test]
@@ -753,6 +956,85 @@ mod tests {
 
         let result = analyze_file_modularity("test.rs", code).unwrap();
         assert_eq!(result.handler_count, 1); // Only the one with Context parameter
+    }
+
+    #[test]
+    fn test_file_type_determination() {
+        assert_eq!(determine_file_type("src/lib.rs"), AnchorFileType::LibRouter);
+        assert_eq!(
+            determine_file_type("src/instructions/transfer.rs"),
+            AnchorFileType::Instruction
+        );
+        assert_eq!(
+            determine_file_type("src/state/token.rs"),
+            AnchorFileType::State
+        );
+        assert_eq!(determine_file_type("src/errors.rs"), AnchorFileType::Error);
+        assert_eq!(determine_file_type("src/utils.rs"), AnchorFileType::Other);
+    }
+
+    #[test]
+    fn test_state_definition_detection() {
+        let code = r#"
+            use anchor_lang::prelude::*;
+
+            #[account]
+            pub struct TokenAccount {
+                pub mint: Pubkey,
+                pub owner: Pubkey,
+                pub amount: u64,
+            }
+
+            pub struct RegularStruct {
+                pub field: u64,
+            }
+        "#;
+
+        let result = analyze_file_modularity("src/state/token.rs", code).unwrap();
+        assert!(result.defines_account_struct);
+        assert_eq!(result.file_type, AnchorFileType::State);
+    }
+
+    #[test]
+    fn test_architecture_evaluation() {
+        let file_analyses = vec![
+            FileAnalysis {
+                path: "src/lib.rs".to_string(),
+                file_type: AnchorFileType::LibRouter,
+                total_statements: 50,
+                modules: vec![],
+                imports: vec![],
+                max_depth: 0,
+                handler_count: 0,
+                defines_account_struct: false,
+            },
+            FileAnalysis {
+                path: "src/instructions/transfer.rs".to_string(),
+                file_type: AnchorFileType::Instruction,
+                total_statements: 100,
+                modules: vec![],
+                imports: vec![],
+                max_depth: 0,
+                handler_count: 1,
+                defines_account_struct: false,
+            },
+            FileAnalysis {
+                path: "src/state/token.rs".to_string(),
+                file_type: AnchorFileType::State,
+                total_statements: 50,
+                modules: vec![],
+                imports: vec![],
+                max_depth: 0,
+                handler_count: 0,
+                defines_account_struct: true,
+            },
+        ];
+
+        let arch_card = evaluate_architecture(&file_analyses);
+        assert!(arch_card.has_instructions_folder);
+        assert!(arch_card.has_state_folder);
+        assert!(arch_card.thin_lib_compliance);
+        assert!(arch_card.separation_compliance > 0.0);
     }
 
     #[test]

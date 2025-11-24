@@ -1,352 +1,416 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AIService } from '../ai/ai.service';
+import { ConfigService } from '@nestjs/config';
+import OpenAI from 'openai';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
 export interface DocumentationMetrics {
-    codeCommentsScore: number;
-    functionDocumentationScore: number;
-    readmeQualityScore: number;
-    securityDocumentationScore: number;
-    overallClarityScore: number;
-    findings: string[];
-    confidence: number;
+  codeCommentsScore: number;
+  functionDocumentationScore: number;
+  readmeQualityScore: number;
+  securityDocumentationScore: number;
+  overallClarityScore: number;
+  findings: string[];
+  confidence: number;
 }
 
 export interface TestingMetrics {
-    unitTestCoverage: number;
-    integrationTestCoverage: number;
-    testQualityScore: number;
-    edgeCaseTestingScore: number;
-    securityTestScore: number;
-    overallTestingScore: number;
-    findings: string[];
-    confidence: number;
+  unitTestCoverage: number;
+  integrationTestCoverage: number;
+  testQualityScore: number;
+  edgeCaseTestingScore: number;
+  securityTestScore: number;
+  overallTestingScore: number;
+  findings: string[];
+  confidence: number;
 }
 
 export interface FinancialLogicMetrics {
-    mathematicalComplexityScore: number;
-    algorithmSophisticationScore: number;
-    interestRateComplexityScore: number;
-    ammPricingComplexityScore: number;
-    rewardDistributionComplexityScore: number;
-    riskManagementComplexityScore: number;
-    overallFinancialComplexityScore: number;
-    findings: string[];
-    confidence: number;
+  mathematicalComplexityScore: number;
+  algorithmSophisticationScore: number;
+  interestRateComplexityScore: number;
+  ammPricingComplexityScore: number;
+  rewardDistributionComplexityScore: number;
+  riskManagementComplexityScore: number;
+  overallFinancialComplexityScore: number;
+  findings: string[];
+  confidence: number;
 }
 
 export interface AttackVectorMetrics {
-    flashLoanAttackRisk: number;
-    sandwichAttackRisk: number;
-    arbitrageOpportunities: number;
-    economicExploitRisk: number;
-    overallAttackVectorScore: number;
-    findings: string[];
-    confidence: number;
+  flashLoanAttackRisk: number;
+  sandwichAttackRisk: number;
+  arbitrageOpportunities: number;
+  economicExploitRisk: number;
+  overallAttackVectorScore: number;
+  findings: string[];
+  confidence: number;
 }
 
 export interface ValueAtRiskMetrics {
-    assetVolumeComplexity: number;
-    liquidityRiskScore: number;
-    marketCapImplications: number;
-    economicStakesScore: number;
-    overallValueAtRiskScore: number;
-    findings: string[];
-    confidence: number;
+  assetVolumeComplexity: number;
+  liquidityRiskScore: number;
+  marketCapImplications: number;
+  economicStakesScore: number;
+  overallValueAtRiskScore: number;
+  findings: string[];
+  confidence: number;
 }
 
 export interface GameTheoryMetrics {
-    incentiveAlignmentScore: number;
-    economicSecurityDependencies: number;
-    maliciousActorResistance: number;
-    protocolGovernanceComplexity: number;
-    overallGameTheoryScore: number;
-    findings: string[];
-    confidence: number;
+  incentiveAlignmentScore: number;
+  economicSecurityDependencies: number;
+  maliciousActorResistance: number;
+  protocolGovernanceComplexity: number;
+  overallGameTheoryScore: number;
+  findings: string[];
+  confidence: number;
 }
 
 export interface RiskHotspot {
-    file: string;
-    lines: string;
-    risk_score: number;
-    components: string[];
+  file: string;
+  lines: string;
+  risk_score: number;
+  components: string[];
 }
 
 export interface CodeMetrics {
-    highRiskHotspots: RiskHotspot[];
-    mediumRiskHotspots: RiskHotspot[];
-    recommendations: string[];
-    overallRiskScore: number;
-    findings: string[];
-    confidence: number;
+  highRiskHotspots: RiskHotspot[];
+  mediumRiskHotspots: RiskHotspot[];
+  recommendations: string[];
+  overallRiskScore: number;
+  findings: string[];
+  confidence: number;
 }
 
 export interface AiAnalysisResults {
-    codeAnalysis: CodeMetrics;
-    documentationClarity: DocumentationMetrics;
-    testingCoverage: TestingMetrics;
-    financialLogicIntricacy: FinancialLogicMetrics;
-    profitAttackVectors: AttackVectorMetrics;
-    valueAtRisk: ValueAtRiskMetrics;
+  codeAnalysis: CodeMetrics;
+  documentationClarity: DocumentationMetrics;
+  testingCoverage: TestingMetrics;
+  financialLogicIntricacy: FinancialLogicMetrics;
+  profitAttackVectors: AttackVectorMetrics;
+  valueAtRisk: ValueAtRiskMetrics;
 }
 
 @Injectable()
 export class AiAnalysisService {
-    private readonly logger = new Logger(AiAnalysisService.name);
+  private readonly logger = new Logger(AiAnalysisService.name);
+  private openai: OpenAI;
 
-    constructor(private readonly aiService: AIService) { }
-
-    private getOpenAIClient() {
-        const openai = (this.aiService as any).openai;
-        if (!openai) {
-            throw new Error('OpenAI client not available. Please configure OPENAI_API_KEY.');
-        }
-        return openai;
+  constructor(private configService: ConfigService) {
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (!apiKey) {
+      this.logger.warn(
+        'OpenAI API key not configured. AI analysis will not be available.',
+      );
+    } else {
+      this.openai = new OpenAI({
+        apiKey: apiKey,
+      });
     }
+  }
 
-    async analyzeFactors(
-        extractedPath: string,
-        rustAnalysisResults: any,
-        selectedFiles?: string[]
-    ): Promise<AiAnalysisResults> {
-        this.logger.log('Starting comprehensive AI analysis...');
-
-        try {
-            // Prepare comprehensive context
-            const context = await this.prepareComprehensiveContext(extractedPath, rustAnalysisResults, selectedFiles);
-
-            this.logger.log(`Prepared context: ${context.codeFiles.length} files, ${context.totalLines} lines of code`);
-
-            // Execute analyses in batches to avoid rate limits
-            // Batch 1: Core factors (most important)
-            const [codeAnalysisResult, documentationResult, testingResult, financialLogicResult, attackVectorsResult, valueAtRiskResult] = await Promise.allSettled([
-                this.analyzeCode(context),
-                this.analyzeDocumentationClarity(context),
-                this.analyzeTestingCoverage(context),
-                this.analyzeFinancialLogicIntricacy(context),
-                this.analyzeProfitAttackVectors(context),
-                this.analyzeValueAtRisk(context)
-            ]);
-
-            const results: AiAnalysisResults = {
-                codeAnalysis: this.extractResult(codeAnalysisResult, 'CodeMetrics'),
-                documentationClarity: this.extractResult(documentationResult, 'DocumentationMetrics'),
-                testingCoverage: this.extractResult(testingResult, 'TestingMetrics'),
-                financialLogicIntricacy: this.extractResult(financialLogicResult, 'FinancialLogicMetrics'),
-                profitAttackVectors: this.extractResult(attackVectorsResult, 'AttackVectorMetrics'),
-                valueAtRisk: this.extractResult(valueAtRiskResult, 'ValueAtRiskMetrics'),
-            };
-
-            this.logger.log('AI analysis completed successfully');
-            return results;
-
-        } catch (error) {
-            this.logger.error(`AI analysis failed: ${error.message}`);
-            throw error;
-        }
+  private getOpenAIClient() {
+    if (!this.openai) {
+      throw new Error(
+        'OpenAI client not available. Please configure OPENAI_API_KEY.',
+      );
     }
+    return this.openai;
+  }
 
-    private async prepareComprehensiveContext(
-        extractedPath: string,
-        rustAnalysisResults: any,
-        selectedFiles?: string[]
-    ): Promise<any> {
-        const files = selectedFiles || await this.getAllRustFiles(extractedPath);
-        const codeFiles: any[] = [];
-        let totalLines = 0;
+  async analyzeFactors(
+    extractedPath: string,
+    rustAnalysisResults: any,
+    selectedFiles?: string[],
+  ): Promise<AiAnalysisResults> {
+    this.logger.log('Starting comprehensive AI analysis...');
 
-        // Process files with comprehensive metadata
-        for (const file of files.slice(0, 15)) { // Limit to 15 most important files to reduce token usage
-            try {
-                const filePath = path.join(extractedPath, file);
-                const content = await fs.readFile(filePath, 'utf-8');
-                const lines = content.split('\n').length;
-                totalLines += lines;
+    try {
+      // Prepare comprehensive context
+      const context = await this.prepareComprehensiveContext(
+        extractedPath,
+        rustAnalysisResults,
+        selectedFiles,
+      );
 
-                codeFiles.push({
-                    path: file,
-                    content: content,
-                    lines: lines,
-                    size: content.length,
-                    isMain: file.includes('main.rs') || file.includes('lib.rs'),
-                    isTest: file.includes('test') || file.includes('spec'),
-                    isInstruction: file.includes('instruction') || file.includes('handler'),
-                });
-            } catch (error) {
-                this.logger.warn(`Failed to read file ${file}: ${error.message}`);
-            }
-        }
+      this.logger.log(
+        `Prepared context: ${context.codeFiles.length} files, ${context.totalLines} lines of code`,
+      );
 
-        // Sort files by importance (main files first, then by size)
-        codeFiles.sort((a, b) => {
-            if (a.isMain && !b.isMain) return -1;
-            if (!a.isMain && b.isMain) return 1;
-            return b.size - a.size;
+      // Execute analyses in batches to avoid rate limits
+      // Batch 1: Core factors (most important)
+      const [
+        codeAnalysisResult,
+        documentationResult,
+        testingResult,
+        financialLogicResult,
+        attackVectorsResult,
+        valueAtRiskResult,
+      ] = await Promise.allSettled([
+        this.analyzeCode(context),
+        this.analyzeDocumentationClarity(context),
+        this.analyzeTestingCoverage(context),
+        this.analyzeFinancialLogicIntricacy(context),
+        this.analyzeProfitAttackVectors(context),
+        this.analyzeValueAtRisk(context),
+      ]);
+
+      const results: AiAnalysisResults = {
+        codeAnalysis: this.extractResult(codeAnalysisResult, 'CodeMetrics'),
+        documentationClarity: this.extractResult(
+          documentationResult,
+          'DocumentationMetrics',
+        ),
+        testingCoverage: this.extractResult(testingResult, 'TestingMetrics'),
+        financialLogicIntricacy: this.extractResult(
+          financialLogicResult,
+          'FinancialLogicMetrics',
+        ),
+        profitAttackVectors: this.extractResult(
+          attackVectorsResult,
+          'AttackVectorMetrics',
+        ),
+        valueAtRisk: this.extractResult(
+          valueAtRiskResult,
+          'ValueAtRiskMetrics',
+        ),
+      };
+
+      this.logger.log('AI analysis completed successfully');
+      return results;
+    } catch (error) {
+      this.logger.error(`AI analysis failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  private async prepareComprehensiveContext(
+    extractedPath: string,
+    rustAnalysisResults: any,
+    selectedFiles?: string[],
+  ): Promise<any> {
+    const files = selectedFiles || (await this.getAllRustFiles(extractedPath));
+    const codeFiles: any[] = [];
+    let totalLines = 0;
+
+    // Process files with comprehensive metadata
+    for (const file of files.slice(0, 15)) {
+      // Limit to 15 most important files to reduce token usage
+      try {
+        const filePath = path.join(extractedPath, file);
+        const content = await fs.readFile(filePath, 'utf-8');
+        const lines = content.split('\n').length;
+        totalLines += lines;
+
+        codeFiles.push({
+          path: file,
+          content: content,
+          lines: lines,
+          size: content.length,
+          isMain: file.includes('main.rs') || file.includes('lib.rs'),
+          isTest: file.includes('test') || file.includes('spec'),
+          isInstruction:
+            file.includes('instruction') || file.includes('handler'),
         });
-
-        return {
-            codeFiles,
-            totalLines,
-            rustAnalysisResults,
-            extractedPath,
-            fileCount: files.length,
-        };
+      } catch (error) {
+        this.logger.warn(`Failed to read file ${file}: ${error.message}`);
+      }
     }
 
-    private async analyzeCode(context: any): Promise<CodeMetrics> {
-        const prompt = this.buildCodePrompt(context);
-        const openai = this.getOpenAIClient();
+    // Sort files by importance (main files first, then by size)
+    codeFiles.sort((a, b) => {
+      if (a.isMain && !b.isMain) return -1;
+      if (!a.isMain && b.isMain) return 1;
+      return b.size - a.size;
+    });
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [
-                {
-                    role: 'system',
-                    content: this.getCodeSystemPrompt()
-                },
-                {
-                    role: 'user',
-                    content: prompt
-                }
-            ],
-            temperature: 0.1,
-            response_format: { type: 'json_object' },
-            max_tokens: 2000,
-        });
+    return {
+      codeFiles,
+      totalLines,
+      rustAnalysisResults,
+      extractedPath,
+      fileCount: files.length,
+    };
+  }
 
-        const content = response.choices[0].message.content;
-        return this.parseAndValidateResponse(content, 'CodeMetrics');
+  private async analyzeCode(context: any): Promise<CodeMetrics> {
+    const prompt = this.buildCodePrompt(context);
+    const openai = this.getOpenAIClient();
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: this.getCodeSystemPrompt(),
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 2000,
+    });
+
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error('OpenAI API returned empty content for code analysis');
     }
+    return this.parseAndValidateResponse(content, 'CodeMetrics');
+  }
 
-    private async analyzeDocumentationClarity(context: any): Promise<DocumentationMetrics> {
-        const prompt = this.buildDocumentationPrompt(context);
-        const openai = this.getOpenAIClient();
+  private async analyzeDocumentationClarity(
+    context: any,
+  ): Promise<DocumentationMetrics> {
+    const prompt = this.buildDocumentationPrompt(context);
+    const openai = this.getOpenAIClient();
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [
-                {
-                    role: 'system',
-                    content: this.getDocumentationSystemPrompt()
-                },
-                {
-                    role: 'user',
-                    content: prompt
-                }
-            ],
-            temperature: 0.1,
-            response_format: { type: 'json_object' },
-            max_tokens: 1500,
-        });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: this.getDocumentationSystemPrompt(),
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 1500,
+    });
 
-        const content = response.choices[0].message.content;
-        return this.parseAndValidateResponse(content, 'DocumentationMetrics');
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error('OpenAI API returned empty content for documentation analysis');
     }
+    return this.parseAndValidateResponse(content, 'DocumentationMetrics');
+  }
 
-    private async analyzeTestingCoverage(context: any): Promise<TestingMetrics> {
-        const prompt = this.buildTestingPrompt(context);
-        const openai = this.getOpenAIClient();
+  private async analyzeTestingCoverage(context: any): Promise<TestingMetrics> {
+    const prompt = this.buildTestingPrompt(context);
+    const openai = this.getOpenAIClient();
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [
-                {
-                    role: 'system',
-                    content: this.getTestingSystemPrompt()
-                },
-                {
-                    role: 'user',
-                    content: prompt
-                }
-            ],
-            temperature: 0.1,
-            response_format: { type: 'json_object' },
-            max_tokens: 1500,
-        });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: this.getTestingSystemPrompt(),
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 1500,
+    });
 
-        const content = response.choices[0].message.content;
-        return this.parseAndValidateResponse(content, 'TestingMetrics');
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error('OpenAI API returned empty content for testing analysis');
     }
+    return this.parseAndValidateResponse(content, 'TestingMetrics');
+  }
 
-    private async analyzeFinancialLogicIntricacy(context: any): Promise<FinancialLogicMetrics> {
-        const prompt = this.buildFinancialLogicPrompt(context);
-        const openai = this.getOpenAIClient();
+  private async analyzeFinancialLogicIntricacy(
+    context: any,
+  ): Promise<FinancialLogicMetrics> {
+    const prompt = this.buildFinancialLogicPrompt(context);
+    const openai = this.getOpenAIClient();
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [
-                {
-                    role: 'system',
-                    content: this.getFinancialLogicSystemPrompt()
-                },
-                {
-                    role: 'user',
-                    content: prompt
-                }
-            ],
-            temperature: 0.1,
-            response_format: { type: 'json_object' },
-            max_tokens: 1500,
-        });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: this.getFinancialLogicSystemPrompt(),
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 1500,
+    });
 
-        const content = response.choices[0].message.content;
-        return this.parseAndValidateResponse(content, 'FinancialLogicMetrics');
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error('OpenAI API returned empty content for financial logic analysis');
     }
+    return this.parseAndValidateResponse(content, 'FinancialLogicMetrics');
+  }
 
-    private async analyzeProfitAttackVectors(context: any): Promise<AttackVectorMetrics> {
-        const prompt = this.buildAttackVectorsPrompt(context);
-        const openai = this.getOpenAIClient();
+  private async analyzeProfitAttackVectors(
+    context: any,
+  ): Promise<AttackVectorMetrics> {
+    const prompt = this.buildAttackVectorsPrompt(context);
+    const openai = this.getOpenAIClient();
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [
-                {
-                    role: 'system',
-                    content: this.getAttackVectorsSystemPrompt()
-                },
-                {
-                    role: 'user',
-                    content: prompt
-                }
-            ],
-            temperature: 0.1,
-            response_format: { type: 'json_object' },
-            max_tokens: 1500,
-        });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: this.getAttackVectorsSystemPrompt(),
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 1500,
+    });
 
-        const content = response.choices[0].message.content;
-        return this.parseAndValidateResponse(content, 'AttackVectorMetrics');
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error('OpenAI API returned empty content for attack vector analysis');
     }
+    return this.parseAndValidateResponse(content, 'AttackVectorMetrics');
+  }
 
-    private async analyzeValueAtRisk(context: any): Promise<ValueAtRiskMetrics> {
-        const prompt = this.buildValueAtRiskPrompt(context);
-        const openai = this.getOpenAIClient();
+  private async analyzeValueAtRisk(context: any): Promise<ValueAtRiskMetrics> {
+    const prompt = this.buildValueAtRiskPrompt(context);
+    const openai = this.getOpenAIClient();
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [
-                {
-                    role: 'system',
-                    content: this.getValueAtRiskSystemPrompt()
-                },
-                {
-                    role: 'user',
-                    content: prompt
-                }
-            ],
-            temperature: 0.1,
-            response_format: { type: 'json_object' },
-            max_tokens: 1500,
-        });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: this.getValueAtRiskSystemPrompt(),
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+      max_tokens: 1500,
+    });
 
-        const content = response.choices[0].message.content;
-        return this.parseAndValidateResponse(content, 'ValueAtRiskMetrics');
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error('OpenAI API returned empty content for value at risk analysis');
     }
+    return this.parseAndValidateResponse(content, 'ValueAtRiskMetrics');
+  }
 
-    // System Prompts for each factor
-    private getDocumentationSystemPrompt(): string {
-        return `You are an expert smart contract security auditor analyzing Rust code for documentation quality.
+  // System Prompts for each factor
+  private getDocumentationSystemPrompt(): string {
+    return `You are an expert smart contract security auditor analyzing Rust code for documentation quality.
 
 CRITICAL: You must respond ONLY with valid JSON. No explanations, no markdown, no additional text.
 
@@ -369,10 +433,10 @@ Scoring Guidelines:
 - 0-29: Very poor or missing documentation
 
 Always provide specific findings that justify your scores.`;
-    }
+  }
 
-    private getTestingSystemPrompt(): string {
-        return `You are an expert smart contract security auditor analyzing Rust code for testing coverage and quality.
+  private getTestingSystemPrompt(): string {
+    return `You are an expert smart contract security auditor analyzing Rust code for testing coverage and quality.
 
 CRITICAL: You must respond ONLY with valid JSON. No explanations, no markdown, no additional text.
 
@@ -396,10 +460,10 @@ Scoring Guidelines:
 - 0-29: Very poor or missing tests
 
 Always provide specific findings that justify your scores.`;
-    }
+  }
 
-    private getFinancialLogicSystemPrompt(): string {
-        return `You are an expert smart contract security auditor analyzing Rust code for financial logic complexity.
+  private getFinancialLogicSystemPrompt(): string {
+    return `You are an expert smart contract security auditor analyzing Rust code for financial logic complexity.
 
 CRITICAL: You must respond ONLY with valid JSON. No explanations, no markdown, no additional text.
 
@@ -424,10 +488,10 @@ Scoring Guidelines:
 - 0-29: Simple or minimal financial operations
 
 Always provide specific findings that justify your scores.`;
-    }
+  }
 
-    private getAttackVectorsSystemPrompt(): string {
-        return `You are an expert smart contract security auditor analyzing Rust code for potential profit attack vectors.
+  private getAttackVectorsSystemPrompt(): string {
+    return `You are an expert smart contract security auditor analyzing Rust code for potential profit attack vectors.
 
 CRITICAL: You must respond ONLY with valid JSON. No explanations, no markdown, no additional text.
 
@@ -450,10 +514,10 @@ Scoring Guidelines:
 - 0-29: Very low risk with no significant attack vectors
 
 Always provide specific findings that justify your scores.`;
-    }
+  }
 
-    private getValueAtRiskSystemPrompt(): string {
-        return `You are an expert smart contract security auditor analyzing Rust code for value at risk and asset volume implications.
+  private getValueAtRiskSystemPrompt(): string {
+    return `You are an expert smart contract security auditor analyzing Rust code for value at risk and asset volume implications.
 
 CRITICAL: You must respond ONLY with valid JSON. No explanations, no markdown, no additional text.
 
@@ -476,10 +540,10 @@ Scoring Guidelines:
 - 0-29: Minimal value with very basic operations
 
 Always provide specific findings that justify your scores.`;
-    }
+  }
 
-    private getCodeSystemPrompt(): string {
-        return `You are an expert smart contract security auditor analyzing Rust code for risk hotspots and security vulnerabilities.
+  private getCodeSystemPrompt(): string {
+    return `You are an expert smart contract security auditor analyzing Rust code for risk hotspots and security vulnerabilities.
 
 CRITICAL: You must respond ONLY with valid JSON. No explanations, no markdown, no additional text.
 
@@ -523,14 +587,16 @@ Focus on identifying:
 8. Economic attack vectors and MEV opportunities
 
 Always provide specific file paths, line ranges, and detailed component descriptions.`;
-    }
+  }
 
-    // Prompt builders with comprehensive context
-    private buildCodePrompt(context: any): string {
-        const codeContent = this.truncateCodeContent(context.codeFiles, 12000);
-        const rustContext = this.formatRustAnalysisContext(context.rustAnalysisResults);
+  // Prompt builders with comprehensive context
+  private buildCodePrompt(context: any): string {
+    const codeContent = this.truncateCodeContent(context.codeFiles, 12000);
+    const rustContext = this.formatRustAnalysisContext(
+      context.rustAnalysisResults,
+    );
 
-        return `Analyze this Rust smart contract for risk hotspots and security vulnerabilities:
+    return `Analyze this Rust smart contract for risk hotspots and security vulnerabilities:
 
 CODE CONTEXT:
 ${codeContent}
@@ -541,8 +607,8 @@ ${rustContext}
 PROJECT METADATA:
 - Total Files: ${context.fileCount}
 - Total Lines: ${context.totalLines}
-- Main Files: ${context.codeFiles.filter(f => f.isMain).length}
-- Test Files: ${context.codeFiles.filter(f => f.isTest).length}
+- Main Files: ${context.codeFiles.filter((f) => f.isMain).length}
+- Test Files: ${context.codeFiles.filter((f) => f.isTest).length}
 - Complex Functions: ${context.rustAnalysisResults?.complexFunctions || 'Unknown'}
 - CPI Calls: ${context.rustAnalysisResults?.cpiCalls || 'Unknown'}
 - Unsafe Operations: ${context.rustAnalysisResults?.unsafeOperations || 'Unknown'}
@@ -584,13 +650,15 @@ For each hotspot, provide:
 - Clear justification for the risk assessment
 
 Provide your analysis as JSON following the exact schema specified in the system prompt.`;
-    }
+  }
 
-    private buildDocumentationPrompt(context: any): string {
-        const codeContent = this.truncateCodeContent(context.codeFiles, 8000);
-        const rustContext = this.formatRustAnalysisContext(context.rustAnalysisResults);
+  private buildDocumentationPrompt(context: any): string {
+    const codeContent = this.truncateCodeContent(context.codeFiles, 8000);
+    const rustContext = this.formatRustAnalysisContext(
+      context.rustAnalysisResults,
+    );
 
-        return `Analyze the documentation quality of this Rust smart contract:
+    return `Analyze the documentation quality of this Rust smart contract:
 
 CODE CONTEXT:
 ${codeContent}
@@ -601,8 +669,8 @@ ${rustContext}
 PROJECT METADATA:
 - Total Files: ${context.fileCount}
 - Total Lines: ${context.totalLines}
-- Main Files: ${context.codeFiles.filter(f => f.isMain).length}
-- Test Files: ${context.codeFiles.filter(f => f.isTest).length}
+- Main Files: ${context.codeFiles.filter((f) => f.isMain).length}
+- Test Files: ${context.codeFiles.filter((f) => f.isTest).length}
 
 ANALYSIS REQUIREMENTS:
 1. Evaluate code comment quality and coverage throughout the codebase
@@ -613,13 +681,15 @@ ANALYSIS REQUIREMENTS:
 6. Pay special attention to complex financial logic that requires detailed documentation
 
 Provide your analysis as JSON following the exact schema specified in the system prompt.`;
-    }
+  }
 
-    private buildTestingPrompt(context: any): string {
-        const codeContent = this.truncateCodeContent(context.codeFiles, 8000);
-        const rustContext = this.formatRustAnalysisContext(context.rustAnalysisResults);
+  private buildTestingPrompt(context: any): string {
+    const codeContent = this.truncateCodeContent(context.codeFiles, 8000);
+    const rustContext = this.formatRustAnalysisContext(
+      context.rustAnalysisResults,
+    );
 
-        return `Analyze the testing coverage and quality of this Rust smart contract:
+    return `Analyze the testing coverage and quality of this Rust smart contract:
 
 CODE CONTEXT:
 ${codeContent}
@@ -630,8 +700,8 @@ ${rustContext}
 PROJECT METADATA:
 - Total Files: ${context.fileCount}
 - Total Lines: ${context.totalLines}
-- Test Files: ${context.codeFiles.filter(f => f.isTest).length}
-- Main Files: ${context.codeFiles.filter(f => f.isMain).length}
+- Test Files: ${context.codeFiles.filter((f) => f.isTest).length}
+- Main Files: ${context.codeFiles.filter((f) => f.isMain).length}
 
 ANALYSIS REQUIREMENTS:
 1. Evaluate unit test coverage and quality
@@ -642,13 +712,15 @@ ANALYSIS REQUIREMENTS:
 6. Pay special attention to testing of complex mathematical operations and financial logic
 
 Provide your analysis as JSON following the exact schema specified in the system prompt.`;
-    }
+  }
 
-    private buildFinancialLogicPrompt(context: any): string {
-        const codeContent = this.truncateCodeContent(context.codeFiles, 10000);
-        const rustContext = this.formatRustAnalysisContext(context.rustAnalysisResults);
+  private buildFinancialLogicPrompt(context: any): string {
+    const codeContent = this.truncateCodeContent(context.codeFiles, 10000);
+    const rustContext = this.formatRustAnalysisContext(
+      context.rustAnalysisResults,
+    );
 
-        return `Analyze the financial logic intricacy of this Rust smart contract:
+    return `Analyze the financial logic intricacy of this Rust smart contract:
 
 CODE CONTEXT:
 ${codeContent}
@@ -673,13 +745,15 @@ ANALYSIS REQUIREMENTS:
 Focus on identifying sophisticated financial mechanisms that require careful audit attention.
 
 Provide your analysis as JSON following the exact schema specified in the system prompt.`;
-    }
+  }
 
-    private buildAttackVectorsPrompt(context: any): string {
-        const codeContent = this.truncateCodeContent(context.codeFiles, 10000);
-        const rustContext = this.formatRustAnalysisContext(context.rustAnalysisResults);
+  private buildAttackVectorsPrompt(context: any): string {
+    const codeContent = this.truncateCodeContent(context.codeFiles, 10000);
+    const rustContext = this.formatRustAnalysisContext(
+      context.rustAnalysisResults,
+    );
 
-        return `Analyze potential profit attack vectors in this Rust smart contract:
+    return `Analyze potential profit attack vectors in this Rust smart contract:
 
 CODE CONTEXT:
 ${codeContent}
@@ -704,13 +778,15 @@ ANALYSIS REQUIREMENTS:
 Look for economic vulnerabilities that could be exploited for profit.
 
 Provide your analysis as JSON following the exact schema specified in the system prompt.`;
-    }
+  }
 
-    private buildValueAtRiskPrompt(context: any): string {
-        const codeContent = this.truncateCodeContent(context.codeFiles, 8000);
-        const rustContext = this.formatRustAnalysisContext(context.rustAnalysisResults);
+  private buildValueAtRiskPrompt(context: any): string {
+    const codeContent = this.truncateCodeContent(context.codeFiles, 8000);
+    const rustContext = this.formatRustAnalysisContext(
+      context.rustAnalysisResults,
+    );
 
-        return `Analyze the value at risk and asset volume implications of this Rust smart contract:
+    return `Analyze the value at risk and asset volume implications of this Rust smart contract:
 
 CODE CONTEXT:
 ${codeContent}
@@ -734,31 +810,31 @@ ANALYSIS REQUIREMENTS:
 Assess the economic scale and potential impact of this protocol.
 
 Provide your analysis as JSON following the exact schema specified in the system prompt.`;
+  }
+
+  // Utility methods
+  private truncateCodeContent(codeFiles: any[], maxTokens: number): string {
+    const maxChars = maxTokens * 3; // More conservative estimation: 1 token ≈ 3 characters
+    let content = '';
+
+    for (const file of codeFiles) {
+      const fileContent = `=== FILE: ${file.path} (${file.lines} lines) ===\n${file.content}\n\n`;
+
+      if (content.length + fileContent.length > maxChars) {
+        content += `\n... [Additional files truncated for token limits] ...\n`;
+        break;
+      }
+
+      content += fileContent;
     }
 
-    // Utility methods
-    private truncateCodeContent(codeFiles: any[], maxTokens: number): string {
-        const maxChars = maxTokens * 3; // More conservative estimation: 1 token ≈ 3 characters
-        let content = '';
+    return content;
+  }
 
-        for (const file of codeFiles) {
-            const fileContent = `=== FILE: ${file.path} (${file.lines} lines) ===\n${file.content}\n\n`;
+  private formatRustAnalysisContext(rustResults: any): string {
+    if (!rustResults) return 'No Rust analysis results available.';
 
-            if (content.length + fileContent.length > maxChars) {
-                content += `\n... [Additional files truncated for token limits] ...\n`;
-                break;
-            }
-
-            content += fileContent;
-        }
-
-        return content;
-    }
-
-    private formatRustAnalysisContext(rustResults: any): string {
-        if (!rustResults) return 'No Rust analysis results available.';
-
-        return `
+    return `
 RUST ANALYSIS SUMMARY:
 - Total Lines of Code: ${rustResults.totalLinesOfCode || 'Unknown'}
 - Total Functions: ${rustResults.numFunctions || 'Unknown'}
@@ -773,148 +849,217 @@ RUST ANALYSIS SUMMARY:
 - Error Handling: ${rustResults.errorHandling || 'Unknown'}
 - Unsafe Operations: ${rustResults.unsafeOperations || 'Unknown'}
 `;
+  }
+
+  private parseAndValidateResponse(content: string, expectedType: string): any {
+    try {
+      // Clean the response (remove any markdown formatting)
+      const cleanedContent = content
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+
+      const parsed = JSON.parse(cleanedContent);
+
+      // Validate required fields
+      this.validateResponseSchema(parsed, expectedType);
+
+      return parsed;
+    } catch (error) {
+      this.logger.error(
+        `Failed to parse AI response for ${expectedType}: ${error.message}`,
+      );
+      this.logger.error(`Raw response: ${content}`);
+
+      // Return default response
+      return this.getDefaultResponse(expectedType);
+    }
+  }
+
+  private validateResponseSchema(response: any, type: string): void {
+    const schemas = {
+      CodeMetrics: [
+        'highRiskHotspots',
+        'mediumRiskHotspots',
+        'recommendations',
+        'overallRiskScore',
+        'findings',
+        'confidence',
+      ],
+      DocumentationMetrics: [
+        'codeCommentsScore',
+        'functionDocumentationScore',
+        'readmeQualityScore',
+        'securityDocumentationScore',
+        'overallClarityScore',
+        'findings',
+        'confidence',
+      ],
+      TestingMetrics: [
+        'unitTestCoverage',
+        'integrationTestCoverage',
+        'testQualityScore',
+        'edgeCaseTestingScore',
+        'securityTestScore',
+        'overallTestingScore',
+        'findings',
+        'confidence',
+      ],
+      FinancialLogicMetrics: [
+        'mathematicalComplexityScore',
+        'algorithmSophisticationScore',
+        'interestRateComplexityScore',
+        'ammPricingComplexityScore',
+        'rewardDistributionComplexityScore',
+        'riskManagementComplexityScore',
+        'overallFinancialComplexityScore',
+        'findings',
+        'confidence',
+      ],
+      AttackVectorMetrics: [
+        'flashLoanAttackRisk',
+        'sandwichAttackRisk',
+        'arbitrageOpportunities',
+        'economicExploitRisk',
+        'overallAttackVectorScore',
+        'findings',
+        'confidence',
+      ],
+      ValueAtRiskMetrics: [
+        'assetVolumeComplexity',
+        'liquidityRiskScore',
+        'marketCapImplications',
+        'economicStakesScore',
+        'overallValueAtRiskScore',
+        'findings',
+        'confidence',
+      ],
+      GameTheoryMetrics: [
+        'incentiveAlignmentScore',
+        'economicSecurityDependencies',
+        'maliciousActorResistance',
+        'protocolGovernanceComplexity',
+        'overallGameTheoryScore',
+        'findings',
+        'confidence',
+      ],
+    };
+
+    const requiredFields = schemas[type];
+    if (!requiredFields) {
+      throw new Error(`Unknown response type: ${type}`);
     }
 
-    private parseAndValidateResponse(content: string, expectedType: string): any {
-        try {
-            // Clean the response (remove any markdown formatting)
-            const cleanedContent = content
-                .replace(/```json\n?/g, '')
-                .replace(/```\n?/g, '')
-                .trim();
+    for (const field of requiredFields) {
+      if (!(field in response)) {
+        throw new Error(`Missing required field: ${field}`);
+      }
+    }
+  }
 
-            const parsed = JSON.parse(cleanedContent);
+  private getDefaultResponse(type: string): any {
+    const defaults = {
+      CodeMetrics: {
+        highRiskHotspots: [],
+        mediumRiskHotspots: [],
+        recommendations: [
+          'AI analysis failed - unable to provide recommendations',
+        ],
+        overallRiskScore: 50,
+        findings: ['AI analysis failed - using default scores'],
+        confidence: 0,
+      },
+      DocumentationMetrics: {
+        codeCommentsScore: 50,
+        functionDocumentationScore: 50,
+        readmeQualityScore: 50,
+        securityDocumentationScore: 50,
+        overallClarityScore: 50,
+        findings: ['AI analysis failed - using default scores'],
+        confidence: 0,
+      },
+      TestingMetrics: {
+        unitTestCoverage: 50,
+        integrationTestCoverage: 50,
+        testQualityScore: 50,
+        edgeCaseTestingScore: 50,
+        securityTestScore: 50,
+        overallTestingScore: 50,
+        findings: ['AI analysis failed - using default scores'],
+        confidence: 0,
+      },
+      FinancialLogicMetrics: {
+        mathematicalComplexityScore: 50,
+        algorithmSophisticationScore: 50,
+        interestRateComplexityScore: 50,
+        ammPricingComplexityScore: 50,
+        rewardDistributionComplexityScore: 50,
+        riskManagementComplexityScore: 50,
+        overallFinancialComplexityScore: 50,
+        findings: ['AI analysis failed - using default scores'],
+        confidence: 0,
+      },
+      AttackVectorMetrics: {
+        flashLoanAttackRisk: 50,
+        sandwichAttackRisk: 50,
+        arbitrageOpportunities: 50,
+        economicExploitRisk: 50,
+        overallAttackVectorScore: 50,
+        findings: ['AI analysis failed - using default scores'],
+        confidence: 0,
+      },
+      ValueAtRiskMetrics: {
+        assetVolumeComplexity: 50,
+        liquidityRiskScore: 50,
+        marketCapImplications: 50,
+        economicStakesScore: 50,
+        overallValueAtRiskScore: 50,
+        findings: ['AI analysis failed - using default scores'],
+        confidence: 0,
+      },
+    };
 
-            // Validate required fields
-            this.validateResponseSchema(parsed, expectedType);
+    return defaults[type] || {};
+  }
 
-            return parsed;
-        } catch (error) {
-            this.logger.error(`Failed to parse AI response for ${expectedType}: ${error.message}`);
-            this.logger.error(`Raw response: ${content}`);
+  private extractResult(result: PromiseSettledResult<any>, type: string): any {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    } else {
+      this.logger.error(`AI analysis failed for ${type}: ${result.reason}`);
+      return this.getDefaultResponse(type);
+    }
+  }
 
-            // Return default response
-            return this.getDefaultResponse(expectedType);
+  private async getAllRustFiles(extractedPath: string): Promise<string[]> {
+    const files: string[] = [];
+
+    const scanDirectory = async (
+      dir: string,
+      relativePath: string = '',
+    ): Promise<void> => {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        const relativeFilePath = path.join(relativePath, entry.name);
+
+        if (entry.isDirectory()) {
+          // Skip common non-source directories
+          if (
+            !['target', 'node_modules', '.git', 'dist', 'build'].includes(
+              entry.name,
+            )
+          ) {
+            await scanDirectory(fullPath, relativeFilePath);
+          }
+        } else if (entry.isFile() && entry.name.endsWith('.rs')) {
+          files.push(relativeFilePath);
         }
-    }
+      }
+    };
 
-    private validateResponseSchema(response: any, type: string): void {
-        const schemas = {
-            CodeMetrics: ['highRiskHotspots', 'mediumRiskHotspots', 'recommendations', 'overallRiskScore', 'findings', 'confidence'],
-            DocumentationMetrics: ['codeCommentsScore', 'functionDocumentationScore', 'readmeQualityScore', 'securityDocumentationScore', 'overallClarityScore', 'findings', 'confidence'],
-            TestingMetrics: ['unitTestCoverage', 'integrationTestCoverage', 'testQualityScore', 'edgeCaseTestingScore', 'securityTestScore', 'overallTestingScore', 'findings', 'confidence'],
-            FinancialLogicMetrics: ['mathematicalComplexityScore', 'algorithmSophisticationScore', 'interestRateComplexityScore', 'ammPricingComplexityScore', 'rewardDistributionComplexityScore', 'riskManagementComplexityScore', 'overallFinancialComplexityScore', 'findings', 'confidence'],
-            AttackVectorMetrics: ['flashLoanAttackRisk', 'sandwichAttackRisk', 'arbitrageOpportunities', 'economicExploitRisk', 'overallAttackVectorScore', 'findings', 'confidence'],
-            ValueAtRiskMetrics: ['assetVolumeComplexity', 'liquidityRiskScore', 'marketCapImplications', 'economicStakesScore', 'overallValueAtRiskScore', 'findings', 'confidence'],
-            GameTheoryMetrics: ['incentiveAlignmentScore', 'economicSecurityDependencies', 'maliciousActorResistance', 'protocolGovernanceComplexity', 'overallGameTheoryScore', 'findings', 'confidence'],
-        };
-
-        const requiredFields = schemas[type];
-        if (!requiredFields) {
-            throw new Error(`Unknown response type: ${type}`);
-        }
-
-        for (const field of requiredFields) {
-            if (!(field in response)) {
-                throw new Error(`Missing required field: ${field}`);
-            }
-        }
-    }
-
-    private getDefaultResponse(type: string): any {
-        const defaults = {
-            CodeMetrics: {
-                highRiskHotspots: [],
-                mediumRiskHotspots: [],
-                recommendations: ['AI analysis failed - unable to provide recommendations'],
-                overallRiskScore: 50,
-                findings: ['AI analysis failed - using default scores'],
-                confidence: 0
-            },
-            DocumentationMetrics: {
-                codeCommentsScore: 50,
-                functionDocumentationScore: 50,
-                readmeQualityScore: 50,
-                securityDocumentationScore: 50,
-                overallClarityScore: 50,
-                findings: ['AI analysis failed - using default scores'],
-                confidence: 0
-            },
-            TestingMetrics: {
-                unitTestCoverage: 50,
-                integrationTestCoverage: 50,
-                testQualityScore: 50,
-                edgeCaseTestingScore: 50,
-                securityTestScore: 50,
-                overallTestingScore: 50,
-                findings: ['AI analysis failed - using default scores'],
-                confidence: 0
-            },
-            FinancialLogicMetrics: {
-                mathematicalComplexityScore: 50,
-                algorithmSophisticationScore: 50,
-                interestRateComplexityScore: 50,
-                ammPricingComplexityScore: 50,
-                rewardDistributionComplexityScore: 50,
-                riskManagementComplexityScore: 50,
-                overallFinancialComplexityScore: 50,
-                findings: ['AI analysis failed - using default scores'],
-                confidence: 0
-            },
-            AttackVectorMetrics: {
-                flashLoanAttackRisk: 50,
-                sandwichAttackRisk: 50,
-                arbitrageOpportunities: 50,
-                economicExploitRisk: 50,
-                overallAttackVectorScore: 50,
-                findings: ['AI analysis failed - using default scores'],
-                confidence: 0
-            },
-            ValueAtRiskMetrics: {
-                assetVolumeComplexity: 50,
-                liquidityRiskScore: 50,
-                marketCapImplications: 50,
-                economicStakesScore: 50,
-                overallValueAtRiskScore: 50,
-                findings: ['AI analysis failed - using default scores'],
-                confidence: 0
-            },
-        };
-
-        return defaults[type] || {};
-    }
-
-    private extractResult(result: PromiseSettledResult<any>, type: string): any {
-        if (result.status === 'fulfilled') {
-            return result.value;
-        } else {
-            this.logger.error(`AI analysis failed for ${type}: ${result.reason}`);
-            return this.getDefaultResponse(type);
-        }
-    }
-
-    private async getAllRustFiles(extractedPath: string): Promise<string[]> {
-        const files: string[] = [];
-
-        const scanDirectory = async (dir: string, relativePath: string = ''): Promise<void> => {
-            const entries = await fs.readdir(dir, { withFileTypes: true });
-
-            for (const entry of entries) {
-                const fullPath = path.join(dir, entry.name);
-                const relativeFilePath = path.join(relativePath, entry.name);
-
-                if (entry.isDirectory()) {
-                    // Skip common non-source directories
-                    if (!['target', 'node_modules', '.git', 'dist', 'build'].includes(entry.name)) {
-                        await scanDirectory(fullPath, relativeFilePath);
-                    }
-                } else if (entry.isFile() && entry.name.endsWith('.rs')) {
-                    files.push(relativeFilePath);
-                }
-            }
-        };
-
-        await scanDirectory(extractedPath);
-        return files;
-    }
+    await scanDirectory(extractedPath);
+    return files;
+  }
 }

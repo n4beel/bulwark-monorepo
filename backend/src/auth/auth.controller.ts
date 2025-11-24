@@ -15,7 +15,13 @@ import { StaticAnalysisService } from 'src/static-analysis/static-analysis.servi
 import { OAuthCallbackService } from './oauth-callback.service';
 import { GitHubOAuthProvider } from './providers/github-oauth.provider';
 import { GoogleOAuthProvider } from './providers/google-oauth.provider';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/users/guards/jwt-auth.guard';
 import { CurrentUser } from 'src/users/decorators/current-user.decorator';
 import { UserDocument } from 'src/users/schemas/user.schema';
@@ -31,7 +37,7 @@ export class AuthController {
     private oauthCallbackService: OAuthCallbackService,
     private githubOAuthProvider: GitHubOAuthProvider,
     private googleOAuthProvider: GoogleOAuthProvider,
-  ) { }
+  ) {}
 
   /**
    * Get GitHub OAuth URL
@@ -42,10 +48,18 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get GitHub OAuth URL' })
   @ApiQuery({ name: 'from', required: false, type: String })
-  @ApiQuery({ name: 'mode', required: false, type: String, enum: ['auth', 'connect'] })
+  @ApiQuery({
+    name: 'mode',
+    required: false,
+    type: String,
+    enum: ['auth', 'connect'],
+  })
   @ApiQuery({ name: 'reportId', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Returns the GitHub OAuth URL.' })
-  @ApiResponse({ status: 500, description: 'Failed to generate GitHub auth URL.' })
+  @ApiResponse({
+    status: 500,
+    description: 'Failed to generate GitHub auth URL.',
+  })
   getGitHubAuthUrl(
     @Query('from') from: string,
     @Query('mode') mode: string,
@@ -55,7 +69,12 @@ export class AuthController {
     try {
       // If user is authenticated, include their ID for account linking
       const userId = user ? String(user._id) : undefined;
-      const authUrl = this.authService.getGitHubAuthUrl(from, mode, reportId, userId);
+      const authUrl = this.authService.getGitHubAuthUrl(
+        from,
+        mode,
+        reportId,
+        userId,
+      );
       return { authUrl };
     } catch (error) {
       throw new HttpException(
@@ -72,7 +91,10 @@ export class AuthController {
   @ApiOperation({ summary: 'GitHub OAuth callback' })
   @ApiQuery({ name: 'code', required: true, type: String })
   @ApiQuery({ name: 'state', required: true, type: String })
-  @ApiResponse({ status: 302, description: 'Redirects to the frontend with a JWT token.' })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirects to the frontend with a JWT token.',
+  })
   @ApiResponse({ status: 500, description: 'GitHub OAuth callback error.' })
   async handleGitHubCallback(
     @Query('code') code: string,
@@ -81,14 +103,16 @@ export class AuthController {
     @Req() req: Request,
   ) {
     try {
-      const { redirectUrl } = await this.oauthCallbackService.processOAuthCallback(
-        code,
-        state,
-        this.githubOAuthProvider,
-      );
+      const { redirectUrl } =
+        await this.oauthCallbackService.processOAuthCallback(
+          code,
+          state,
+          this.githubOAuthProvider,
+        );
       res.redirect(redirectUrl);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'GitHub OAuth callback error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'GitHub OAuth callback error';
 
       // Try to extract origin from state if available, otherwise use request origin
       let origin: string | undefined;
@@ -97,11 +121,17 @@ export class AuthController {
         origin = stateObject.origin;
       } catch {
         // If state parsing fails, try to get origin from request
-        origin = req.headers.origin ||
-          (req.headers.referer ? new URL(req.headers.referer).origin : undefined);
+        origin =
+          req.headers.origin ||
+          (req.headers.referer
+            ? new URL(req.headers.referer).origin
+            : undefined);
       }
 
-      const errorUrl = this.oauthCallbackService.buildErrorUrl(errorMessage, origin);
+      const errorUrl = this.oauthCallbackService.buildErrorUrl(
+        errorMessage,
+        origin,
+      );
       res.redirect(errorUrl);
     }
   }
@@ -112,7 +142,10 @@ export class AuthController {
   @Get('validate')
   @ApiOperation({ summary: 'Validate access token' })
   @ApiQuery({ name: 'token', required: true, type: String })
-  @ApiResponse({ status: 200, description: 'Returns whether the token is valid and the user info.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns whether the token is valid and the user info.',
+  })
   async validateToken(@Query('token') token: string) {
     try {
       if (!token) {
@@ -135,10 +168,18 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get Google OAuth URL' })
   @ApiQuery({ name: 'from', required: false, type: String })
-  @ApiQuery({ name: 'mode', required: false, type: String, enum: ['auth', 'connect'] })
+  @ApiQuery({
+    name: 'mode',
+    required: false,
+    type: String,
+    enum: ['auth', 'connect'],
+  })
   @ApiQuery({ name: 'reportId', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Returns the Google OAuth URL.' })
-  @ApiResponse({ status: 500, description: 'Failed to generate Google auth URL.' })
+  @ApiResponse({
+    status: 500,
+    description: 'Failed to generate Google auth URL.',
+  })
   getGoogleAuthUrl(
     @Query('from') from: string,
     @Query('mode') mode: string,
@@ -148,15 +189,22 @@ export class AuthController {
   ) {
     try {
       // Get origin URL from request
-      const origin = req.headers.origin ||
+      const origin =
+        req.headers.origin ||
         (req.headers.referer ? new URL(req.headers.referer).origin : null) ||
         `${req.protocol}://${req.get('host')}`;
 
-      console.log("🚀 ~ AuthController ~ getGoogleAuthUrl ~ origin:", origin)
+      console.log('🚀 ~ AuthController ~ getGoogleAuthUrl ~ origin:', origin);
 
       // If user is authenticated, include their ID for account linking
       const userId = user ? String(user._id) : undefined;
-      const authUrl = this.authService.getGoogleAuthUrl(from, mode, reportId, origin, userId);
+      const authUrl = this.authService.getGoogleAuthUrl(
+        from,
+        mode,
+        reportId,
+        origin,
+        userId,
+      );
       return { authUrl };
     } catch (error) {
       throw new HttpException(
@@ -173,7 +221,10 @@ export class AuthController {
   @ApiOperation({ summary: 'Google OAuth callback' })
   @ApiQuery({ name: 'code', required: true, type: String })
   @ApiQuery({ name: 'state', required: true, type: String })
-  @ApiResponse({ status: 302, description: 'Redirects to the frontend with a JWT token.' })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirects to the frontend with a JWT token.',
+  })
   @ApiResponse({ status: 500, description: 'Google OAuth callback error.' })
   async handleGoogleCallback(
     @Query('code') code: string,
@@ -182,14 +233,16 @@ export class AuthController {
     @Req() req: Request,
   ) {
     try {
-      const { redirectUrl } = await this.oauthCallbackService.processOAuthCallback(
-        code,
-        state,
-        this.googleOAuthProvider,
-      );
+      const { redirectUrl } =
+        await this.oauthCallbackService.processOAuthCallback(
+          code,
+          state,
+          this.googleOAuthProvider,
+        );
       res.redirect(redirectUrl);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Google OAuth callback error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Google OAuth callback error';
 
       // Try to extract origin from state if available, otherwise use request origin
       let origin: string | undefined;
@@ -198,16 +251,20 @@ export class AuthController {
         origin = stateObject.origin;
       } catch {
         // If state parsing fails, try to get origin from request
-        origin = req.headers.origin ||
-          (req.headers.referer ? new URL(req.headers.referer).origin : undefined);
+        origin =
+          req.headers.origin ||
+          (req.headers.referer
+            ? new URL(req.headers.referer).origin
+            : undefined);
       }
 
-      const errorUrl = this.oauthCallbackService.buildErrorUrl(errorMessage, origin);
+      const errorUrl = this.oauthCallbackService.buildErrorUrl(
+        errorMessage,
+        origin,
+      );
       res.redirect(errorUrl);
     }
   }
-
-
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
@@ -216,12 +273,19 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Returns the current user.' })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 500, description: 'Failed to get current user.' })
-  async getCurrentUser(@CurrentUser() user: UserDocument): Promise<UserDocument> {
+  async getCurrentUser(
+    @CurrentUser() user: UserDocument,
+  ): Promise<UserDocument> {
     try {
-      const reportCount = await this.staticAnalysisService.getUserReportCount(String(user._id));
+      const reportCount = await this.staticAnalysisService.getUserReportCount(
+        String(user._id),
+      );
       return { ...user.toObject(), reportCount };
     } catch (error) {
-      throw new HttpException('Failed to get current user', HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        'Failed to get current user',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

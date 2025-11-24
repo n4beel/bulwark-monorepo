@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { AuthService, GoogleUser } from '../auth.service';
 import { UserService } from '../../users/user.service';
 import { UserDocument } from '../../users/schemas/user.schema';
-import { OAuthProviderStrategy, TokenExchangeResult } from '../oauth-callback.service';
+import {
+  OAuthProviderStrategy,
+  TokenExchangeResult,
+} from '../oauth-callback.service';
 
 @Injectable()
 export class GoogleOAuthProvider implements OAuthProviderStrategy {
@@ -11,7 +14,9 @@ export class GoogleOAuthProvider implements OAuthProviderStrategy {
     private readonly userService: UserService,
   ) {}
 
-  async exchangeCodeForToken(code: string): Promise<string | TokenExchangeResult> {
+  async exchangeCodeForToken(
+    code: string,
+  ): Promise<string | TokenExchangeResult> {
     return this.authService.exchangeGoogleCodeForToken(code);
   }
 
@@ -19,7 +24,9 @@ export class GoogleOAuthProvider implements OAuthProviderStrategy {
     return this.authService.getGoogleUser(accessToken);
   }
 
-  async findExistingUser(userId: string | number): Promise<UserDocument | null> {
+  async findExistingUser(
+    userId: string | number,
+  ): Promise<UserDocument | null> {
     return this.userService.findByGoogleId(userId as string);
   }
 
@@ -27,7 +34,10 @@ export class GoogleOAuthProvider implements OAuthProviderStrategy {
     return this.userService.findOrCreateGoogleUser(userInfo);
   }
 
-  async linkAccount(userId: string, userInfo: GoogleUser): Promise<UserDocument> {
+  async linkAccount(
+    userId: string,
+    userInfo: GoogleUser,
+  ): Promise<UserDocument> {
     return this.userService.linkGoogleAccount(userId, userInfo);
   }
 
@@ -35,4 +45,3 @@ export class GoogleOAuthProvider implements OAuthProviderStrategy {
     return user.googleEmail || user.email || user.name || 'Google User';
   }
 }
-

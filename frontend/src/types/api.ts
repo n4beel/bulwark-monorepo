@@ -19,36 +19,6 @@ export interface Analysis {
   complexity: 'low' | 'medium' | 'high';
 }
 
-export interface AuditEstimate {
-  duration: {
-    min: number;
-    max: number;
-    unit: 'days';
-    reasoning: string;
-  };
-  resources: {
-    seniorAuditors: number;
-    juniorAuditors: number;
-    reasoning: string;
-  };
-  cost: {
-    min: number;
-    max: number;
-    currency: 'USD';
-    reasoning: string;
-  };
-  riskFactors: string[];
-  specialConsiderations: string[];
-}
-
-export interface PreAuditReport {
-  projectName: string;
-  repositoryInfo: RepositoryInfo;
-  analysis: Analysis;
-  auditEstimate: AuditEstimate;
-  generatedAt: string;
-}
-
 export interface GitHubRepository {
   id: number;
   name: string;
@@ -73,13 +43,6 @@ export interface GitHubRepositoryContent {
   type: 'file' | 'dir';
   content?: string;
   encoding?: string;
-}
-
-export interface GenerateReportRequest {
-  owner: string;
-  repo: string;
-  accessToken: string;
-  selectedFiles?: string[];
 }
 
 // Static Analysis Types

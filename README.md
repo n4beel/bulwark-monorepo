@@ -127,9 +127,6 @@ server/
 │   ├── uploads/                   # File Upload Handling
 │   │   ├── uploads.service.ts
 │   │   └── uploads.module.ts
-│   ├── scoping/                   # Pre-Audit Scoping
-│   │   ├── scoping.service.ts
-│   │   └── scoping.module.ts
 │   └── database/                  # MongoDB Configuration
 │       └── database.module.ts
 ```

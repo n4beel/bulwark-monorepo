@@ -42,7 +42,7 @@ export interface GoogleTokenResponse {
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  constructor(private configService: ConfigService) { }
+  constructor(private configService: ConfigService) {}
 
   /**
    * Exchange authorization code for access token
@@ -51,9 +51,7 @@ export class AuthService {
   async exchangeCodeForToken(code: string): Promise<string> {
     try {
       const clientId = this.configService.get<string>('GIT_CLIENT_ID');
-      const clientSecret = this.configService.get<string>(
-        'GIT_CLIENT_SECRET',
-      );
+      const clientSecret = this.configService.get<string>('GIT_CLIENT_SECRET');
 
       if (!clientId || !clientSecret) {
         throw new Error('GitHub OAuth credentials not configured');
@@ -120,8 +118,15 @@ export class AuthService {
    * @param reportId - Optional report ID to associate with user
    * @param userId - Optional user ID for account linking (when user is already authenticated)
    */
-  getGitHubAuthUrl(fromPath?: string, mode?: string, reportId?: string, userId?: string): string {
-    this.logger.log(`Generating GitHub Auth URL - fromPath: ${fromPath}, mode: ${mode}, linking: ${!!userId}`);
+  getGitHubAuthUrl(
+    fromPath?: string,
+    mode?: string,
+    reportId?: string,
+    userId?: string,
+  ): string {
+    this.logger.log(
+      `Generating GitHub Auth URL - fromPath: ${fromPath}, mode: ${mode}, linking: ${!!userId}`,
+    );
 
     const clientId = this.configService.get<string>('GIT_CLIENT_ID');
     const redirectUri = this.configService.get<string>('GIT_CALLBACK_URL');
@@ -168,8 +173,16 @@ export class AuthService {
    * @param reportId - Optional report ID to associate with user
    * @param userId - Optional user ID for account linking (when user is already authenticated)
    */
-  getGoogleAuthUrl(fromPath?: string, mode?: string, reportId?: string, origin?: string, userId?: string): string {
-    this.logger.log(`Generating Google Auth URL - fromPath: ${fromPath}, mode: ${mode}, linking: ${!!userId}`);
+  getGoogleAuthUrl(
+    fromPath?: string,
+    mode?: string,
+    reportId?: string,
+    origin?: string,
+    userId?: string,
+  ): string {
+    this.logger.log(
+      `Generating Google Auth URL - fromPath: ${fromPath}, mode: ${mode}, linking: ${!!userId}`,
+    );
 
     const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
     const redirectUri = this.configService.get<string>('GOOGLE_CALLBACK_URL');
@@ -206,10 +219,14 @@ export class AuthService {
    * Exchange Google authorization code for access token
    * Returns token with expiration info
    */
-  async exchangeGoogleCodeForToken(code: string): Promise<{ accessToken: string; expiresIn?: number }> {
+  async exchangeGoogleCodeForToken(
+    code: string,
+  ): Promise<{ accessToken: string; expiresIn?: number }> {
     try {
       const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
-      const clientSecret = this.configService.get<string>('GOOGLE_CLIENT_SECRET');
+      const clientSecret = this.configService.get<string>(
+        'GOOGLE_CLIENT_SECRET',
+      );
       const redirectUri = this.configService.get<string>('GOOGLE_CALLBACK_URL');
 
       if (!clientId || !clientSecret || !redirectUri) {
@@ -248,7 +265,9 @@ export class AuthService {
         expiresIn: response.data.expires_in,
       };
     } catch (error) {
-      this.logger.error(`Failed to exchange Google code for token: ${error.message}`);
+      this.logger.error(
+        `Failed to exchange Google code for token: ${error.message}`,
+      );
       throw new Error('Failed to authenticate with Google');
     }
   }
