@@ -10,6 +10,8 @@ export interface OAuthState {
   userId?: string;
   mode?: 'auth' | 'connect'; // Explicit mode: 'auth' for new login, 'connect' for linking additional provider
   origin?: string;
+  cliMode?: boolean; // Whether this is a CLI authentication flow
+  cliRedirectUri?: string; // CLI callback URL for local redirect
 }
 
 export interface TokenExchangeResult {
@@ -205,6 +207,38 @@ export class OAuthCallbackService {
   }
 
   /**
+   * Build CLI redirect URL with user authentication data
+   * Redirects to the local CLI callback server with query params
+   */
+  async buildCliRedirectUrl(
+    cliRedirectUri: string,
+    user: UserDocument,
+    jwtToken: string,
+    whitelisted: boolean,
+  ): Promise<string> {
+    const params = new URLSearchParams({
+      token: jwtToken,
+      user_id: String(user._id),
+      email: user.email || '',
+      name: user.name || '',
+      whitelisted: whitelisted ? 'true' : 'false',
+    });
+
+    return `${cliRedirectUri}?${params.toString()}`;
+  }
+
+  /**
+   * Build CLI error redirect URL
+   */
+  buildCliErrorUrl(cliRedirectUri: string, errorMessage: string): string {
+    const params = new URLSearchParams({
+      error: 'auth_failed',
+      error_description: errorMessage,
+    });
+    return `${cliRedirectUri}?${params.toString()}`;
+  }
+
+  /**
    * Process OAuth callback - main orchestration method
    */
   async processOAuthCallback(
@@ -288,17 +322,38 @@ export class OAuthCallbackService {
       // Associate report with user if needed (only if not linking)
       await this.associateReportIfNeeded(reportId, String(user._id), isLinking);
 
-      // Build redirect URL (includes GitHub token only if user has connected GitHub account)
-      const redirectUrl = await this.buildRedirectUrl(
-        returnPath,
-        isGitHub ? accessToken : null, // Only pass GitHub token, not Google token
-        user,
-        jwtToken,
-        linkedAccount,
-        reportId,
-        mode,
-        origin,
-      );
+      // Check for CLI mode
+      const cliMode = stateObject.cliMode || false;
+      const cliRedirectUri = stateObject.cliRedirectUri || '';
+
+      let redirectUrl: string;
+
+      if (cliMode && cliRedirectUri) {
+        // CLI mode: redirect to local CLI callback server
+        this.logger.log(`CLI mode detected - redirecting to: ${cliRedirectUri}`);
+        
+        // Check if user is whitelisted
+        const whitelisted = await this.userService.isUserWhitelisted(String(user._id));
+        
+        redirectUrl = await this.buildCliRedirectUrl(
+          cliRedirectUri,
+          user,
+          jwtToken,
+          whitelisted,
+        );
+      } else {
+        // Normal web mode: redirect to frontend
+        redirectUrl = await this.buildRedirectUrl(
+          returnPath,
+          isGitHub ? accessToken : null, // Only pass GitHub token, not Google token
+          user,
+          jwtToken,
+          linkedAccount,
+          reportId,
+          mode,
+          origin,
+        );
+      }
 
       return { redirectUrl };
     } catch (error) {

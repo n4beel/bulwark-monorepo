@@ -55,6 +55,8 @@ export class AuthController {
     enum: ['auth', 'connect'],
   })
   @ApiQuery({ name: 'reportId', required: false, type: String })
+  @ApiQuery({ name: 'redirect_uri', required: false, type: String, description: 'CLI callback URL (for CLI authentication)' })
+  @ApiQuery({ name: 'cli_mode', required: false, type: Boolean, description: 'Enable CLI mode for OAuth flow' })
   @ApiResponse({ status: 200, description: 'Returns the GitHub OAuth URL.' })
   @ApiResponse({
     status: 500,
@@ -64,6 +66,8 @@ export class AuthController {
     @Query('from') from: string,
     @Query('mode') mode: string,
     @Query('reportId') reportId: string,
+    @Query('redirect_uri') redirectUri: string,
+    @Query('cli_mode') cliMode: string,
     @CurrentUser() user: UserDocument,
   ) {
     try {
@@ -74,6 +78,8 @@ export class AuthController {
         mode,
         reportId,
         userId,
+        cliMode === 'true',
+        redirectUri,
       );
       return { authUrl };
     } catch (error) {
@@ -175,6 +181,8 @@ export class AuthController {
     enum: ['auth', 'connect'],
   })
   @ApiQuery({ name: 'reportId', required: false, type: String })
+  @ApiQuery({ name: 'redirect_uri', required: false, type: String, description: 'CLI callback URL (for CLI authentication)' })
+  @ApiQuery({ name: 'cli_mode', required: false, type: Boolean, description: 'Enable CLI mode for OAuth flow' })
   @ApiResponse({ status: 200, description: 'Returns the Google OAuth URL.' })
   @ApiResponse({
     status: 500,
@@ -184,6 +192,8 @@ export class AuthController {
     @Query('from') from: string,
     @Query('mode') mode: string,
     @Query('reportId') reportId: string,
+    @Query('redirect_uri') redirectUri: string,
+    @Query('cli_mode') cliMode: string,
     @CurrentUser() user: UserDocument,
     @Req() req: Request,
   ) {
@@ -204,6 +214,8 @@ export class AuthController {
         reportId,
         origin,
         userId,
+        cliMode === 'true',
+        redirectUri,
       );
       return { authUrl };
     } catch (error) {

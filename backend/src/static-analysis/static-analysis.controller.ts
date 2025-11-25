@@ -18,10 +18,12 @@ import {
 import {
   StaticAnalysisDto,
   StaticAnalysisReportDocument,
+  BuildAnalysisReportDto,
 } from './dto/static-analysis.dto';
 import { UploadsService } from '../uploads/uploads.service';
 import { JwtAuthGuard } from '../users/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../users/guards/optional-jwt-auth.guard';
+import { ApiKeyGuard } from '../users/guards/api-key.guard';
 import { WhitelistGuard } from '../whitelist/guards/whitelist.guard';
 import { CurrentUser } from '../users/decorators/current-user.decorator';
 import { UserDocument } from '../users/schemas/user.schema';
@@ -562,6 +564,69 @@ export class StaticAnalysisController {
   //         );
   //     }
   // }
+
+  @Post('build-report')
+  @UseGuards(ApiKeyGuard)
+  @ApiOperation({
+    summary: 'Build and save analysis report from Rust service response',
+    description:
+      'Takes the response from the Rust analyzer service and builds a complete analysis report, stores it to Arcium (if enabled), and saves it to MongoDB. This endpoint allows you to process Rust service responses independently. Requires X-API-Key header for CLI authentication.',
+  })
+  @ApiBody({ type: BuildAnalysisReportDto })
+  @ApiResponse({
+    status: 201,
+    description: 'The analysis report has been successfully generated and saved.',
+    type: StaticAnalysisReportDocument,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid input data',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing API key',
+  })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async buildReport(
+    @Body() dto: BuildAnalysisReportDto,
+    @Request() req: any,
+  ): Promise<StaticAnalysisReportDocument> {
+    try {
+      this.logger.log(
+        `Received CLI request to build report for project: ${dto.metadata.projectName}`,
+      );
+
+      // Use userId from metadata (CLI tool should provide it if needed)
+      const userId = dto.metadata.userId;
+
+      // Build and save the report
+      const report = await this.staticAnalysisService.buildAndSaveAnalysisReport(
+        dto.rustServiceResponse,
+        {
+          ...dto.metadata,
+          userId,
+        },
+        dto.performanceMetrics,
+        dto.analysisStatus,
+      );
+
+      this.logger.log(
+        `Successfully built and saved report for project: ${dto.metadata.projectName}`,
+      );
+      return report;
+    } catch (error) {
+      this.logger.error(`Failed to build report: ${error.message}`);
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new HttpException(
+        `Failed to build analysis report: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 
   @Post('health')
   @ApiOperation({ summary: 'Health check' })

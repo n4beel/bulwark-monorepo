@@ -5,7 +5,6 @@ import { StaticAnalysisService } from './static-analysis.service';
 import { RustAnalyzerService } from './rust-analyzer.service';
 import { GitHubModule } from '../github/github.module';
 import { UploadsModule } from '../uploads/uploads.module';
-import { AiAnalysisModule } from '../ai-analysis/ai-analysis.module';
 import { ArciumStorageModule } from '../arcium-storage/arcium-storage.module';
 import { UserModule } from '../users/user.module';
 import { WhitelistModule } from '../whitelist/whitelist.module';
@@ -13,13 +12,10 @@ import {
   StaticAnalysisReport,
   StaticAnalysisSchema,
 } from './schemas/static-analysis.schema';
-import { StaticAnalysisUtils } from './static-analysis.utils';
-
 @Module({
   imports: [
     GitHubModule,
     UploadsModule,
-    AiAnalysisModule,
     ArciumStorageModule,
     UserModule,
     WhitelistModule,
@@ -28,7 +24,7 @@ import { StaticAnalysisUtils } from './static-analysis.utils';
     ]),
   ],
   controllers: [StaticAnalysisController],
-  providers: [StaticAnalysisService, RustAnalyzerService, StaticAnalysisUtils],
+  providers: [StaticAnalysisService, RustAnalyzerService],
   exports: [StaticAnalysisService, RustAnalyzerService],
 })
 export class StaticAnalysisModule {}

@@ -6,6 +6,7 @@ import { User, UserSchema } from './schemas/user.schema';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
+import { ApiKeyGuard } from './guards/api-key.guard';
 import { WhitelistModule } from '../whitelist/whitelist.module';
 import { TokenEncryptionService } from './services/token-encryption.service';
 
@@ -31,12 +32,14 @@ import { TokenEncryptionService } from './services/token-encryption.service';
     TokenEncryptionService,
     JwtAuthGuard,
     OptionalJwtAuthGuard,
+    ApiKeyGuard,
   ],
   exports: [
     UserService,
     TokenEncryptionService,
     JwtAuthGuard,
     OptionalJwtAuthGuard,
+    ApiKeyGuard,
   ],
 })
 export class UserModule {}

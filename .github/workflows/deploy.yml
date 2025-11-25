@@ -45,6 +45,7 @@ jobs:
             echo "PM2_APP_NAME=backend-prod" >> $GITHUB_ENV
             echo "PM2_ANALYZER_NAME=analyzer-prod" >> $GITHUB_ENV
             echo "ENV_FILE=.env.production" >> $GITHUB_ENV
+            echo "ANALYZER_ENV_FILE=.env.analyzer.production" >> $GITHUB_ENV
           else
             echo "DEPLOY_PATH=/home/azureuser/apps/staging" >> $GITHUB_ENV
             echo "BACKEND_PORT=3001" >> $GITHUB_ENV
@@ -52,6 +53,7 @@ jobs:
             echo "PM2_APP_NAME=backend-staging" >> $GITHUB_ENV
             echo "PM2_ANALYZER_NAME=analyzer-staging" >> $GITHUB_ENV
             echo "ENV_FILE=.env.staging" >> $GITHUB_ENV
+            echo "ANALYZER_ENV_FILE=.env.analyzer.staging" >> $GITHUB_ENV
           fi
 
       - name: Checkout code
@@ -144,6 +146,18 @@ jobs:
           cp ./analyzer/target/release/server ${{ env.DEPLOY_PATH }}/analyzer/
           chmod +x ${{ env.DEPLOY_PATH }}/analyzer/server
 
+      - name: Copy analyzer environment file
+        run: |
+          if [ -f "${{ env.DEPLOY_PATH }}/${{ env.ANALYZER_ENV_FILE }}" ]; then
+            cp ${{ env.DEPLOY_PATH }}/${{ env.ANALYZER_ENV_FILE }} ${{ env.DEPLOY_PATH }}/analyzer/.env
+            echo "✓ Analyzer environment file copied"
+          else
+            echo "Warning: Analyzer environment file ${{ env.ANALYZER_ENV_FILE }} not found!"
+            echo "Creating minimal .env with PORT only..."
+            echo "PORT=${{ env.ANALYZER_PORT }}" > ${{ env.DEPLOY_PATH }}/analyzer/.env
+            echo "SHARED_WORKSPACE_PATH=/tmp/shared/workspaces" >> ${{ env.DEPLOY_PATH }}/analyzer/.env
+          fi
+
       - name: Copy environment file
         run: |
           if [ -f "${{ env.DEPLOY_PATH }}/${{ env.ENV_FILE }}" ]; then
@@ -190,9 +204,17 @@ jobs:
       - name: Start analyzer service
         run: |
           cd ${{ env.DEPLOY_PATH }}/analyzer
+
+          # Ensure shared workspace directory exists
+          mkdir -p /tmp/shared/workspaces
+
+          # Start analyzer with .env file (dotenv loads it automatically)
+          # PORT is also passed explicitly to override .env if needed
           PORT=${{ env.ANALYZER_PORT }} nohup ./server \
             > ${{ env.DEPLOY_PATH }}/logs/analyzer.log 2>&1 &
           echo $! > ${{ env.DEPLOY_PATH }}/analyzer/server.pid
+
+          echo "Analyzer started with PID $(cat ${{ env.DEPLOY_PATH }}/analyzer/server.pid)"
 
       - name: Health check - Backend
         run: |

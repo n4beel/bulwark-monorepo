@@ -3,6 +3,7 @@
 //! This crate provides high-fidelity static analysis for Rust-based smart contracts,
 //! particularly focusing on DeFi/AMM patterns in Solana and Anchor frameworks.
 
+pub mod ai_analysis;
 pub mod analysis;
 pub mod config;
 pub mod error;
@@ -10,6 +11,7 @@ pub mod factors;
 pub mod metrics;
 pub mod output;
 pub mod patterns;
+pub mod score_calculator;
 pub mod visitor;
 
 pub use analysis::AnalyzerEngine;

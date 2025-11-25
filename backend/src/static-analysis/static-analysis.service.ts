@@ -4,7 +4,6 @@ import { Model } from 'mongoose';
 import { GitHubService } from '../github/github.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { RustAnalyzerService } from './rust-analyzer.service';
-import { AiAnalysisService } from '../ai-analysis/ai-analysis.service';
 import { ArciumStorageService } from '../arcium-storage/arcium-storage.service';
 import {
   RustAnalysisFactors,
@@ -29,7 +28,6 @@ import {
   getSharedWorkspaceBase,
 } from './shared-workspace.util';
 import { URL } from 'url';
-import { StaticAnalysisUtils } from './static-analysis.utils';
 
 function normalizeRustBase(urlRaw: string): { base: string; warning?: string } {
   try {
@@ -53,12 +51,10 @@ export class StaticAnalysisService {
     private readonly githubService: GitHubService,
     private readonly uploadsService: UploadsService,
     private readonly rustAnalyzerService: RustAnalyzerService,
-    private readonly aiAnalysisService: AiAnalysisService,
     @InjectModel(StaticAnalysisModel.name)
     private readonly staticAnalysisModel: Model<StaticAnalysisModel>,
-    private readonly staticAnalysisUtils: StaticAnalysisUtils,
     private readonly arciumStorageService: ArciumStorageService,
-  ) {}
+  ) { }
 
   /**
    * Analyze a Rust smart contract repository for Solana/Anchor (Legacy TypeScript analyzer)
@@ -554,6 +550,309 @@ export class StaticAnalysisService {
   }
 
   /**
+   * Build and save analysis report from Rust service response
+   * This function handles steps 5-7: building the report, storing to Arcium, and saving to MongoDB
+   * 
+   * @param rustServiceResponse - The response from the Rust analyzer service (/augment endpoint)
+   * @param metadata - Metadata about the analysis (project name, framework, etc.)
+   * @param performanceMetrics - Performance tracking data
+   * @param analysisStatus - Status of Rust and AI analysis
+   * @returns The saved report document
+   */
+  async buildAndSaveAnalysisReport(
+    rustServiceResponse: {
+      success: boolean;
+      factors?: any;
+      ai_factors?: any;
+      calculated_scores?: any;
+      calculated_report?: any;
+    },
+    metadata: {
+      projectName: string;
+      originalFilename?: string;
+      repositoryUrl?: string;
+      framework: string;
+      language?: string;
+      userId?: string;
+      commitUrl?: string;
+      commitHash?: string;
+    },
+    performanceMetrics: {
+      startTime: number;
+      endTime: number;
+      memoryStart: number;
+      memoryEnd: number;
+    },
+    analysisStatus: {
+      rustAnalysisSuccess: boolean;
+      rustAnalysisError: string | null;
+      aiAnalysisSuccess: boolean;
+      aiAnalysisError: string | null;
+    },
+  ): Promise<any> {
+    const {
+      factors: rustAnalysisFactors = {},
+      ai_factors: aiAnalysisFactors = {},
+      calculated_scores: rustCalculatedScores,
+      calculated_report: rustCalculatedReport,
+    } = rustServiceResponse;
+
+    const {
+      projectName,
+      originalFilename,
+      repositoryUrl,
+      framework,
+      language = 'rust',
+      userId,
+      commitUrl,
+      commitHash,
+    } = metadata;
+
+    const { startTime, endTime, memoryStart, memoryEnd } = performanceMetrics;
+    const {
+      rustAnalysisSuccess,
+      rustAnalysisError,
+      aiAnalysisSuccess,
+      aiAnalysisError,
+    } = analysisStatus;
+
+    // Step 5: Build triple analysis report
+    const staticAnalysisScores = {
+      structural: {
+        total_statement_count:
+          rustAnalysisFactors?.tscMetrics?.locFactor || 0,
+        'number_of_functions/instructions_handlers':
+          rustAnalysisFactors?.functionCountMetrics?.functionFactor || 0,
+        'cyclomatic_complexity_&_control_flow':
+          rustAnalysisFactors?.complexity?.complexityFactor || 0,
+        modularity_and_files_per_modules_count:
+          rustAnalysisFactors?.modularity?.anchorModularityScore || 0,
+        external_dependencies:
+          rustAnalysisFactors?.dependencies?.dependencyFactor || 0,
+      },
+      security: {
+        access_controlled_handlers:
+          rustAnalysisFactors?.accessControl?.accessControlFactor || 0,
+        'PDA_seeds_surface_&_ownership':
+          rustAnalysisFactors?.pdaSeeds?.pdaComplexityFactor || 0,
+        'cross_program_invocation_(CPI)':
+          rustAnalysisFactors?.cpiCalls?.cpiFactor || 0,
+        'input/constraints_surface':
+          rustAnalysisFactors?.inputConstraints?.inputConstraintFactor || 0,
+        arithmetic_operations:
+          rustAnalysisFactors?.arithmeticOperations?.arithmeticFactor || 0,
+        'priviliged_roles_& _admin_actions':
+          rustAnalysisFactors?.privilegedRoles?.acFactor || 0,
+        'unsafe/low_level_usage':
+          rustAnalysisFactors?.unsafeLowLevel?.unsafeFactor || 0,
+        error_handling_footprint:
+          rustAnalysisFactors?.errorHandling?.errorHandlingFactor || 0,
+      },
+      systemic: {
+        upgradability_and_governance_control:
+          rustAnalysisFactors?.upgradeability?.upgradeabilityFactor || 0,
+        'external_integration_&_oracles':
+          rustAnalysisFactors?.dependencies?.externalIntegrationFactor || 0,
+        composability_and_inter_program_complexity:
+          rustAnalysisFactors?.composability?.composabilityFactor || 0,
+        'denial_of_service_&_resource_limits':
+          rustAnalysisFactors?.dosResourceLimits?.resourceFactor || 0,
+        operational_security_factors:
+          rustAnalysisFactors?.operationalSecurity?.opsecFactor || 0,
+      },
+      economic: {
+        'number_of_asset_&_asset_types':
+          rustAnalysisFactors?.assetTypes?.assetTypesFactor || 0,
+        'invariants_&_risk_parameters':
+          rustAnalysisFactors?.invariantsAndRiskParams
+            ?.constraintDensityFactor || 0,
+      },
+    };
+
+    // Use Rust-calculated scores and report
+    if (!rustCalculatedScores || !rustCalculatedReport) {
+      throw new Error(
+        'Rust service did not return calculated scores and report. This should not happen.',
+      );
+    }
+
+    // Remove snake_case duplicates if they exist (Rust serializes as camelCase)
+    const cleanedReport = { ...rustCalculatedReport };
+    delete (cleanedReport as any).commit_url;
+    delete (cleanedReport as any).receipt_id;
+    delete (cleanedReport as any).href_url;
+    delete (cleanedReport as any).files_count;
+
+    const calculatedScoresAndReport = {
+      scores: rustCalculatedScores,
+      report: {
+        ...cleanedReport,
+        commitUrl: commitUrl,
+        receiptId: '', // Will be updated after Arcium storage
+        hrefUrl: '', // Will be updated after Arcium storage
+      },
+    };
+
+    // Step 6: Store encrypted report results to Arcium storage (Solana devnet)
+    let storageResult: any = null;
+    try {
+      // Check if Arcium storage service is enabled
+      if (this.arciumStorageService.isServiceEnabled()) {
+        // Extract audit effort estimates from the calculated report
+        const lowerEffort =
+          calculatedScoresAndReport.report?.lowerAuditEffort;
+        const upperEffort =
+          calculatedScoresAndReport.report?.upperAuditEffort;
+        const totalScore = calculatedScoresAndReport.scores?.total || 0;
+
+        // Prepare audit data for Solana storage
+        // PUBLIC on blockchain: pricing, effort, score
+        // ENCRYPTED: commit hash (encrypted with Arcium)
+        const auditData = {
+          minDays: lowerEffort?.timeRange?.minimumDays || 7,
+          maxDays: upperEffort?.timeRange?.maximumDays || 14,
+          minResources: lowerEffort?.resources || 2,
+          maxResources: upperEffort?.resources || 3,
+          minCostUsd: lowerEffort?.costRange?.minimumCost || 5000, // Convert cents to USD
+          maxCostUsd: upperEffort?.costRange?.maximumCost || 18000, // Convert cents to USD
+          score: Math.min(100, Math.max(0, Math.round(totalScore))), // Ensure 0-100
+          commitHash: commitHash || 'unknown', // Will be encrypted
+        };
+
+        this.logger.log(
+          'Storing audit results to Solana devnet with Arcium encryption...',
+        );
+        storageResult =
+          await this.arciumStorageService.storeAuditResults(auditData);
+
+        if (storageResult.success) {
+          this.logger.log(`✅ Audit results stored to Solana devnet!`);
+          this.logger.log(`   Report ID: ${storageResult.reportId}`);
+          this.logger.log(
+            `   Transaction: ${storageResult.transactionSignature}`,
+          );
+          this.logger.log(`   Explorer: ${storageResult.explorerUrl}`);
+
+          // Update report data with Arcium storage info
+          calculatedScoresAndReport.report.receiptId =
+            storageResult.transactionSignature;
+          calculatedScoresAndReport.report.hrefUrl =
+            storageResult.explorerUrl;
+        } else {
+          this.logger.warn(
+            `Failed to store audit results to Arcium: ${storageResult.message}`,
+          );
+        }
+      } else {
+        this.logger.debug(
+          'Arcium storage service is disabled. Skipping blockchain storage.',
+        );
+      }
+    } catch (arciumError) {
+      this.logger.error(
+        `Arcium storage error: ${arciumError.message}`,
+        arciumError.stack,
+      );
+      // Don't fail the entire analysis if Arcium storage fails
+    }
+
+    // Create triple analysis report with all data
+    const report: StaticAnalysisReport = {
+      repository: projectName,
+      repositoryUrl:
+        repositoryUrl || (originalFilename ? `uploaded://${originalFilename}` : ''),
+      language: language,
+      framework,
+
+      // Analysis metadata
+      analysis_engine: 'dual-analyzer',
+      analyzer_version: '0.2.0',
+      analysis_date: new Date().toISOString(),
+
+      // Analysis Scores
+      static_analysis_scores: staticAnalysisScores,
+
+      // Rust analysis results
+      rust_analysis: {
+        engine: 'rust-semantic-analyzer',
+        version: '0.1.0',
+        success: rustAnalysisSuccess,
+        error: rustAnalysisError,
+        analysisFactors: rustAnalysisFactors,
+        total_lines_of_code: rustAnalysisFactors.totalLinesOfCode || 0,
+        total_functions: rustAnalysisFactors.numFunctions || 0,
+      },
+
+      ai_analysis: {
+        engine: 'openai-gpt4o',
+        version: '1.0.0',
+        success: aiAnalysisSuccess,
+        error: aiAnalysisError,
+        analysisFactors: aiAnalysisFactors?.codeAnalysis || {},
+        documentation_clarity:
+          aiAnalysisFactors.documentationClarity?.overallClarityScore || 0,
+        testing_coverage:
+          aiAnalysisFactors.testingCoverage?.overallTestingScore || 0,
+        financial_logic_complexity:
+          aiAnalysisFactors.financialLogicIntricacy
+            ?.overallFinancialComplexityScore || 0,
+        attack_vector_risk:
+          aiAnalysisFactors.profitAttackVectors?.overallAttackVectorScore ||
+          0,
+        value_at_risk:
+          aiAnalysisFactors.valueAtRisk?.overallValueAtRiskScore || 0,
+      },
+
+      performance: {
+        analysisTime: endTime - startTime,
+        memoryUsage: Math.max(0, memoryEnd - memoryStart),
+        typescript_analysis_included: true,
+        rust_analysis_success: rustAnalysisSuccess,
+      },
+
+      userId: userId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+
+      // Add calculated scores and audit effort estimates
+      ...calculatedScoresAndReport,
+      commitHash: commitHash,
+    } as StaticAnalysisReport;
+
+    // Step 7: Save report to MongoDB
+    let savedReport: any = null;
+    try {
+      savedReport = new this.staticAnalysisModel(report);
+      await savedReport.save();
+
+      this.logger.log(
+        `Report saved to database for project: ${projectName}`,
+      );
+    } catch (dbError) {
+      this.logger.error(
+        `Failed to save report to database: ${dbError.message}`,
+      );
+      throw dbError;
+    }
+
+    this.logger.log(
+      `Triple analysis completed for project: ${projectName}`,
+    );
+
+    if (aiAnalysisSuccess) {
+      this.logger.log(
+        `AI analysis completed: Documentation ${aiAnalysisFactors.documentationClarity?.overallClarityScore || 0}, Testing ${aiAnalysisFactors.testingCoverage?.overallTestingScore || 0}, Financial Logic ${aiAnalysisFactors.financialLogicIntricacy?.overallFinancialComplexityScore || 0}`,
+      );
+    } else {
+      this.logger.log(
+        `AI analysis failed: ${aiAnalysisError}. Using Rust analysis only.`,
+      );
+    }
+
+    return savedReport;
+  }
+
+  /**
    * Debug framework detection - returns detailed info about repository structure
    */
   async analyzeUploadedContract(
@@ -588,6 +887,15 @@ export class StaticAnalysisService {
       let rustAnalysisFactors: any = {};
       let rustAnalysisSuccess = false;
       let rustAnalysisError: string | null = null;
+
+      // Step 4: AI analysis variables (extracted from Rust response)
+      let aiAnalysisFactors: any = {};
+      let aiAnalysisSuccess = false;
+      let aiAnalysisError: string | null = null;
+
+      // Step 4.5: Rust-calculated scores and report (extracted from Rust response)
+      let rustCalculatedScores: any = null;
+      let rustCalculatedReport: any = null;
 
       try {
         const staging = stageWorkspace(extractedPath, projectName);
@@ -630,6 +938,22 @@ export class StaticAnalysisService {
             this.logger.debug(
               `Rust analysis factors: ${JSON.stringify(factors)}`,
             );
+
+            // Extract AI analysis from Rust service response
+            if (augResp.data?.ai_factors) {
+              aiAnalysisFactors = augResp.data.ai_factors;
+              aiAnalysisSuccess = true;
+              this.logger.log(
+                `AI analysis extracted from Rust service response with ${Object.keys(aiAnalysisFactors).length} factors`,
+              );
+            } else {
+              aiAnalysisError = 'AI analysis not available in Rust service response';
+              this.logger.warn(aiAnalysisError);
+            }
+
+            // Extract calculated scores and report from Rust service response
+            rustCalculatedScores = augResp.data?.calculated_scores;
+            rustCalculatedReport = augResp.data?.calculated_report;
           } else {
             rustAnalysisError = `Rust service returned success=false: ${JSON.stringify(augResp.data)}`;
             this.logger.warn(rustAnalysisError);
@@ -672,260 +996,43 @@ export class StaticAnalysisService {
         );
       }
 
-      // Step 4: Perform AI analysis
-      this.logger.log('Performing AI analysis...');
-      let aiAnalysisFactors: any = {};
-      let aiAnalysisSuccess = false;
-      let aiAnalysisError: string | null = null;
-
-      console.log('====================================================');
-      console.log('PERFORMING AI ANALYSIS');
-      console.log('====================================================');
-      try {
-        aiAnalysisFactors = await this.aiAnalysisService.analyzeFactors(
-          extractedPath,
-          rustAnalysisFactors,
-          selectedFiles,
-        );
-        aiAnalysisSuccess = true;
-        this.logger.log(
-          `AI analysis completed successfully with ${Object.keys(aiAnalysisFactors).length} factors`,
-        );
-      } catch (aiErr) {
-        aiAnalysisError = `AI analysis failed: ${aiErr.message}`;
-        this.logger.warn(aiAnalysisError);
-      }
-
-      // Step 5: Build triple analysis report
+      // Step 5-7: Build report, store to Arcium, and save to MongoDB
       const endTime = Date.now();
       const memoryEnd = process.memoryUsage().heapUsed;
 
-      // console.log("====================================================")
-      // console.log(rustAnalysisFactors);
-      // console.log("====================================================")
-
-      const staticAnalysisScores = {
-        structural: {
-          total_statement_count:
-            rustAnalysisFactors?.tscMetrics?.locFactor || 0,
-          'number_of_functions/instructions_handlers':
-            rustAnalysisFactors?.functionCountMetrics?.functionFactor || 0,
-          'cyclomatic_complexity_&_control_flow':
-            rustAnalysisFactors?.complexity?.complexityFactor || 0,
-          modularity_and_files_per_modules_count:
-            rustAnalysisFactors?.modularity?.anchorModularityScore || 0,
-          external_dependencies:
-            rustAnalysisFactors?.dependencies?.dependencyFactor || 0,
-        },
-        security: {
-          access_controlled_handlers:
-            rustAnalysisFactors?.accessControl?.accessControlFactor || 0,
-          'PDA_seeds_surface_&_ownership':
-            rustAnalysisFactors?.pdaSeeds?.pdaComplexityFactor || 0,
-          'cross_program_invocation_(CPI)':
-            rustAnalysisFactors?.cpiCalls?.cpiFactor || 0,
-          'input/constraints_surface':
-            rustAnalysisFactors?.inputConstraints?.inputConstraintFactor || 0,
-          arithmetic_operations:
-            rustAnalysisFactors?.arithmeticOperations?.arithmeticFactor || 0,
-          'priviliged_roles_& _admin_actions':
-            rustAnalysisFactors?.privilegedRoles?.acFactor || 0,
-          'unsafe/low_level_usage':
-            rustAnalysisFactors?.unsafeLowLevel?.unsafeFactor || 0,
-          error_handling_footprint:
-            rustAnalysisFactors?.errorHandling?.errorHandlingFactor || 0,
-        },
-        systemic: {
-          upgradability_and_governance_control:
-            rustAnalysisFactors?.upgradeability?.upgradeabilityFactor || 0,
-          'external_integration_&_oracles':
-            rustAnalysisFactors?.dependencies?.externalIntegrationFactor || 0,
-          composability_and_inter_program_complexity:
-            rustAnalysisFactors?.composability?.composabilityFactor || 0,
-          'denial_of_service_&_resource_limits':
-            rustAnalysisFactors?.dosResourceLimits?.resourceFactor || 0,
-          operational_security_factors:
-            rustAnalysisFactors?.operationalSecurity?.opsecFactor || 0,
-        },
-        economic: {
-          'number_of_asset_&_asset_types':
-            rustAnalysisFactors?.assetTypes?.assetTypesFactor || 0,
-          'invariants_&_risk_parameters':
-            rustAnalysisFactors?.invariantsAndRiskParams
-              ?.constraintDensityFactor || 0,
-        },
+      // Prepare Rust service response data
+      const rustServiceResponse = {
+        success: rustAnalysisSuccess,
+        factors: rustAnalysisFactors,
+        ai_factors: aiAnalysisFactors,
+        calculated_scores: rustCalculatedScores,
+        calculated_report: rustCalculatedReport,
       };
 
-      // Calculate scores and audit effort estimates first
-      const calculatedScoresAndReport =
-        this.staticAnalysisUtils.calculateTotalScore(
-          staticAnalysisScores,
-          aiAnalysisFactors?.codeAnalysis || {},
-          {
-            filesCount: selectedFiles?.length || 0,
-            commitUrl: commitUrl,
-            receiptId: '', // Will be updated after Arcium storage
-            hrefUrl: '', // Will be updated after Arcium storage
-          },
-        );
-
-      // Step 6: Store encrypted report results to Arcium storage (Solana devnet)
-      let storageResult: any = null;
-      try {
-        // Check if Arcium storage service is enabled
-        if (this.arciumStorageService.isServiceEnabled()) {
-          // Extract audit effort estimates from the calculated report
-          const lowerEffort =
-            calculatedScoresAndReport.report?.lowerAuditEffort;
-          const upperEffort =
-            calculatedScoresAndReport.report?.upperAuditEffort;
-          const totalScore = calculatedScoresAndReport.scores?.total || 0;
-
-          // Prepare audit data for Solana storage
-          // PUBLIC on blockchain: pricing, effort, score
-          // ENCRYPTED: commit hash (encrypted with Arcium)
-          const auditData = {
-            minDays: lowerEffort?.timeRange?.minimumDays || 7,
-            maxDays: upperEffort?.timeRange?.maximumDays || 14,
-            minResources: lowerEffort?.resources || 2,
-            maxResources: upperEffort?.resources || 3,
-            minCostUsd: lowerEffort?.costRange?.minimumCost || 5000, // Convert cents to USD
-            maxCostUsd: upperEffort?.costRange?.maximumCost || 18000, // Convert cents to USD
-            score: Math.min(100, Math.max(0, Math.round(totalScore))), // Ensure 0-100
-            commitHash: commitHash || 'unknown', // Will be encrypted
-          };
-
-          this.logger.log(
-            'Storing audit results to Solana devnet with Arcium encryption...',
-          );
-          storageResult =
-            await this.arciumStorageService.storeAuditResults(auditData);
-
-          if (storageResult.success) {
-            this.logger.log(`✅ Audit results stored to Solana devnet!`);
-            this.logger.log(`   Report ID: ${storageResult.reportId}`);
-            this.logger.log(
-              `   Transaction: ${storageResult.transactionSignature}`,
-            );
-            this.logger.log(`   Explorer: ${storageResult.explorerUrl}`);
-
-            // Update report data with Arcium storage info
-            calculatedScoresAndReport.report.receiptId =
-              storageResult.transactionSignature;
-            calculatedScoresAndReport.report.hrefUrl =
-              storageResult.explorerUrl;
-          } else {
-            this.logger.warn(
-              `Failed to store audit results to Arcium: ${storageResult.message}`,
-            );
-          }
-        } else {
-          this.logger.debug(
-            'Arcium storage service is disabled. Skipping blockchain storage.',
-          );
-        }
-      } catch (arciumError) {
-        this.logger.error(
-          `Arcium storage error: ${arciumError.message}`,
-          arciumError.stack,
-        );
-        // Don't fail the entire analysis if Arcium storage fails
-      }
-
-      // Create triple analysis report with all data
-      const report: StaticAnalysisReport = {
-        repository: projectName,
-        repositoryUrl: `uploaded://${originalFilename}`,
-        language: 'rust',
-        framework,
-
-        // Analysis metadata
-        analysis_engine: 'dual-analyzer',
-        analyzer_version: '0.2.0',
-        analysis_date: new Date().toISOString(),
-
-        // Analysis Scores
-        static_analysis_scores: staticAnalysisScores,
-
-        // Rust analysis results
-        rust_analysis: {
-          engine: 'rust-semantic-analyzer',
-          version: '0.1.0',
-          success: rustAnalysisSuccess,
-          error: rustAnalysisError,
-          analysisFactors: rustAnalysisFactors,
-          total_lines_of_code: rustAnalysisFactors.totalLinesOfCode || 0,
-          total_functions: rustAnalysisFactors.numFunctions || 0,
+      // Build and save the report using the reusable function
+      savedReport = await this.buildAndSaveAnalysisReport(
+        rustServiceResponse,
+        {
+          projectName,
+          originalFilename,
+          framework,
+          userId,
+          commitUrl,
+          commitHash,
         },
-
-        ai_analysis: {
-          engine: 'openai-gpt4o',
-          version: '1.0.0',
-          success: aiAnalysisSuccess,
-          error: aiAnalysisError,
-          analysisFactors: aiAnalysisFactors?.codeAnalysis || {},
-          documentation_clarity:
-            aiAnalysisFactors.documentationClarity?.overallClarityScore || 0,
-          testing_coverage:
-            aiAnalysisFactors.testingCoverage?.overallTestingScore || 0,
-          financial_logic_complexity:
-            aiAnalysisFactors.financialLogicIntricacy
-              ?.overallFinancialComplexityScore || 0,
-          attack_vector_risk:
-            aiAnalysisFactors.profitAttackVectors?.overallAttackVectorScore ||
-            0,
-          value_at_risk:
-            aiAnalysisFactors.valueAtRisk?.overallValueAtRiskScore || 0,
+        {
+          startTime,
+          endTime,
+          memoryStart,
+          memoryEnd,
         },
-
-        performance: {
-          analysisTime: endTime - startTime,
-          memoryUsage: Math.max(0, memoryEnd - memoryStart),
-          typescript_analysis_included: true,
-          rust_analysis_success: rustAnalysisSuccess,
+        {
+          rustAnalysisSuccess,
+          rustAnalysisError,
+          aiAnalysisSuccess,
+          aiAnalysisError,
         },
-
-        userId: userId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-
-        // Add calculated scores and audit effort estimates
-        ...calculatedScoresAndReport,
-        commitHash: commitHash,
-      } as StaticAnalysisReport;
-
-      // Step 7: Save report to MongoDB
-      try {
-        savedReport = new this.staticAnalysisModel(report);
-        await savedReport.save();
-
-        this.logger.log(
-          `Report saved to database for uploaded contract: ${projectName}`,
-        );
-      } catch (dbError) {
-        this.logger.error(
-          `Failed to save report to database: ${dbError.message}`,
-        );
-      }
-
-      this.logger.log(
-        `Triple analysis completed for uploaded contract: ${projectName}`,
       );
-      // if (rustAnalysisSuccess) {
-      //     this.logger.log(`TypeScript vs Rust comparison: Math ops ${(typescriptAnalysisFactors as any).complexMathOperations || 0} vs ${(rustAnalysisFactors as any).complexMathOperations || 0} (diff: ${((rustAnalysisFactors as any).complexMathOperations || 0) - ((typescriptAnalysisFactors as any).complexMathOperations || 0)})`);
-      // } else {
-      //     this.logger.log(`Rust analysis failed: ${rustAnalysisError}. Using TypeScript analysis only.`);
-      // }
-
-      if (aiAnalysisSuccess) {
-        this.logger.log(
-          `AI analysis completed: Documentation ${aiAnalysisFactors.documentationClarity?.overallClarityScore || 0}, Testing ${aiAnalysisFactors.testingCoverage?.overallTestingScore || 0}, Financial Logic ${aiAnalysisFactors.financialLogicIntricacy?.overallFinancialComplexityScore || 0}`,
-        );
-      } else {
-        this.logger.log(
-          `AI analysis failed: ${aiAnalysisError}. Using Rust analysis only.`,
-        );
-      }
 
       // Step 8: Cleanup extracted directory and upload session after analysis
       try {
@@ -2199,43 +2306,43 @@ export class StaticAnalysisService {
     const structuralScore = Math.min(
       100,
       (factors.totalLinesOfCode / 1000) * 20 +
-        (factors.numFunctions / 50) * 20 +
-        (factors.avgCyclomaticComplexity / 5) * 30 +
-        (factors.maxCyclomaticComplexity / 10) * 30,
+      (factors.numFunctions / 50) * 20 +
+      (factors.avgCyclomaticComplexity / 5) * 30 +
+      (factors.maxCyclomaticComplexity / 10) * 30,
     );
 
     // Security complexity score (0-100)
     const securityScore = Math.min(
       100,
       factors.unsafeCodeBlocks * 20 +
-        factors.panicUsage * 5 +
-        factors.unwrapUsage * 2 +
-        factors.memorySafetyIssues * 15 +
-        factors.accessControlIssues * 10,
+      factors.panicUsage * 5 +
+      factors.unwrapUsage * 2 +
+      factors.memorySafetyIssues * 15 +
+      factors.accessControlIssues * 10,
     );
 
     // Systemic complexity score (0-100)
     const systemicScore = Math.min(
       100,
       (factors.externalProgramCalls / 10) * 30 +
-        (factors.uniqueExternalCalls / 5) * 20 +
-        factors.oracleUsage.length * 15 +
-        (factors.cpiUsage / 5) * 20 +
-        (factors.anchorSpecificFeatures.constraintUsage / 10) * 15,
+      (factors.uniqueExternalCalls / 5) * 20 +
+      factors.oracleUsage.length * 15 +
+      (factors.cpiUsage / 5) * 20 +
+      (factors.anchorSpecificFeatures.constraintUsage / 10) * 15,
     );
 
     // Economic complexity score (0-100)
     const economicScore = Math.min(
       100,
       (factors.tokenTransfers / 10) * 25 +
-        (factors.complexMathOperations / 20) * 25 +
-        factors.defiPatterns.length * 15 +
-        factors.economicRiskFactors.reduce(
-          (sum, risk) => sum + risk.count * risk.weight,
-          0,
-        ) *
-          2 +
-        (factors.timeDependentLogic > 0 ? 20 : 0),
+      (factors.complexMathOperations / 20) * 25 +
+      factors.defiPatterns.length * 15 +
+      factors.economicRiskFactors.reduce(
+        (sum, risk) => sum + risk.count * risk.weight,
+        0,
+      ) *
+      2 +
+      (factors.timeDependentLogic > 0 ? 20 : 0),
     );
 
     return {
@@ -2520,11 +2627,11 @@ export class StaticAnalysisService {
             description: 'Usage of tx.origin',
           },
           'scores.security.details.securityCriticalFeatures.selfDestructCalls':
-            {
-              name: 'Security - Self Destruct Calls',
-              type: 'number',
-              description: 'Number of self destruct calls',
-            },
+          {
+            name: 'Security - Self Destruct Calls',
+            type: 'number',
+            description: 'Number of self destruct calls',
+          },
           'scores.security.details.securityCriticalFeatures.isProxyContract': {
             name: 'Security - Is Proxy Contract',
             type: 'boolean',
@@ -2533,23 +2640,23 @@ export class StaticAnalysisService {
 
           // Systemic score details
           'scores.systemic.details.externalDependencies.externalContractCalls':
-            {
-              name: 'Systemic - External Contract Calls',
-              type: 'number',
-              description: 'Number of external contract calls',
-            },
+          {
+            name: 'Systemic - External Contract Calls',
+            type: 'number',
+            description: 'Number of external contract calls',
+          },
           'scores.systemic.details.externalDependencies.uniqueFunctionCallsExternal':
-            {
-              name: 'Systemic - Unique External Function Calls',
-              type: 'number',
-              description: 'Number of unique external function calls',
-            },
+          {
+            name: 'Systemic - Unique External Function Calls',
+            type: 'number',
+            description: 'Number of unique external function calls',
+          },
           'scores.systemic.details.externalDependencies.knownProtocolInteractions':
-            {
-              name: 'Systemic - Known Protocol Interactions',
-              type: 'array',
-              description: 'Known protocol interactions',
-            },
+          {
+            name: 'Systemic - Known Protocol Interactions',
+            type: 'array',
+            description: 'Known protocol interactions',
+          },
           'scores.systemic.details.standardInteractions.erc20Interactions': {
             name: 'Systemic - ERC20 Interactions',
             type: 'boolean',

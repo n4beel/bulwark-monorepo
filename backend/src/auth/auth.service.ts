@@ -117,15 +117,19 @@ export class AuthService {
    * @param mode - OAuth mode (passed through to frontend, not used for backend logic)
    * @param reportId - Optional report ID to associate with user
    * @param userId - Optional user ID for account linking (when user is already authenticated)
+   * @param cliMode - Whether this is a CLI authentication flow
+   * @param cliRedirectUri - CLI callback URL for local redirect
    */
   getGitHubAuthUrl(
     fromPath?: string,
     mode?: string,
     reportId?: string,
     userId?: string,
+    cliMode?: boolean,
+    cliRedirectUri?: string,
   ): string {
     this.logger.log(
-      `Generating GitHub Auth URL - fromPath: ${fromPath}, mode: ${mode}, linking: ${!!userId}`,
+      `Generating GitHub Auth URL - fromPath: ${fromPath}, mode: ${mode}, linking: ${!!userId}, cliMode: ${cliMode}`,
     );
 
     const clientId = this.configService.get<string>('GIT_CLIENT_ID');
@@ -141,6 +145,8 @@ export class AuthService {
       reportId: reportId || '',
       userId: userId || '',
       mode: mode || 'auth', // Default to 'auth' if not provided
+      cliMode: cliMode || false,
+      cliRedirectUri: cliRedirectUri || '',
     };
 
     const params = new URLSearchParams({
@@ -171,7 +177,10 @@ export class AuthService {
    * @param fromPath - Path to redirect to after authentication
    * @param mode - OAuth mode (passed through to frontend, not used for backend logic)
    * @param reportId - Optional report ID to associate with user
+   * @param origin - Origin URL for redirect
    * @param userId - Optional user ID for account linking (when user is already authenticated)
+   * @param cliMode - Whether this is a CLI authentication flow
+   * @param cliRedirectUri - CLI callback URL for local redirect
    */
   getGoogleAuthUrl(
     fromPath?: string,
@@ -179,9 +188,11 @@ export class AuthService {
     reportId?: string,
     origin?: string,
     userId?: string,
+    cliMode?: boolean,
+    cliRedirectUri?: string,
   ): string {
     this.logger.log(
-      `Generating Google Auth URL - fromPath: ${fromPath}, mode: ${mode}, linking: ${!!userId}`,
+      `Generating Google Auth URL - fromPath: ${fromPath}, mode: ${mode}, linking: ${!!userId}, cliMode: ${cliMode}`,
     );
 
     const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
@@ -198,6 +209,8 @@ export class AuthService {
       userId: userId || '',
       mode: mode || 'auth', // Default to 'auth' if not provided
       origin: origin || '',
+      cliMode: cliMode || false,
+      cliRedirectUri: cliRedirectUri || '',
     };
 
     const params = new URLSearchParams({

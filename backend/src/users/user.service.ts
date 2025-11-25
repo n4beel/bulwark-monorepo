@@ -359,6 +359,45 @@ export class UserService {
   }
 
   /**
+   * Check if a user is whitelisted
+   * @param userId - User ID to check
+   * @returns boolean indicating whitelist status
+   */
+  async isUserWhitelisted(userId: string): Promise<boolean> {
+    if (!this.whitelistService) {
+      return false;
+    }
+
+    try {
+      const user = await this.findById(userId);
+      if (!user) {
+        return false;
+      }
+
+      // Check all emails in the array
+      const emailsToCheck =
+        user.emails && user.emails.length > 0
+          ? user.emails
+          : user.email
+            ? [user.email]
+            : [];
+
+      for (const email of emailsToCheck) {
+        if (await this.whitelistService.isEmailWhitelisted(email)) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to check whitelist status for user ${userId}: ${error.message}`,
+      );
+      return false;
+    }
+  }
+
+  /**
    * Verify and decode JWT token
    */
   verifyToken(token: string): any {
