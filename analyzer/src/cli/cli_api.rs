@@ -5,8 +5,8 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::cli_config::CliConfig;
-use crate::cli_display::{print_info, print_success, print_warning, AnalysisReceipt, Spinner};
+use super::cli_config::CliConfig;
+use super::cli_display::{print_info, print_success, print_warning, AnalysisReceipt, Spinner};
 
 /// Get CLI API Key from environment variable (set at build time or runtime)
 /// Priority: 1. Build-time CLI_API_KEY, 2. Runtime CLI_API_KEY (from .env), 3. Placeholder
@@ -225,7 +225,7 @@ pub async fn sync_queued_analyses() -> Result<()> {
 
 /// Submit a single queued analysis
 async fn submit_queued_analysis(
-    analysis: &crate::cli_config::QueuedAnalysis,
+    analysis: &super::cli_config::QueuedAnalysis,
 ) -> Result<BuildReportResponse> {
     let config = CliConfig::load()?;
 
@@ -326,7 +326,7 @@ pub fn build_receipt_from_response(
     let report = response.report.as_ref();
     let lower_effort = report
         .and_then(|r| r.get("lowerAuditEffort"))
-        .map(|e| crate::cli_display::AuditEstimate {
+        .map(|e| super::cli_display::AuditEstimate {
             min_days: e
                 .get("timeRange")
                 .and_then(|t| t.get("minimumDays"))
@@ -349,7 +349,7 @@ pub fn build_receipt_from_response(
                 .and_then(|v| v.as_u64())
                 .unwrap_or(12000) as u32,
         })
-        .unwrap_or(crate::cli_display::AuditEstimate {
+        .unwrap_or(super::cli_display::AuditEstimate {
             min_days: 7,
             max_days: 14,
             resources: 2,
@@ -359,7 +359,7 @@ pub fn build_receipt_from_response(
 
     let upper_effort = report
         .and_then(|r| r.get("upperAuditEffort"))
-        .map(|e| crate::cli_display::AuditEstimate {
+        .map(|e| super::cli_display::AuditEstimate {
             min_days: e
                 .get("timeRange")
                 .and_then(|t| t.get("minimumDays"))
@@ -382,7 +382,7 @@ pub fn build_receipt_from_response(
                 .and_then(|v| v.as_u64())
                 .unwrap_or(24000) as u32,
         })
-        .unwrap_or(crate::cli_display::AuditEstimate {
+        .unwrap_or(super::cli_display::AuditEstimate {
             min_days: 10,
             max_days: 20,
             resources: 3,
@@ -392,7 +392,7 @@ pub fn build_receipt_from_response(
 
     // Extract hotspots
     let hotspots_data = report.and_then(|r| r.get("hotspots"));
-    let hotspots = crate::cli_display::Hotspots {
+    let hotspots = super::cli_display::Hotspots {
         total: hotspots_data
             .and_then(|h| h.get("totalCount"))
             .and_then(|v| v.as_u64())
@@ -431,14 +431,14 @@ pub fn build_receipt_from_response(
         files_count,
         lines_of_code,
         complexity_score: total,
-        scores: crate::cli_display::Scores {
+        scores: super::cli_display::Scores {
             structural,
             security,
             systemic,
             economic,
             total,
         },
-        audit_effort: crate::cli_display::AuditEffort {
+        audit_effort: super::cli_display::AuditEffort {
             lower: lower_effort,
             upper: upper_effort,
         },

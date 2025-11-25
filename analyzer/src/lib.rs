@@ -5,6 +5,7 @@
 
 pub mod ai_analysis;
 pub mod analysis;
+pub mod cli;
 pub mod config;
 pub mod error;
 pub mod factors;

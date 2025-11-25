@@ -10,8 +10,8 @@ use std::sync::mpsc;
 use std::thread;
 use tokio::time::{timeout, Duration};
 
-use crate::cli_config::{CliConfig, UserConfig};
-use crate::cli_display::{print_error, print_info, print_success, print_warning, Spinner};
+use super::cli_config::{CliConfig, UserConfig};
+use super::cli_display::{print_error, print_info, print_success, print_warning, Spinner};
 
 const CLI_CALLBACK_PORT: u16 = 9875; // Port for local callback server
 const AUTH_TIMEOUT_SECS: u64 = 300; // 5 minute timeout for auth flow

@@ -2,18 +2,18 @@
 //!
 //! A command-line tool for analyzing Solana/Anchor smart contracts.
 
-mod cli_api;
-mod cli_auth;
-mod cli_config;
-mod cli_display;
-
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 use std::time::Instant;
 
-use cli_config::{AvailableFactors, CliConfig};
-use cli_display::{print_banner, print_error, print_info, print_success, print_warning, Spinner};
+// Import CLI modules from the library
+use amm_analyzer::cli::cli_api;
+use amm_analyzer::cli::cli_auth;
+use amm_analyzer::cli::cli_config::{self, AvailableFactors, CliConfig};
+use amm_analyzer::cli::cli_display::{
+    self, print_banner, print_error, print_info, print_success, print_warning, Spinner,
+};
 
 #[derive(Parser)]
 #[command(name = "bulwark")]
