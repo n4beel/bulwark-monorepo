@@ -304,8 +304,9 @@ pub fn build_receipt_from_response(
     files_count: usize,
     lines_of_code: u64,
     local_scores: Option<&serde_json::Value>,
+    web_url: &str,
 ) -> AnalysisReceipt {
-    let base_url = "https://bulwark.blockapex.io";
+    let base_url = web_url;
 
     // Extract scores from response or use local
     let scores = response.scores.as_ref().or(local_scores);

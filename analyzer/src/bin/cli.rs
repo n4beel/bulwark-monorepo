@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
+use std::io::Write;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -121,11 +122,12 @@ async fn main() {
 async fn run() -> Result<()> {
     let cli = Cli::parse();
 
-    // Initialize logging if verbose
+    // Initialize logging - suppress all logs unless verbose
     if cli.verbose {
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
     } else {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
+        // Set to "error" to suppress debug, info, and warn logs
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("error")).init();
     }
 
     match cli.command {
@@ -368,6 +370,7 @@ async fn run_analysis(
                                 files_count,
                                 lines_of_code,
                                 result.get("calculated_scores"),
+                                &config.web_url,
                             );
 
                             match output_format {
@@ -482,8 +485,24 @@ async fn run_local_analysis(
     }
 
     let mut factors_map = serde_json::Map::new();
+    
+    // Total number of factor analyses (excluding function count which is inline)
+    const TOTAL_FACTORS: usize = 20;
+    let mut current_factor = 0;
+    
+    // Helper to update progress
+    macro_rules! update_progress {
+        () => {
+            current_factor += 1;
+            if !verbose {
+                print!("\r  Analyzing factors... {}/{} completed", current_factor, TOTAL_FACTORS);
+                let _ = std::io::stdout().flush();
+            }
+        };
+    }
 
     // Calculate lines of code / TSC metrics
+    update_progress!();
     if let Ok(tsc_metrics) = calculate_workspace_tsc(path, rust_files_slice) {
         factors_map.insert(
             "totalLinesOfCode".to_string(),
@@ -526,6 +545,7 @@ async fn run_local_analysis(
     }
 
     // Calculate cyclomatic complexity
+    update_progress!();
     if let Ok(complexity_metrics) =
         calculate_workspace_cyclomatic_complexity(path, rust_files_slice)
     {
@@ -537,88 +557,110 @@ async fn run_local_analysis(
     }
 
     // Calculate modularity
+    update_progress!();
     if let Ok(modularity_metrics) = calculate_workspace_modularity(path, rust_files_slice) {
         factors_map.insert("modularity".to_string(), modularity_metrics.to_json());
     }
 
     // Calculate access control
+    update_progress!();
     if let Ok(access_metrics) = calculate_workspace_access_control(path, rust_files_slice) {
         factors_map.insert("accessControl".to_string(), access_metrics.to_json());
     }
 
     // Calculate PDA seeds
+    update_progress!();
     if let Ok(pda_metrics) = calculate_workspace_pda_seeds(path, rust_files_slice) {
         factors_map.insert("pdaSeeds".to_string(), pda_metrics.to_json());
     }
 
     // Calculate CPI calls
+    update_progress!();
     if let Ok(cpi_metrics) = calculate_workspace_cpi_calls(path, rust_files_slice) {
         factors_map.insert("cpiCalls".to_string(), cpi_metrics.to_json());
     }
 
     // Calculate input constraints
+    update_progress!();
     if let Ok(input_metrics) = calculate_workspace_input_constraints(path, rust_files_slice) {
         factors_map.insert("inputConstraints".to_string(), input_metrics.to_json());
     }
 
     // Calculate arithmetic operations
+    update_progress!();
     if let Ok(arith_metrics) = calculate_workspace_arithmetic(path, rust_files_slice) {
         factors_map.insert("arithmeticOperations".to_string(), arith_metrics.to_json());
     }
 
     // Calculate privileged roles
+    update_progress!();
     if let Ok(priv_metrics) = calculate_workspace_privileged_roles(path, rust_files_slice) {
         factors_map.insert("privilegedRoles".to_string(), priv_metrics.to_json());
     }
 
     // Calculate unsafe/low-level
+    update_progress!();
     if let Ok(unsafe_metrics) = calculate_workspace_unsafe_lowlevel(path, rust_files_slice) {
         factors_map.insert("unsafeLowLevel".to_string(), unsafe_metrics.to_json());
     }
 
     // Calculate error handling
+    update_progress!();
     if let Ok(error_metrics) = calculate_workspace_error_handling(path, rust_files_slice) {
         factors_map.insert("errorHandling".to_string(), error_metrics.to_json());
     }
 
     // Calculate upgradeability (without RPC - offline)
+    update_progress!();
     if let Ok(upgrade_metrics) = calculate_workspace_upgradeability(path, rust_files_slice, None) {
         factors_map.insert("upgradeability".to_string(), upgrade_metrics.to_json());
     }
 
     // Calculate dependencies
+    update_progress!();
     if let Ok(dep_metrics) = calculate_workspace_dependencies(path, rust_files_slice) {
         factors_map.insert("dependencies".to_string(), dep_metrics.to_json());
     }
 
     // Calculate external integration
+    update_progress!();
     if let Ok(ext_metrics) = calculate_workspace_external_integration(path, rust_files_slice) {
         factors_map.insert("externalIntegration".to_string(), ext_metrics.to_json());
     }
 
     // Calculate composability
+    update_progress!();
     if let Ok(comp_metrics) = calculate_workspace_composability(path, rust_files_slice) {
         factors_map.insert("composability".to_string(), comp_metrics.to_json());
     }
 
     // Calculate DoS/resource limits
+    update_progress!();
     if let Ok(dos_metrics) = calculate_workspace_dos_resource_limits(path, rust_files_slice) {
         factors_map.insert("dosResourceLimits".to_string(), dos_metrics.to_json());
     }
 
     // Calculate operational security
+    update_progress!();
     if let Ok(opsec_metrics) = calculate_workspace_operational_security(path, rust_files_slice) {
         factors_map.insert("operationalSecurity".to_string(), opsec_metrics.to_json());
     }
 
     // Calculate asset types
+    update_progress!();
     if let Ok(asset_metrics) = calculate_workspace_asset_types(path, rust_files_slice) {
         factors_map.insert("assetTypes".to_string(), asset_metrics.to_json());
     }
 
     // Calculate invariants and risk params
+    update_progress!();
     if let Ok(inv_metrics) = calculate_workspace_constraint_density(path, rust_files_slice) {
         factors_map.insert("invariantsAndRiskParams".to_string(), inv_metrics.to_json());
+    }
+    
+    // Clear progress line and add newline
+    if !verbose {
+        print!("\r  Analyzing factors... {}/{} completed\n", TOTAL_FACTORS, TOTAL_FACTORS);
     }
 
     // Get total LOC for result

@@ -6,6 +6,56 @@
 
 ---
 
+## 🚀 CLI Installation
+
+The Bulwark CLI tool allows you to analyze smart contracts directly from your terminal.
+
+### Quick Install
+
+**One-liner installation:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/n4beel/bulwark-monorepo/main/install.sh | bash
+```
+
+**Or download manually:**
+
+1. Visit the [Releases page](https://github.com/n4beel/bulwark-monorepo/releases)
+2. Download the archive for your platform:
+   - **Linux (x86_64)**: `bulwark-<version>-x86_64-unknown-linux-gnu.tar.gz`
+   - **macOS (Intel)**: `bulwark-<version>-x86_64-apple-darwin.tar.gz`
+   - **macOS (Apple Silicon)**: `bulwark-<version>-aarch64-apple-darwin.tar.gz`
+3. Extract and install:
+   ```bash
+   tar xzf bulwark-*.tar.gz
+   sudo mv bulwark /usr/local/bin/
+   ```
+
+### Quick Start
+
+```bash
+# Login (opens browser for OAuth)
+bulwark login
+
+# Analyze a project
+bulwark analyze /path/to/your/project
+
+# View configuration
+bulwark config view
+
+# Get help
+bulwark --help
+```
+
+### Features
+
+- ✅ **Local Analysis**: Analyze contracts without uploading code
+- ✅ **AI-Powered**: GPT-4o analysis for risk assessment
+- ✅ **Offline Support**: Queue results for later sync
+- ✅ **Multiple Factors**: Analyze specific factors or categories
+- ✅ **Beautiful Output**: Formatted receipts with scores and hotspots
+
+---
+
 ## 🏗️ System Architecture
 
 ### High-Level Architecture
