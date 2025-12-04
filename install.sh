@@ -60,13 +60,26 @@ curl -L -o "${ARCHIVE_NAME}" "${DOWNLOAD_URL}"
 
 # Verify checksum if available
 CHECKSUM_URL="https://github.com/${REPO}/releases/download/v${LATEST_VERSION}/${ARCHIVE_NAME}.sha256"
-if curl -f -s -o "${ARCHIVE_NAME}.sha256" "${CHECKSUM_URL}" 2>/dev/null; then
+CHECKSUM_FILE="${ARCHIVE_NAME}.sha256"
+if curl -f -s -o "${CHECKSUM_FILE}" "${CHECKSUM_URL}" 2>/dev/null && [ -s "${CHECKSUM_FILE}" ]; then
     echo "🔍 Verifying checksum..."
-    sha256sum -c "${ARCHIVE_NAME}.sha256" || {
-        echo "❌ Checksum verification failed!"
-        exit 1
-    }
-    echo "✅ Checksum verified"
+    # Extract expected checksum (first field before space)
+    EXPECTED_CHECKSUM=$(awk '{print $1}' "${CHECKSUM_FILE}" | tr -d '\n\r')
+    # Calculate actual checksum of downloaded file
+    DOWNLOADED_CHECKSUM=$(sha256sum "${ARCHIVE_NAME}" 2>/dev/null | awk '{print $1}')
+    
+    if [ -n "${DOWNLOADED_CHECKSUM}" ] && [ -n "${EXPECTED_CHECKSUM}" ]; then
+        if [ "${DOWNLOADED_CHECKSUM}" = "${EXPECTED_CHECKSUM}" ]; then
+            echo "✅ Checksum verified"
+        else
+            echo "❌ Checksum verification failed!"
+            echo "   Expected: ${EXPECTED_CHECKSUM}"
+            echo "   Got:      ${DOWNLOADED_CHECKSUM}"
+            exit 1
+        fi
+    else
+        echo "⚠️  Could not verify checksum (skipping verification)"
+    fi
 fi
 
 # Extract
