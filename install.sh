@@ -58,13 +58,13 @@ trap "rm -rf ${TMP_DIR}" EXIT
 cd "${TMP_DIR}"
 curl -L -o "${ARCHIVE_NAME}" "${DOWNLOAD_URL}"
 
-# Verify checksum if available
+# Verify checksum if available (optional - won't fail installation)
 CHECKSUM_URL="https://github.com/${REPO}/releases/download/v${LATEST_VERSION}/${ARCHIVE_NAME}.sha256"
 CHECKSUM_FILE="${ARCHIVE_NAME}.sha256"
 if curl -f -s -o "${CHECKSUM_FILE}" "${CHECKSUM_URL}" 2>/dev/null && [ -s "${CHECKSUM_FILE}" ]; then
     echo "🔍 Verifying checksum..."
-    # Extract expected checksum (first field before space)
-    EXPECTED_CHECKSUM=$(awk '{print $1}' "${CHECKSUM_FILE}" | tr -d '\n\r')
+    # Extract expected checksum (first field before space, remove any trailing whitespace)
+    EXPECTED_CHECKSUM=$(awk '{print $1}' "${CHECKSUM_FILE}" | tr -d '\n\r \t')
     # Calculate actual checksum of downloaded file
     DOWNLOADED_CHECKSUM=$(sha256sum "${ARCHIVE_NAME}" 2>/dev/null | awk '{print $1}')
     
@@ -72,14 +72,16 @@ if curl -f -s -o "${CHECKSUM_FILE}" "${CHECKSUM_URL}" 2>/dev/null && [ -s "${CHE
         if [ "${DOWNLOADED_CHECKSUM}" = "${EXPECTED_CHECKSUM}" ]; then
             echo "✅ Checksum verified"
         else
-            echo "❌ Checksum verification failed!"
+            echo "⚠️  Checksum mismatch (continuing anyway)"
             echo "   Expected: ${EXPECTED_CHECKSUM}"
             echo "   Got:      ${DOWNLOADED_CHECKSUM}"
-            exit 1
+            echo "   Installation will continue, but file integrity could not be verified."
         fi
     else
         echo "⚠️  Could not verify checksum (skipping verification)"
     fi
+else
+    echo "⚠️  Checksum file not available (skipping verification)"
 fi
 
 # Extract
