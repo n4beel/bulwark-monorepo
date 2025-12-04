@@ -1,0 +1,187 @@
+name: Release CLI
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on tags like v1.0.0, v0.2.0, etc.
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  build-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for creating releases
+
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: linux
+            archive: tar.gz
+            binary_name: bulwark
+          - target: x86_64-apple-darwin
+            os: macos
+            archive: tar.gz
+            binary_name: bulwark
+          - target: aarch64-apple-darwin
+            os: macos
+            archive: tar.gz
+            binary_name: bulwark
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation dependencies (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib
+
+      - name: Build binary
+        working-directory: ./analyzer
+        env:
+          CLI_API_KEY: ${{ secrets.CLI_API_KEY }}
+        run: |
+          # Set the API key at build time (if available)
+          if [ -n "$CLI_API_KEY" ]; then
+            export CLI_API_KEY="$CLI_API_KEY"
+          fi
+          cargo build --release --target ${{ matrix.target }} --bin bulwark
+
+      - name: Strip binary (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          strip ./analyzer/target/${{ matrix.target }}/release/bulwark
+
+      - name: Strip binary (macOS)
+        if: matrix.os == 'macos'
+        run: |
+          strip ./analyzer/target/${{ matrix.target }}/release/bulwark
+
+      - name: Create archive
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          ARCHIVE_NAME="bulwark-${VERSION}-${{ matrix.target }}.${{ matrix.archive }}"
+          
+          if [ "${{ matrix.os }}" == "linux" ]; then
+            tar czf "${ARCHIVE_NAME}" -C ./analyzer/target/${{ matrix.target }}/release bulwark
+          else
+            tar czf "${ARCHIVE_NAME}" -C ./analyzer/target/${{ matrix.target }}/release bulwark
+          fi
+          
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
+          echo "BINARY_NAME=bulwark" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: ${{ env.ARCHIVE_NAME }}
+          retention-days: 30
+
+  create-release:
+    name: Create Release
+    needs: build-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Create checksums
+        shell: bash
+        run: |
+          cd artifacts
+          for dir in */; do
+            cd "$dir"
+            for file in *; do
+              sha256sum "$file" > "${file}.sha256"
+            done
+            cd ..
+          done
+
+      - name: Create release notes
+        shell: bash
+        run: |
+          cat > RELEASE_NOTES.md << EOF
+          # Bulwark CLI v${VERSION}
+
+          ## Installation
+
+          ### Linux (x86_64)
+          \`\`\`bash
+          curl -L https://github.com/${{ github.repository }}/releases/download/v${VERSION}/bulwark-${VERSION}-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          sudo mv bulwark /usr/local/bin/
+          \`\`\`
+
+          ### macOS (Intel)
+          \`\`\`bash
+          curl -L https://github.com/${{ github.repository }}/releases/download/v${VERSION}/bulwark-${VERSION}-x86_64-apple-darwin.tar.gz | tar xz
+          sudo mv bulwark /usr/local/bin/
+          \`\`\`
+
+          ### macOS (Apple Silicon)
+          \`\`\`bash
+          curl -L https://github.com/${{ github.repository }}/releases/download/v${VERSION}/bulwark-${VERSION}-aarch64-apple-darwin.tar.gz | tar xz
+          sudo mv bulwark /usr/local/bin/
+          \`\`\`
+
+          ## Quick Start
+
+          \`\`\`bash
+          # Login
+          bulwark login
+
+          # Analyze a project
+          bulwark analyze /path/to/your/project
+
+          # View config
+          bulwark config view
+          \`\`\`
+
+          ## What's Changed
+
+          See the [changelog](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+
+          ## Checksums
+
+          \`\`\`bash
+          # Verify download integrity
+          sha256sum -c bulwark-*.tar.gz.sha256
+          \`\`\`
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/**/*
+            RELEASE_NOTES.md
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
