@@ -2,6 +2,8 @@
 //!
 //! Provides REST API endpoints for semantic analysis of Rust smart contracts
 
+use amm_analyzer::ai_analysis::AiAnalysisService;
+use amm_analyzer::score_calculator::{ScoreCalculator, extract_static_analysis_scores, RepoData, CodeMetrics};
 use amm_analyzer::factors::{
     calculate_workspace_access_control,
     calculate_workspace_arithmetic,
@@ -139,6 +141,11 @@ struct AugmentResponse {
     workspace_id: String,
     overridden: Vec<String>,
     factors: serde_json::Value,
+    ai_factors: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    calculated_scores: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    calculated_report: Option<serde_json::Value>,
     raw: serde_json::Value,
     meta: AugmentResponseMeta,
 }
@@ -300,6 +307,8 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
     let mut computed_factors = Vec::new();
     let mut notes = Vec::new();
 
+    // TODO: check if selected files are being passed again and again to the functions.
+
     // Calculate actual lines of code from workspace files using TSC metrics
     let selected_files = request.selected_files.as_deref().unwrap_or(&[]);
     match calculate_workspace_tsc(&full_path, selected_files) {
@@ -438,6 +447,9 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 workspace_id: request.workspace_id,
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
+                ai_factors: None,
+                calculated_scores: None,
+                calculated_report: None,
                 raw: serde_json::json!({
                     "error": format!("Cyclomatic complexity calculation failed: {}", e),
                     "timestamp": chrono::Utc::now().to_rfc3339()
@@ -482,6 +494,9 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 workspace_id: request.workspace_id,
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
+                ai_factors: None,
+                calculated_scores: None,
+                calculated_report: None,
                 raw: serde_json::json!({
                     "error": format!("Modularity calculation failed: {}", e),
                     "timestamp": chrono::Utc::now().to_rfc3339()
@@ -533,6 +548,9 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 workspace_id: request.workspace_id,
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
+                ai_factors: None,
+                calculated_scores: None,
+                calculated_report: None,
                 raw: serde_json::json!({
                     "error": format!("Access control calculation failed: {}", e),
                     "timestamp": chrono::Utc::now().to_rfc3339()
@@ -582,6 +600,9 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 workspace_id: request.workspace_id,
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
+                ai_factors: None,
+                calculated_scores: None,
+                calculated_report: None,
                 raw: serde_json::json!({
                     "error": format!("PDA seeds calculation failed: {}", e),
                     "timestamp": chrono::Utc::now().to_rfc3339()
@@ -631,6 +652,9 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 workspace_id: request.workspace_id,
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
+                ai_factors: None,
+                calculated_scores: None,
+                calculated_report: None,
                 raw: serde_json::json!({
                     "error": format!("CPI calls calculation failed: {}", e),
                     "timestamp": chrono::Utc::now().to_rfc3339()
@@ -681,6 +705,9 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 workspace_id: request.workspace_id,
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
+                ai_factors: None,
+                calculated_scores: None,
+                calculated_report: None,
                 raw: serde_json::json!({
                     "error": format!("Input constraints calculation failed: {}", e),
                     "timestamp": chrono::Utc::now().to_rfc3339()
@@ -1225,6 +1252,9 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 workspace_id: request.workspace_id,
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
+                ai_factors: None,
+                calculated_scores: None,
+                calculated_report: None,
                 raw: serde_json::json!({
                     "error": format!("Dependencies calculation failed: {}", e),
                     "timestamp": chrono::Utc::now().to_rfc3339()
@@ -1236,6 +1266,75 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
             });
         }
     }
+
+    // Step 2: Perform AI Analysis
+    log::info!("🤖 Starting AI analysis for workspace: {}", request.workspace_id);
+    let ai_factors = match AiAnalysisService::new() {
+        Ok(ai_service) => {
+            let rust_factors_json = serde_json::Value::Object(factors_map.clone());
+            match ai_service
+                .analyze_factors(&full_path, &rust_factors_json, Some(selected_files))
+                .await
+            {
+                Ok(results) => {
+                    log::info!("✅ AI analysis completed successfully");
+                    Some(serde_json::to_value(results).unwrap_or(serde_json::Value::Null))
+                }
+                Err(e) => {
+                    log::warn!("⚠️ AI analysis failed: {}", e);
+                    None
+                }
+            }
+        }
+        Err(e) => {
+            log::warn!("⚠️ AI service initialization failed: {}", e);
+            None
+        }
+    };
+
+    // Step 3: Calculate scores and audit effort estimates
+    log::info!("📊 Calculating scores and audit effort estimates...");
+    let (calculated_scores, calculated_report) = {
+        let factors_json = serde_json::Value::Object(factors_map.clone());
+        let static_analysis_scores = extract_static_analysis_scores(&factors_json);
+        
+        // Extract AI analysis code metrics
+        let ai_code_metrics = ai_factors.as_ref()
+            .and_then(|af| af.get("codeAnalysis"))
+            .map(|ca| CodeMetrics {
+                high_risk_hotspots: ca.get("highRiskHotspots")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.clone()),
+                medium_risk_hotspots: ca.get("mediumRiskHotspots")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.clone()),
+                findings: ca.get("findings")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect::<Vec<String>>()
+                    }),
+            })
+            .unwrap_or_else(|| CodeMetrics {
+                high_risk_hotspots: None,
+                medium_risk_hotspots: None,
+                findings: None,
+            });
+
+        let repo_data = RepoData {
+            files_count: selected_files.len(),
+            receipt_id: String::new(),
+            commit_url: String::new(),
+            href_url: String::new(),
+        };
+
+        ScoreCalculator::calculate_total_score(
+            &static_analysis_scores,
+            &ai_code_metrics,
+            &repo_data,
+        )
+    };
 
     // Build raw diagnostic information
     let raw = serde_json::json!({
@@ -1260,6 +1359,9 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
         workspace_id: request.workspace_id,
         overridden: computed_factors.clone(),
         factors: serde_json::Value::Object(factors_map),
+        ai_factors,
+        calculated_scores: Some(serde_json::to_value(&calculated_scores).unwrap_or(serde_json::Value::Null)),
+        calculated_report: Some(serde_json::to_value(&calculated_report).unwrap_or(serde_json::Value::Null)),
         raw,
         meta: AugmentResponseMeta {
             api_version: request.api_version.unwrap_or_else(|| "v1".to_string()),
@@ -1441,6 +1543,10 @@ impl Default for AnalysisOptions {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Load environment variables from .env file (if present)
+    // This allows developers to use .env files for local development
+    let _ = dotenv::dotenv();
+    
     // Initialize logging
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 

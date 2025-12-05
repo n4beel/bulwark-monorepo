@@ -1,454 +1,640 @@
 import {
-    Controller,
-    Post,
-    Body,
-    HttpException,
-    HttpStatus,
-    Logger,
-    Get,
-    Param,
-    UseGuards,
-    Request,
-    Delete,
+  Controller,
+  Post,
+  Body,
+  HttpException,
+  HttpStatus,
+  Logger,
+  Get,
+  Param,
+  UseGuards,
+  Request,
+  Delete,
 } from '@nestjs/common';
 import {
-    StaticAnalysisService,
-    StaticAnalysisReport,
+  StaticAnalysisService,
+  StaticAnalysisReport,
 } from './static-analysis.service';
-import { StaticAnalysisDto, StaticAnalysisReportDocument } from './dto/static-analysis.dto';
+import {
+  StaticAnalysisDto,
+  StaticAnalysisReportDocument,
+  BuildAnalysisReportDto,
+} from './dto/static-analysis.dto';
 import { UploadsService } from '../uploads/uploads.service';
 import { JwtAuthGuard } from '../users/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../users/guards/optional-jwt-auth.guard';
+import { ApiKeyGuard } from '../users/guards/api-key.guard';
+import { WhitelistGuard } from '../whitelist/guards/whitelist.guard';
 import { CurrentUser } from '../users/decorators/current-user.decorator';
 import { UserDocument } from '../users/schemas/user.schema';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiParam,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 
 @ApiTags('static-analysis')
 @Controller('static-analysis')
+@UseGuards(OptionalJwtAuthGuard, WhitelistGuard)
 export class StaticAnalysisController {
-    private readonly logger = new Logger(StaticAnalysisController.name);
+  private readonly logger = new Logger(StaticAnalysisController.name);
 
-    constructor(
-        private readonly staticAnalysisService: StaticAnalysisService,
-        private readonly uploadsService: UploadsService,
-    ) { }
+  constructor(
+    private readonly staticAnalysisService: StaticAnalysisService,
+    private readonly uploadsService: UploadsService,
+  ) {}
 
-    @Post('analyze-rust-contract')
-    @UseGuards(OptionalJwtAuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({
-        summary: 'Analyze a Rust contract from a GitHub repository (public or private)',
-        description: 'Analyzes Rust smart contracts from GitHub repositories. Supports both public repositories (no access token required) and private repositories (access token required). Performs comprehensive static analysis including Rust semantic analysis, AI analysis, and generates detailed security and complexity scores.'
-    })
-    @ApiBody({ type: StaticAnalysisDto })
-    @ApiResponse({ status: 201, description: 'The analysis report has been successfully generated.', type: StaticAnalysisReport })
-    @ApiResponse({ status: 400, description: 'Bad Request - Missing required fields (owner and repo)' })
-    @ApiResponse({ status: 401, description: 'Unauthorized - Invalid GitHub access token' })
-    @ApiResponse({ status: 403, description: 'Forbidden - Access denied (likely a private repository without token or insufficient permissions)' })
-    @ApiResponse({ status: 404, description: 'Not Found - Repository does not exist or is inaccessible' })
-    @ApiResponse({ status: 429, description: 'Too Many Requests - GitHub API rate limit exceeded' })
-    @ApiResponse({ status: 500, description: 'Internal Server Error' })
-    async analyzeRustContract(
-        @Body() dto: StaticAnalysisDto,
-        @CurrentUser() user?: UserDocument,
-    ): Promise<StaticAnalysisReport> {
-        try {
-            this.logger.log(
-                `Received request to analyze Rust contract for ${dto.owner}/${dto.repo}${dto.accessToken ? ' (private)' : ' (public)'}`,
-            );
+  @Post('analyze-rust-contract')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Analyze a Rust contract from a GitHub repository (public or private)',
+    description:
+      'Analyzes Rust smart contracts from GitHub repositories. Supports both public repositories (no access token required) and private repositories (access token required). Performs comprehensive static analysis including Rust semantic analysis, AI analysis, and generates detailed security and complexity scores.',
+  })
+  @ApiBody({ type: StaticAnalysisDto })
+  @ApiResponse({
+    status: 201,
+    description: 'The analysis report has been successfully generated.',
+    type: StaticAnalysisReport,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Missing required fields (owner and repo)',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid GitHub access token',
+  })
+  @ApiResponse({
+    status: 403,
+    description:
+      'Forbidden - Access denied (likely a private repository without token or insufficient permissions)',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - Repository does not exist or is inaccessible',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too Many Requests - GitHub API rate limit exceeded',
+  })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async analyzeRustContract(
+    @Body() dto: StaticAnalysisDto,
+    @CurrentUser() user?: UserDocument,
+  ): Promise<StaticAnalysisReport> {
+    try {
+      this.logger.log(
+        `Received request to analyze Rust contract for ${dto.owner}/${dto.repo}${dto.accessToken ? ' (private)' : ' (public)'}`,
+      );
 
-            // Validate input
-            if (!dto.owner || !dto.repo) {
-                throw new HttpException(
-                    'Missing required fields: owner and repo are required',
-                    HttpStatus.BAD_REQUEST,
-                );
-            }
+      // Validate input
+      if (!dto.owner || !dto.repo) {
+        throw new HttpException(
+          'Missing required fields: owner and repo are required',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
 
-            // Use the same approach as analyze-uploaded-contract: clone repo and use workspace-based analysis
-            const report = await this.staticAnalysisService.analyzeRustContractWithWorkspace(
-                dto.owner,
-                dto.repo,
-                dto.accessToken,
-                dto.selectedFiles,
-                dto.analysisOptions,
-                user ? String(user._id) : undefined,
-            );
+      // Use the same approach as analyze-uploaded-contract: clone repo and use workspace-based analysis
+      const report =
+        await this.staticAnalysisService.analyzeRustContractWithWorkspace(
+          dto.owner,
+          dto.repo,
+          dto.accessToken,
+          dto.selectedFiles,
+          dto.analysisOptions,
+          user ? String(user._id) : undefined,
+        );
 
-            this.logger.log(
-                `Successfully analyzed Rust contract for ${dto.owner}/${dto.repo}`,
-            );
-            return report;
-        } catch (error) {
-            this.logger.error(`Failed to analyze Rust contract: ${error.message}`);
+      this.logger.log(
+        `Successfully analyzed Rust contract for ${dto.owner}/${dto.repo}`,
+      );
+      return report;
+    } catch (error) {
+      this.logger.error(`Failed to analyze Rust contract: ${error.message}`);
 
-            if (error instanceof HttpException) {
-                throw error;
-            }
+      if (error instanceof HttpException) {
+        throw error;
+      }
 
-            // Handle specific GitHub errors
-            if (error.message.includes('Not Found') || error.message.includes('404')) {
-                throw new HttpException(
-                    dto.accessToken
-                        ? 'Repository not found or access denied. Please check the repository name and your access token.'
-                        : 'Repository not found. Please verify the repository name or provide an access token if this is a private repository.',
-                    HttpStatus.NOT_FOUND,
-                );
-            }
+      // Handle specific GitHub errors
+      if (
+        error.message.includes('Not Found') ||
+        error.message.includes('404')
+      ) {
+        throw new HttpException(
+          dto.accessToken
+            ? 'Repository not found or access denied. Please check the repository name and your access token.'
+            : 'Repository not found. Please verify the repository name or provide an access token if this is a private repository.',
+          HttpStatus.NOT_FOUND,
+        );
+      }
 
-            if (error.message.includes('Bad credentials') || error.message.includes('401')) {
-                throw new HttpException(
-                    'Invalid GitHub access token. Please check your token and ensure it has the necessary permissions.',
-                    HttpStatus.UNAUTHORIZED,
-                );
-            }
+      if (
+        error.message.includes('Bad credentials') ||
+        error.message.includes('401')
+      ) {
+        throw new HttpException(
+          'Invalid GitHub access token. Please check your token and ensure it has the necessary permissions.',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
 
-            if (error.message.includes('403') || error.message.includes('Forbidden')) {
-                throw new HttpException(
-                    dto.accessToken
-                        ? 'Access forbidden. Your token may not have the required permissions for this private repository.'
-                        : 'Access forbidden. This appears to be a private repository. Please provide a valid access token.',
-                    HttpStatus.FORBIDDEN,
-                );
-            }
+      if (
+        error.message.includes('403') ||
+        error.message.includes('Forbidden')
+      ) {
+        throw new HttpException(
+          dto.accessToken
+            ? 'Access forbidden. Your token may not have the required permissions for this private repository.'
+            : 'Access forbidden. This appears to be a private repository. Please provide a valid access token.',
+          HttpStatus.FORBIDDEN,
+        );
+      }
 
-            if (error.message.includes('rate limit')) {
-                throw new HttpException(
-                    'GitHub API rate limit exceeded. Please try again later or provide an access token for higher rate limits.',
-                    HttpStatus.TOO_MANY_REQUESTS,
-                );
-            }
+      if (error.message.includes('rate limit')) {
+        throw new HttpException(
+          'GitHub API rate limit exceeded. Please try again later or provide an access token for higher rate limits.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
 
-            throw new HttpException(
-                'Failed to perform static analysis on Rust contract',
-                HttpStatus.INTERNAL_SERVER_ERROR,
-            );
-        }
+      throw new HttpException(
+        'Failed to perform static analysis on Rust contract',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
+  }
 
-
-    @Post('reports')
-    @UseGuards(OptionalJwtAuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Get all analysis reports for the authenticated user' })
-    @ApiResponse({ status: 200, description: 'Returns all analysis reports.', type: [StaticAnalysisReportDocument] })
-    @ApiResponse({ status: 500, description: 'Internal Server Error' })
-    async getAllReports(
-        @Request() req: any,
-    ): Promise<StaticAnalysisReportDocument[]> {
-        try {
-            // Extract userId from authenticated user if available
-            const userId = req.user?._id?.toString();
-            this.logger.log(`Retrieving analysis reports${userId ? ` for user ${userId}` : ' (all reports)'}`);
-            return await this.staticAnalysisService.getAllReports(userId);
-        } catch (error) {
-            this.logger.error(`Failed to retrieve reports: ${error.message}`);
-            throw new HttpException(
-                'Failed to retrieve analysis reports',
-                HttpStatus.INTERNAL_SERVER_ERROR,
-            );
-        }
+  @Post('reports')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get all analysis reports for the authenticated user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns all analysis reports.',
+    type: [StaticAnalysisReportDocument],
+  })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async getAllReports(
+    @Request() req: any,
+  ): Promise<StaticAnalysisReportDocument[]> {
+    try {
+      // Extract userId from authenticated user if available
+      const userId = req.user?._id?.toString();
+      this.logger.log(
+        `Retrieving analysis reports${userId ? ` for user ${userId}` : ' (all reports)'}`,
+      );
+      return await this.staticAnalysisService.getAllReports(userId);
+    } catch (error) {
+      this.logger.error(`Failed to retrieve reports: ${error.message}`);
+      throw new HttpException(
+        'Failed to retrieve analysis reports',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
+  }
 
-    @Get('reports/count')
-    @ApiOperation({ summary: 'Get the total number of analysis reports' })
-    @ApiResponse({ status: 200, description: 'Returns all analysis reports.', type: Number })
-    @ApiResponse({ status: 500, description: 'Internal Server Error' })
-    async getReportCount(): Promise<number> {
-        try {
-            this.logger.log(`Retrieving analysis reports count`);
-            const count = await this.staticAnalysisService.getAllReportsCount();
-            return count;
-        } catch (error) {
-            this.logger.error(`Failed to retrieve reports: ${error.message}.`);
-            throw new HttpException(
-                'Failed to retrieve analysis reports',
-                HttpStatus.INTERNAL_SERVER_ERROR,
-            );
-        }
+  @Get('reports/count')
+  @ApiOperation({ summary: 'Get the total number of analysis reports' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns all analysis reports.',
+    type: Number,
+  })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async getReportCount(): Promise<number> {
+    try {
+      this.logger.log(`Retrieving analysis reports count`);
+      const count = await this.staticAnalysisService.getAllReportsCount();
+      return count;
+    } catch (error) {
+      this.logger.error(`Failed to retrieve reports: ${error.message}.`);
+      throw new HttpException(
+        'Failed to retrieve analysis reports',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
+  }
 
+  @Get('reports/:id')
+  @ApiOperation({ summary: 'Get an analysis report by ID' })
+  @ApiParam({ name: 'id', required: true, type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns the analysis report.',
+    type: StaticAnalysisReportDocument,
+  })
+  @ApiResponse({ status: 404, description: 'Not Found' })
+  async getReportById(
+    @Param('id') id: string,
+  ): Promise<StaticAnalysisReportDocument | null> {
+    this.logger.log(`Retrieving report for ${id}`);
+    return await this.staticAnalysisService.getReportById(id);
+  }
 
+  /**
+   * Delete analysis reports by IDs
+   */
+  @Delete('reports')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete analysis reports by IDs' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { ids: { type: 'array', items: { type: 'string' } } },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'The reports have been successfully deleted.',
+  })
+  @ApiResponse({ status: 404, description: 'Not Found' })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async deleteReports(@Body() body: { ids: string[] }): Promise<void> {
+    this.logger.log(`Deleting reports for ${body.ids.join(', ')}`);
+    await this.staticAnalysisService.deleteReports(body.ids);
+  }
 
-    @Get('reports/:id')
-    @ApiOperation({ summary: 'Get an analysis report by ID' })
-    @ApiParam({ name: 'id', required: true, type: String })
-    @ApiResponse({ status: 200, description: 'Returns the analysis report.', type: StaticAnalysisReportDocument })
-    @ApiResponse({ status: 404, description: 'Not Found' })
-    async getReportById(@Param('id') id: string): Promise<StaticAnalysisReportDocument | null> {
-        this.logger.log(`Retrieving report for ${id}`);
-        return await this.staticAnalysisService.getReportById(id);
+  /**
+   * Associate a report with the authenticated user
+   */
+  @Post('reports/:id/associate')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Associate a report with the authenticated user' })
+  @ApiParam({ name: 'id', required: true, type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'The report has been successfully associated with the user.',
+  })
+  @ApiResponse({ status: 404, description: 'Not Found' })
+  @ApiResponse({ status: 409, description: 'Conflict' })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async associateReportWithUser(
+    @Param('id') reportId: string,
+    @CurrentUser() user: UserDocument,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    report: StaticAnalysisReportDocument;
+  }> {
+    try {
+      this.logger.log(
+        `Associating report ${reportId} with user ${String(user._id)}`,
+      );
 
+      const userId = String(user._id);
+      const report = await this.staticAnalysisService.associateReportWithUser(
+        reportId,
+        userId,
+      );
+
+      return {
+        success: true,
+        message: `Report successfully associated with user`,
+        report,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to associate report with user: ${error.message}`,
+      );
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      // Check if error is about already associated
+      if (error.message.includes('already associated')) {
+        throw new HttpException(error.message, HttpStatus.CONFLICT);
+      }
+
+      // Check if error is about report not found
+      if (error.message.includes('not found')) {
+        throw new HttpException(error.message, HttpStatus.NOT_FOUND);
+      }
+
+      throw new HttpException(
+        `Failed to associate report with user: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
+  }
 
-    /**
-     * Delete analysis reports by IDs
-     */
-    @Delete('reports')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Delete analysis reports by IDs' })
-    @ApiBody({ schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } } } })
-    @ApiResponse({ status: 200, description: 'The reports have been successfully deleted.' })
-    @ApiResponse({ status: 404, description: 'Not Found' })
-    @ApiResponse({ status: 500, description: 'Internal Server Error' })
-    async deleteReports(@Body() body: { ids: string[] }): Promise<void> {
-        this.logger.log(`Deleting reports for ${body.ids.join(', ')}`);
-        await this.staticAnalysisService.deleteReports(body.ids);
+  @Post('reports/:repository')
+  @ApiOperation({ summary: 'Get an analysis report by repository' })
+  @ApiBody({
+    schema: { type: 'object', properties: { repository: { type: 'string' } } },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns the analysis report.',
+    type: StaticAnalysisReportDocument,
+  })
+  @ApiResponse({ status: 404, description: 'Not Found' })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async getReportByRepository(
+    @Body() body: { repository: string },
+  ): Promise<StaticAnalysisReportDocument | null> {
+    try {
+      this.logger.log(`Retrieving report for ${body.repository}`);
+      return await this.staticAnalysisService.getReportByRepository(
+        body.repository,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to retrieve report: ${error.message}`);
+      throw new HttpException(
+        'Failed to retrieve analysis report',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
+  }
 
-    /**
-     * Associate a report with the authenticated user
-     */
-    @Post('reports/:id/associate')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Associate a report with the authenticated user' })
-    @ApiParam({ name: 'id', required: true, type: String })
-    @ApiResponse({ status: 200, description: 'The report has been successfully associated with the user.' })
-    @ApiResponse({ status: 404, description: 'Not Found' })
-    @ApiResponse({ status: 409, description: 'Conflict' })
-    @ApiResponse({ status: 500, description: 'Internal Server Error' })
-    async associateReportWithUser(
-        @Param('id') reportId: string,
-        @CurrentUser() user: UserDocument,
-    ): Promise<{ success: boolean; message: string; report: StaticAnalysisReportDocument }> {
-        try {
-            this.logger.log(`Associating report ${reportId} with user ${String(user._id)}`);
+  @Post('debug-framework')
+  @ApiOperation({ summary: 'Debug framework detection for a repository' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        owner: { type: 'string' },
+        repo: { type: 'string' },
+        accessToken: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Returns the repository info.' })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async debugFramework(
+    @Body() dto: { owner: string; repo: string; accessToken: string },
+  ): Promise<any> {
+    try {
+      this.logger.log(`Debug framework detection for ${dto.owner}/${dto.repo}`);
 
-            const userId = String(user._id);
-            const report = await this.staticAnalysisService.associateReportWithUser(reportId, userId);
+      // Get repository info and clone
+      const repoInfo = await this.staticAnalysisService.debugFrameworkDetection(
+        dto.owner,
+        dto.repo,
+        dto.accessToken,
+      );
 
-            return {
-                success: true,
-                message: `Report successfully associated with user`,
-                report,
-            };
-        } catch (error) {
-            this.logger.error(`Failed to associate report with user: ${error.message}`);
-
-            if (error instanceof HttpException) {
-                throw error;
-            }
-
-            // Check if error is about already associated
-            if (error.message.includes('already associated')) {
-                throw new HttpException(
-                    error.message,
-                    HttpStatus.CONFLICT,
-                );
-            }
-
-            // Check if error is about report not found
-            if (error.message.includes('not found')) {
-                throw new HttpException(
-                    error.message,
-                    HttpStatus.NOT_FOUND,
-                );
-            }
-
-            throw new HttpException(
-                `Failed to associate report with user: ${error.message}`,
-                HttpStatus.INTERNAL_SERVER_ERROR,
-            );
-        }
+      return repoInfo;
+    } catch (error) {
+      this.logger.error(`Debug failed: ${error.message}`);
+      throw new HttpException('Debug failed', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
 
-    @Post('reports/:repository')
-    @ApiOperation({ summary: 'Get an analysis report by repository' })
-    @ApiBody({ schema: { type: 'object', properties: { repository: { type: 'string' } } } })
-    @ApiResponse({ status: 200, description: 'Returns the analysis report.', type: StaticAnalysisReportDocument })
-    @ApiResponse({ status: 404, description: 'Not Found' })
-    @ApiResponse({ status: 500, description: 'Internal Server Error' })
-    async getReportByRepository(@Body() body: { repository: string }): Promise<StaticAnalysisReportDocument | null> {
-        try {
-            this.logger.log(`Retrieving report for ${body.repository}`);
-            return await this.staticAnalysisService.getReportByRepository(body.repository);
-        } catch (error) {
-            this.logger.error(`Failed to retrieve report: ${error.message}`);
-            throw new HttpException(
-                'Failed to retrieve analysis report',
-                HttpStatus.INTERNAL_SERVER_ERROR,
-            );
-        }
+  @Post('analyze-uploaded-contract')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Analyze an uploaded contract' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        extractedPath: { type: 'string' },
+        selectedFiles: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'The analysis report has been successfully generated.',
+    type: StaticAnalysisReport,
+  })
+  @ApiResponse({ status: 400, description: 'Bad Request' })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async analyzeUploadedContract(
+    @Body() dto: { extractedPath: string; selectedFiles?: string[] },
+    @Request() req: any,
+  ): Promise<StaticAnalysisReport> {
+    try {
+      this.logger.log(`Analyzing uploaded contract at: ${dto.extractedPath}`);
+
+      // Get upload session to extract repository info
+      const uploadSession = this.uploadsService.getUploadSession(
+        dto.extractedPath,
+      );
+      if (!uploadSession) {
+        throw new HttpException(
+          'Upload session not found. Please upload files first using /uploads/discover-files',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Extract userId from authenticated user if available
+      const userId = req.user?._id?.toString();
+
+      // Use static analysis service with uploaded files
+      const report = await this.staticAnalysisService.analyzeUploadedContract(
+        dto.extractedPath,
+        uploadSession.projectName,
+        uploadSession.originalFilename,
+        dto.selectedFiles,
+        userId,
+      );
+
+      this.logger.log(
+        `Successfully analyzed uploaded contract: ${uploadSession.projectName}`,
+      );
+      return report;
+    } catch (error) {
+      this.logger.error(
+        `Failed to analyze uploaded contract: ${error.message}`,
+      );
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new HttpException(
+        `Analysis failed: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
+  }
 
-    @Post('debug-framework')
-    @ApiOperation({ summary: 'Debug framework detection for a repository' })
-    @ApiBody({ schema: { type: 'object', properties: { owner: { type: 'string' }, repo: { type: 'string' }, accessToken: { type: 'string' } } } })
-    @ApiResponse({ status: 200, description: 'Returns the repository info.' })
-    @ApiResponse({ status: 500, description: 'Internal Server Error' })
-    async debugFramework(@Body() dto: { owner: string; repo: string; accessToken: string }): Promise<any> {
-        try {
-            this.logger.log(`Debug framework detection for ${dto.owner}/${dto.repo}`);
+  @Post('export-csv')
+  @ApiOperation({ summary: 'Export analysis reports to CSV' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        reportIds: { type: 'array', items: { type: 'string' } },
+        factors: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns the CSV data and filename.',
+  })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async exportCsv(
+    @Body() dto: { reportIds?: string[]; factors?: string[] },
+  ): Promise<{ csv: string; filename: string }> {
+    try {
+      this.logger.log(
+        `Exporting CSV for ${dto.reportIds?.length || 'all'} reports with ${dto.factors?.length || 'all'} factors`,
+      );
 
-            // Get repository info and clone
-            const repoInfo = await this.staticAnalysisService.debugFrameworkDetection(
-                dto.owner,
-                dto.repo,
-                dto.accessToken
-            );
+      const csvData = await this.staticAnalysisService.exportReportsToCSV(
+        dto.reportIds,
+        dto.factors,
+      );
 
-            return repoInfo;
-        } catch (error) {
-            this.logger.error(`Debug failed: ${error.message}`);
-            throw new HttpException(
-                'Debug failed',
-                HttpStatus.INTERNAL_SERVER_ERROR,
-            );
-        }
+      this.logger.log(`CSV export completed successfully`);
+      return csvData;
+    } catch (error) {
+      this.logger.error(`Failed to export CSV: ${error.message}`);
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new HttpException(
+        `CSV export failed: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
+  }
 
-    @Post('analyze-uploaded-contract')
-    @UseGuards(OptionalJwtAuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Analyze an uploaded contract' })
-    @ApiBody({ schema: { type: 'object', properties: { extractedPath: { type: 'string' }, selectedFiles: { type: 'array', items: { type: 'string' } } } } })
-    @ApiResponse({ status: 201, description: 'The analysis report has been successfully generated.', type: StaticAnalysisReport })
-    @ApiResponse({ status: 400, description: 'Bad Request' })
-    @ApiResponse({ status: 500, description: 'Internal Server Error' })
-    async analyzeUploadedContract(
-        @Body() dto: { extractedPath: string; selectedFiles?: string[] },
-        @Request() req: any,
-    ): Promise<StaticAnalysisReport> {
-        try {
-            this.logger.log(`Analyzing uploaded contract at: ${dto.extractedPath}`);
+  @Post('available-factors')
+  @ApiOperation({ summary: 'Get available factors for analysis' })
+  @ApiResponse({ status: 200, description: 'Returns the available factors.' })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async getAvailableFactors(): Promise<any> {
+    try {
+      this.logger.log('Retrieving available factors with metadata');
 
-            // Get upload session to extract repository info
-            const uploadSession = this.uploadsService.getUploadSession(dto.extractedPath);
-            if (!uploadSession) {
-                throw new HttpException(
-                    'Upload session not found. Please upload files first using /uploads/discover-files',
-                    HttpStatus.BAD_REQUEST,
-                );
-            }
+      const factors = await this.staticAnalysisService.getAvailableFactors();
 
-            // Extract userId from authenticated user if available
-            const userId = req.user?._id?.toString();
+      this.logger.log(
+        `Retrieved ${Object.keys(factors).length} factor categories`,
+      );
+      return factors;
+    } catch (error) {
+      this.logger.error(
+        `Failed to retrieve available factors: ${error.message}`,
+      );
 
-            // Use static analysis service with uploaded files
-            const report = await this.staticAnalysisService.analyzeUploadedContract(
-                dto.extractedPath,
-                uploadSession.projectName,
-                uploadSession.originalFilename,
-                dto.selectedFiles,
-                userId,
-            );
-
-            this.logger.log(`Successfully analyzed uploaded contract: ${uploadSession.projectName}`);
-            return report;
-
-        } catch (error) {
-            this.logger.error(`Failed to analyze uploaded contract: ${error.message}`);
-
-            if (error instanceof HttpException) {
-                throw error;
-            }
-
-            throw new HttpException(
-                `Analysis failed: ${error.message}`,
-                HttpStatus.INTERNAL_SERVER_ERROR,
-            );
-        }
+      throw new HttpException(
+        `Failed to retrieve available factors: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
+  }
 
-    @Post('export-csv')
-    @ApiOperation({ summary: 'Export analysis reports to CSV' })
-    @ApiBody({ schema: { type: 'object', properties: { reportIds: { type: 'array', items: { type: 'string' } }, factors: { type: 'array', items: { type: 'string' } } } } })
-    @ApiResponse({ status: 200, description: 'Returns the CSV data and filename.' })
-    @ApiResponse({ status: 500, description: 'Internal Server Error' })
-    async exportCsv(
-        @Body() dto: { reportIds?: string[]; factors?: string[] },
-    ): Promise<{ csv: string; filename: string }> {
-        try {
-            this.logger.log(`Exporting CSV for ${dto.reportIds?.length || 'all'} reports with ${dto.factors?.length || 'all'} factors`);
+  // @Post('debug-report')
+  // async debugReport(@Body() dto: { reportId: string }): Promise<any> {
+  //     try {
+  //         this.logger.log(`Debugging report: ${dto.reportId}`);
 
-            const csvData = await this.staticAnalysisService.exportReportsToCSV(
-                dto.reportIds,
-                dto.factors,
-            );
+  //         const report = await this.staticAnalysisService.getReportByRepository(dto.reportId);
+  //         if (!report) {
+  //             throw new HttpException('Report not found', HttpStatus.NOT_FOUND);
+  //         }
 
-            this.logger.log(`CSV export completed successfully`);
-            return csvData;
+  //         // Return the raw report structure for debugging
+  //         return {
+  //             keys: Object.keys(report),
+  //             analysisFactorsKeys: report.analysisFactors ? Object.keys(report.analysisFactors) : null,
+  //             scoresKeys: report.scores ? Object.keys(report.scores) : null,
+  //             sampleData: {
+  //                 repository: report.repository,
+  //                 framework: report.framework,
+  //                 hasAnalysisFactors: !!report.analysisFactors,
+  //                 hasScores: !!report.scores,
+  //                 analysisFactorsType: typeof report.analysisFactors,
+  //                 scoresType: typeof report.scores,
+  //             }
+  //         };
 
-        } catch (error) {
-            this.logger.error(`Failed to export CSV: ${error.message}`);
+  //     } catch (error) {
+  //         this.logger.error(`Failed to debug report: ${error.message}`);
+  //         throw new HttpException(
+  //             `Debug failed: ${error.message}`,
+  //             HttpStatus.INTERNAL_SERVER_ERROR,
+  //         );
+  //     }
+  // }
 
-            if (error instanceof HttpException) {
-                throw error;
-            }
+  @Post('build-report')
+  @UseGuards(ApiKeyGuard)
+  @ApiOperation({
+    summary: 'Build and save analysis report from Rust service response',
+    description:
+      'Takes the response from the Rust analyzer service and builds a complete analysis report, stores it to Arcium (if enabled), and saves it to MongoDB. This endpoint allows you to process Rust service responses independently. Requires X-API-Key header for CLI authentication.',
+  })
+  @ApiBody({ type: BuildAnalysisReportDto })
+  @ApiResponse({
+    status: 201,
+    description: 'The analysis report has been successfully generated and saved.',
+    type: StaticAnalysisReportDocument,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid input data',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing API key',
+  })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async buildReport(
+    @Body() dto: BuildAnalysisReportDto,
+    @Request() req: any,
+  ): Promise<StaticAnalysisReportDocument> {
+    try {
+      this.logger.log(
+        `Received CLI request to build report for project: ${dto.metadata.projectName}`,
+      );
 
-            throw new HttpException(
-                `CSV export failed: ${error.message}`,
-                HttpStatus.INTERNAL_SERVER_ERROR,
-            );
-        }
+      // Use userId from metadata (CLI tool should provide it if needed)
+      const userId = dto.metadata.userId;
+
+      // Build and save the report
+      const report = await this.staticAnalysisService.buildAndSaveAnalysisReport(
+        dto.rustServiceResponse,
+        {
+          ...dto.metadata,
+          userId,
+        },
+        dto.performanceMetrics,
+        dto.analysisStatus,
+      );
+
+      this.logger.log(
+        `Successfully built and saved report for project: ${dto.metadata.projectName}`,
+      );
+      return report;
+    } catch (error) {
+      this.logger.error(`Failed to build report: ${error.message}`);
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new HttpException(
+        `Failed to build analysis report: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
+  }
 
-    @Post('available-factors')
-    @ApiOperation({ summary: 'Get available factors for analysis' })
-    @ApiResponse({ status: 200, description: 'Returns the available factors.' })
-    @ApiResponse({ status: 500, description: 'Internal Server Error' })
-    async getAvailableFactors(): Promise<any> {
-        try {
-            this.logger.log('Retrieving available factors with metadata');
-
-            const factors = await this.staticAnalysisService.getAvailableFactors();
-
-            this.logger.log(`Retrieved ${Object.keys(factors).length} factor categories`);
-            return factors;
-
-        } catch (error) {
-            this.logger.error(`Failed to retrieve available factors: ${error.message}`);
-
-            throw new HttpException(
-                `Failed to retrieve available factors: ${error.message}`,
-                HttpStatus.INTERNAL_SERVER_ERROR,
-            );
-        }
-    }
-
-    // @Post('debug-report')
-    // async debugReport(@Body() dto: { reportId: string }): Promise<any> {
-    //     try {
-    //         this.logger.log(`Debugging report: ${dto.reportId}`);
-
-    //         const report = await this.staticAnalysisService.getReportByRepository(dto.reportId);
-    //         if (!report) {
-    //             throw new HttpException('Report not found', HttpStatus.NOT_FOUND);
-    //         }
-
-    //         // Return the raw report structure for debugging
-    //         return {
-    //             keys: Object.keys(report),
-    //             analysisFactorsKeys: report.analysisFactors ? Object.keys(report.analysisFactors) : null,
-    //             scoresKeys: report.scores ? Object.keys(report.scores) : null,
-    //             sampleData: {
-    //                 repository: report.repository,
-    //                 framework: report.framework,
-    //                 hasAnalysisFactors: !!report.analysisFactors,
-    //                 hasScores: !!report.scores,
-    //                 analysisFactorsType: typeof report.analysisFactors,
-    //                 scoresType: typeof report.scores,
-    //             }
-    //         };
-
-    //     } catch (error) {
-    //         this.logger.error(`Failed to debug report: ${error.message}`);
-    //         throw new HttpException(
-    //             `Debug failed: ${error.message}`,
-    //             HttpStatus.INTERNAL_SERVER_ERROR,
-    //         );
-    //     }
-    // }
-
-    @Post('health')
-    @ApiOperation({ summary: 'Health check' })
-    @ApiResponse({ status: 200, description: 'Returns the health status.' })
-    healthCheck(): Promise<{ status: string; timestamp: Date }> {
-        return Promise.resolve({
-            status: 'healthy',
-            timestamp: new Date(),
-        });
-    }
+  @Post('health')
+  @ApiOperation({ summary: 'Health check' })
+  @ApiResponse({ status: 200, description: 'Returns the health status.' })
+  healthCheck(): Promise<{ status: string; timestamp: Date }> {
+    return Promise.resolve({
+      status: 'healthy',
+      timestamp: new Date(),
+    });
+  }
 }

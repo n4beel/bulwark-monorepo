@@ -3,8 +3,8 @@ import { TestController } from './test.controller';
 import { TestService } from './test.service';
 
 @Module({
-    controllers: [TestController],
-    providers: [TestService],
-    exports: [TestService],
+  controllers: [TestController],
+  providers: [TestService],
+  exports: [TestService],
 })
-export class TestModule { }
+export class TestModule {}

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -6,23 +6,40 @@ import { User, UserSchema } from './schemas/user.schema';
 import { UserService } from './user.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
+import { ApiKeyGuard } from './guards/api-key.guard';
+import { WhitelistModule } from '../whitelist/whitelist.module';
+import { TokenEncryptionService } from './services/token-encryption.service';
 
 @Module({
-    imports: [
-        MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            useFactory: async (configService: ConfigService) => ({
-                secret: configService.get<string>('JWT_SECRET') || 'your-secret-key-change-in-production',
-                signOptions: {
-                    expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '7d',
-                },
-            }),
-            inject: [ConfigService],
-        }),
-    ],
-    providers: [UserService, JwtAuthGuard, OptionalJwtAuthGuard],
-    exports: [UserService, JwtAuthGuard, OptionalJwtAuthGuard],
+  imports: [
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret:
+          configService.get<string>('JWT_SECRET') ||
+          'your-secret-key-change-in-production',
+        signOptions: {
+          expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '7d',
+        },
+      }),
+      inject: [ConfigService],
+    }),
+    forwardRef(() => WhitelistModule),
+  ],
+  providers: [
+    UserService,
+    TokenEncryptionService,
+    JwtAuthGuard,
+    OptionalJwtAuthGuard,
+    ApiKeyGuard,
+  ],
+  exports: [
+    UserService,
+    TokenEncryptionService,
+    JwtAuthGuard,
+    OptionalJwtAuthGuard,
+    ApiKeyGuard,
+  ],
 })
 export class UserModule {}
-

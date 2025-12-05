@@ -230,15 +230,17 @@ export class StaticAnalysisReport {
   };
 
   // Analysis comparison
-  analysis_comparison?: {
-    lines_of_code_diff: number;
-    functions_diff: number;
-    math_operations_diff: number;
-    accuracy_notes: string[];
-  } | {
-    error: string;
-    fallback_used: string;
-  };
+  analysis_comparison?:
+    | {
+      lines_of_code_diff: number;
+      functions_diff: number;
+      math_operations_diff: number;
+      accuracy_notes: string[];
+    }
+    | {
+      error: string;
+      fallback_used: string;
+    };
 
   performance: {
     analysisTime: number;
@@ -261,4 +263,46 @@ export class StaticAnalysisReport {
 export class StaticAnalysisReportDocument extends StaticAnalysisReport {
   _id: string;
   __v: number;
+}
+
+/**
+ * DTO for building and saving analysis report from Rust service response
+ */
+export class BuildAnalysisReportDto {
+  // Rust service response data
+  rustServiceResponse: {
+    success: boolean;
+    factors?: any;
+    ai_factors?: any;
+    calculated_scores?: any;
+    calculated_report?: any;
+  };
+
+  // Metadata about the analysis
+  metadata: {
+    projectName: string;
+    originalFilename?: string;
+    repositoryUrl?: string;
+    framework: string;
+    language?: string;
+    userId?: string;
+    commitUrl?: string;
+    commitHash?: string;
+  };
+
+  // Performance tracking data
+  performanceMetrics: {
+    startTime: number;
+    endTime: number;
+    memoryStart: number;
+    memoryEnd: number;
+  };
+
+  // Analysis status
+  analysisStatus: {
+    rustAnalysisSuccess: boolean;
+    rustAnalysisError: string | null;
+    aiAnalysisSuccess: boolean;
+    aiAnalysisError: string | null;
+  };
 }

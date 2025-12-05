@@ -158,6 +158,7 @@ pub fn calculate_workspace_tsc(
 /// Analyze Total Statement Count in a single file
 pub fn analyze_file_tsc(content: &str) -> Result<TscMetrics, Box<dyn std::error::Error>> {
     // Parse the Rust file using syn
+    // TODO: don't pass content, pass the file path instead.
     let syntax_tree: syn::File =
         syn::parse_file(content).map_err(|e| format!("Failed to parse Rust file: {}", e))?;
 
@@ -198,8 +199,6 @@ impl<'ast> Visit<'ast> for TscVisitor {
         // Get function name
         let func_name = item_fn.sig.ident.to_string();
 
-        println!("🔍 TSC DEBUG: Found function '{}'", func_name);
-
         // Set current function context
         self.current_function = Some(func_name.clone());
         self.current_function_statement_count = 0;
@@ -235,11 +234,6 @@ impl<'ast> Visit<'ast> for TscVisitor {
         // Only count statements if we're inside a function
         if self.current_function.is_some() {
             self.current_function_statement_count += 1;
-            println!(
-                "🔍 TSC DEBUG: Found statement in function '{}': {:?}",
-                self.current_function.as_ref().unwrap(),
-                stmt
-            );
         }
 
         // Continue visiting nested statements

@@ -101,14 +101,6 @@ export function useGitHubFlow() {
     try {
       const [owner, repoName] = selectedRepo.full_name.split('/');
 
-      // Call scoping API
-      // const scopingReport = await scopingApi.generateReport({
-      //   owner,
-      //   repo: repoName,
-      //   accessToken: accessToken,
-      //   selectedFiles: selectedFiles,
-      // });
-
       // Call static analysis API
       const staticReport = await staticAnalysisApi.analyzeRustContract({
         owner,

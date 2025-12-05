@@ -90,7 +90,9 @@ export class GitHubService {
       );
 
       const files: any[] = [];
-      const items = Array.isArray(response.data) ? response.data : [response.data];
+      const items = Array.isArray(response.data)
+        ? response.data
+        : [response.data];
 
       for (const item of items) {
         if (item.type === 'file') {
@@ -102,7 +104,12 @@ export class GitHubService {
           });
         } else if (item.type === 'dir') {
           // Recursively get files from subdirectories
-          const subFiles = await this.getRepositoryFiles(owner, repo, accessToken, item.path);
+          const subFiles = await this.getRepositoryFiles(
+            owner,
+            repo,
+            accessToken,
+            item.path,
+          );
           files.push(...subFiles);
         }
       }
@@ -493,7 +500,7 @@ export class GitHubService {
     try {
       // Try main branch first, then master, then default branch
       let commitHash: string | null = null;
-      
+
       // Get default branch from repo info
       const repoInfo = await this.getRepositoryInfo(owner, repo, accessToken);
       const defaultBranch = repoInfo.default_branch || branch;
@@ -544,7 +551,9 @@ export class GitHubService {
         throw new Error('Could not retrieve commit hash');
       }
 
-      this.logger.log(`Retrieved latest commit hash for ${owner}/${repo}: ${commitHash}`);
+      this.logger.log(
+        `Retrieved latest commit hash for ${owner}/${repo}: ${commitHash}`,
+      );
       return commitHash;
     } catch (error) {
       this.logger.error(`Failed to get latest commit hash: ${error.message}`);

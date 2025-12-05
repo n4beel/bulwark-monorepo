@@ -1,0 +1,364 @@
+import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { UserService } from '../users/user.service';
+import { StaticAnalysisService } from '../static-analysis/static-analysis.service';
+import { AuthService, GitHubUser, GoogleUser } from './auth.service';
+import { UserDocument } from '../users/schemas/user.schema';
+
+export interface OAuthState {
+  path?: string;
+  reportId?: string;
+  userId?: string;
+  mode?: 'auth' | 'connect'; // Explicit mode: 'auth' for new login, 'connect' for linking additional provider
+  origin?: string;
+  cliMode?: boolean; // Whether this is a CLI authentication flow
+  cliRedirectUri?: string; // CLI callback URL for local redirect
+}
+
+export interface TokenExchangeResult {
+  accessToken: string;
+  expiresIn?: number; // Token expiration in seconds (if applicable)
+}
+
+export interface OAuthProviderStrategy {
+  exchangeCodeForToken(code: string): Promise<string | TokenExchangeResult>;
+  getUserInfo(accessToken: string): Promise<GitHubUser | GoogleUser>;
+  findExistingUser(userId: string | number): Promise<UserDocument | null>;
+  findOrCreateUser(userInfo: GitHubUser | GoogleUser): Promise<UserDocument>;
+  linkAccount(
+    userId: string,
+    userInfo: GitHubUser | GoogleUser,
+  ): Promise<UserDocument>;
+  getUserDisplayName(user: UserDocument): string;
+}
+
+@Injectable()
+export class OAuthCallbackService {
+  private readonly logger = new Logger(OAuthCallbackService.name);
+  private readonly frontendUrl: string;
+
+  constructor(
+    private readonly authService: AuthService,
+    private readonly userService: UserService,
+    private readonly staticAnalysisService: StaticAnalysisService,
+  ) {
+    this.frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+  }
+
+  /**
+   * Parse OAuth state from query parameter
+   */
+  parseState(state: string): OAuthState {
+    try {
+      const parsed = JSON.parse(state);
+      // Ensure mode has a default value (for frontend use only)
+      if (!parsed.mode) {
+        parsed.mode = 'auth';
+      }
+      return parsed;
+    } catch (error) {
+      this.logger.error(`Failed to parse OAuth state: ${error.message}`);
+      return { path: '/', reportId: '', mode: 'auth' };
+    }
+  }
+
+  /**
+   * Handle account linking logic
+   */
+  async handleAccountLinking(
+    provider: OAuthProviderStrategy,
+    userId: string,
+    userInfo: GitHubUser | GoogleUser,
+  ): Promise<{ user: UserDocument; linkedAccount: boolean }> {
+    const existingUser = await provider.findExistingUser(userInfo.id);
+
+    if (existingUser && String(existingUser._id) !== userId) {
+      // Account exists and belongs to a different user - need to merge
+      const primaryUser = await this.userService.findById(userId);
+
+      if (!primaryUser) {
+        throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+      }
+
+      // Determine which account is older
+      const primaryUserId =
+        existingUser.createdAt < primaryUser.createdAt
+          ? String(existingUser._id)
+          : userId;
+      const secondaryUserId =
+        existingUser.createdAt < primaryUser.createdAt
+          ? userId
+          : String(existingUser._id);
+
+      // Merge accounts
+      const user = await this.userService.mergeAccounts(
+        primaryUserId,
+        secondaryUserId,
+      );
+      return { user, linkedAccount: true };
+    }
+
+    if (existingUser && String(existingUser._id) === userId) {
+      // Already linked to this user
+      return { user: existingUser, linkedAccount: true };
+    }
+
+    // Link the account to the current user
+    const user = await provider.linkAccount(userId, userInfo);
+    return { user, linkedAccount: true };
+  }
+
+  /**
+   * Associate report with user if applicable
+   * Only associates if reportId is provided and we're not in linking mode
+   */
+  async associateReportIfNeeded(
+    reportId: string,
+    userId: string,
+    isLinking: boolean,
+  ): Promise<void> {
+    if (!reportId || reportId === '' || isLinking) {
+      return;
+    }
+
+    try {
+      this.logger.log(`Associating report ${reportId} with user ${userId}`);
+      await this.staticAnalysisService.associateReportWithUser(
+        reportId,
+        userId,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to associate report with user: ${error.message}`,
+        error.stack,
+      );
+      // Don't throw - report association failure shouldn't break auth flow
+    }
+  }
+
+  /**
+   * Build redirect URL with user data
+   * Includes GitHub access token only if user has connected GitHub account
+   * @param accessToken - Current OAuth token (GitHub token if GitHub flow, null if Google flow)
+   */
+  async buildRedirectUrl(
+    returnPath: string,
+    accessToken: string | null,
+    user: UserDocument,
+    jwtToken: string,
+    linkedAccount: boolean,
+    reportId: string,
+    mode: string,
+    origin: string,
+  ): Promise<string> {
+    // Get GitHub token: use current token if provided (GitHub flow), otherwise get from DB
+    let githubToken: string | null = null;
+
+    if (user.githubId) {
+      if (accessToken) {
+        // User just authenticated via GitHub - use the token we just got
+        githubToken = accessToken;
+      } else {
+        // User authenticated via Google but has GitHub account - get token from DB
+        try {
+          githubToken = await this.userService.getGitHubToken(String(user._id));
+        } catch (error) {
+          this.logger.warn(
+            `Failed to retrieve GitHub token for user ${user._id}: ${error.message}`,
+          );
+        }
+      }
+    }
+
+    const userData = {
+      id: String(user._id),
+      githubId: user.githubId,
+      githubUsername: user.githubUsername,
+      googleId: user.googleId,
+      googleEmail: user.googleEmail,
+      email: user.email,
+      emails: user.emails || (user.email ? [user.email] : []), // Array of all emails
+      name: user.name,
+      avatarUrl: user.avatarUrl,
+      admin: user.admin || false,
+      jwtToken: jwtToken,
+      linkedAccount: linkedAccount,
+      reportId: reportId,
+      mode: mode, // Passed through to frontend
+      from: returnPath,
+    };
+
+    // Only include GitHub token if user has connected GitHub account
+    if (githubToken) {
+      return `${origin || this.frontendUrl}${returnPath}?token=${encodeURIComponent(githubToken)}&user=${encodeURIComponent(JSON.stringify(userData))}`;
+    } else {
+      // No GitHub token available - redirect without token
+      return `${origin || this.frontendUrl}${returnPath}?user=${encodeURIComponent(JSON.stringify(userData))}`;
+    }
+  }
+
+  /**
+   * Build error redirect URL
+   * @param errorMessage - Error message to display
+   * @param origin - Optional origin URL from request (falls back to frontendUrl)
+   */
+  buildErrorUrl(errorMessage: string, origin?: string): string {
+    const baseUrl = origin || this.frontendUrl;
+    return `${baseUrl}/auth/error?message=${encodeURIComponent(errorMessage)}`;
+  }
+
+  /**
+   * Build CLI redirect URL with user authentication data
+   * Redirects to the local CLI callback server with query params
+   */
+  async buildCliRedirectUrl(
+    cliRedirectUri: string,
+    user: UserDocument,
+    jwtToken: string,
+    whitelisted: boolean,
+  ): Promise<string> {
+    const params = new URLSearchParams({
+      token: jwtToken,
+      user_id: String(user._id),
+      email: user.email || '',
+      name: user.name || '',
+      whitelisted: whitelisted ? 'true' : 'false',
+    });
+
+    return `${cliRedirectUri}?${params.toString()}`;
+  }
+
+  /**
+   * Build CLI error redirect URL
+   */
+  buildCliErrorUrl(cliRedirectUri: string, errorMessage: string): string {
+    const params = new URLSearchParams({
+      error: 'auth_failed',
+      error_description: errorMessage,
+    });
+    return `${cliRedirectUri}?${params.toString()}`;
+  }
+
+  /**
+   * Process OAuth callback - main orchestration method
+   */
+  async processOAuthCallback(
+    code: string,
+    state: string,
+    provider: OAuthProviderStrategy,
+  ): Promise<{ redirectUrl: string }> {
+    try {
+      // Exchange code for access token
+      const tokenResult = await provider.exchangeCodeForToken(code);
+
+      // Handle both string (backward compatibility) and TokenExchangeResult
+      let accessToken: string;
+      let expiresIn: number | undefined;
+
+      if (typeof tokenResult === 'string') {
+        accessToken = tokenResult;
+      } else {
+        accessToken = tokenResult.accessToken;
+        expiresIn = tokenResult.expiresIn;
+      }
+
+      // Get user info from provider
+      const userInfo = await provider.getUserInfo(accessToken);
+
+      // Parse state
+      const stateObject = this.parseState(state);
+      const returnPath = stateObject.path || '/';
+      const reportId = stateObject.reportId || '';
+      const userId = stateObject.userId || '';
+      const mode = stateObject.mode || 'auth'; // Passed through to frontend
+      const origin = stateObject.origin || '';
+
+      // Detect if this is a linking request (based on userId presence, not mode)
+      const isLinking = !!userId;
+
+      this.logger.log(
+        `Processing OAuth callback - mode: ${mode}, returnPath: ${returnPath}, linking: ${isLinking}`,
+      );
+
+      let user: UserDocument;
+      let linkedAccount = false;
+
+      // Handle account linking or normal auth flow
+      if (isLinking) {
+        // User was authenticated - link the new provider to their account
+        const result = await this.handleAccountLinking(
+          provider,
+          userId,
+          userInfo,
+        );
+        user = result.user;
+        linkedAccount = result.linkedAccount;
+      } else {
+        // Normal auth flow - find or create user
+        user = await provider.findOrCreateUser(userInfo);
+      }
+
+      // Generate JWT token (includes whitelist status)
+      const jwtToken = await this.userService.generateToken(user);
+
+      // Determine if this is a GitHub OAuth flow
+      const isGitHub = 'login' in userInfo || 'githubId' in userInfo;
+
+      // Save GitHub access token to database (encrypted) - only for GitHub OAuth
+      // We don't save Google tokens as they're not needed
+      if (isGitHub) {
+        try {
+          await this.userService.saveGitHubToken(
+            String(user._id),
+            accessToken,
+            expiresIn,
+          );
+          this.logger.log(`Saved GitHub access token for user ${user._id}`);
+        } catch (error) {
+          // Don't fail the auth flow if token saving fails
+          this.logger.warn(`Failed to save access token: ${error.message}`);
+        }
+      }
+
+      // Associate report with user if needed (only if not linking)
+      await this.associateReportIfNeeded(reportId, String(user._id), isLinking);
+
+      // Check for CLI mode
+      const cliMode = stateObject.cliMode || false;
+      const cliRedirectUri = stateObject.cliRedirectUri || '';
+
+      let redirectUrl: string;
+
+      if (cliMode && cliRedirectUri) {
+        // CLI mode: redirect to local CLI callback server
+        this.logger.log(`CLI mode detected - redirecting to: ${cliRedirectUri}`);
+        
+        // Check if user is whitelisted
+        const whitelisted = await this.userService.isUserWhitelisted(String(user._id));
+        
+        redirectUrl = await this.buildCliRedirectUrl(
+          cliRedirectUri,
+          user,
+          jwtToken,
+          whitelisted,
+        );
+      } else {
+        // Normal web mode: redirect to frontend
+        redirectUrl = await this.buildRedirectUrl(
+          returnPath,
+          isGitHub ? accessToken : null, // Only pass GitHub token, not Google token
+          user,
+          jwtToken,
+          linkedAccount,
+          reportId,
+          mode,
+          origin,
+        );
+      }
+
+      return { redirectUrl };
+    } catch (error) {
+      this.logger.error(`OAuth callback error: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+}

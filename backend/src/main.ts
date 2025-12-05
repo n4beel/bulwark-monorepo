@@ -35,10 +35,12 @@ async function bootstrap() {
       'https://my-security-ivory.vercel.app',
       'https://bulwark.blockapex.io',
       'https://bulwark-staging.blockapex.io',
+      'https://bulwark-admin.blockapex.online',
+      'https://bulwark-admin-staging.blockapex.online',
       process.env.FRONTEND_URL,
     ].filter(Boolean),
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
     credentials: true,
   });
 

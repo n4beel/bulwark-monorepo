@@ -2,10 +2,8 @@ import axios from 'axios';
 import { logout } from '@/store/slices/authSlice';
 import store from '@/store/store';
 import {
-  GenerateReportRequest,
   GitHubRepository,
   GitHubRepositoryContent,
-  PreAuditReport,
   StaticAnalysisDto,
   StaticAnalysisReport,
 } from '@/types/api';
@@ -56,22 +54,6 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
-
-export const scopingApi = {
-  // Health check
-  health: async () => {
-    const response = await api.post('/scoping/health');
-    return response.data;
-  },
-
-  // Generate pre-audit report
-  generateReport: async (
-    request: GenerateReportRequest,
-  ): Promise<PreAuditReport> => {
-    const response = await api.post('/scoping/generate-report', request);
-    return response.data;
-  },
-};
 
 export const staticAnalysisApi = {
   // Analyze Rust contract
