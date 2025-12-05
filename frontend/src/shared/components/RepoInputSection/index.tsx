@@ -38,7 +38,7 @@ export default function RepoInputSection({
     staticAnalysisApi
       .getReportCount()
       .then((count) => setRepoCount(count))
-      .catch(() => {}); // silent fail, no UI noise
+      .catch(() => { }); // silent fail, no UI noise
   }, []);
 
   useEffect(() => {
@@ -64,9 +64,8 @@ export default function RepoInputSection({
   return (
     <div className={`relative ${className}`}>
       <div
-        className={`w-full bg-[var(--overlay-bg)] backdrop-blur-md rounded-2xl shadow-xl border border-[var(--overlay-border)] ${
-          compact ? 'p-6' : 'p-8'
-        }`}
+        className={`w-full bg-[var(--overlay-bg)] backdrop-blur-md rounded-2xl shadow-xl border border-[var(--overlay-border)] ${compact ? 'p-6' : 'p-8'
+          }`}
       >
         {/* Input */}
         <div className="mb-6">
@@ -162,9 +161,10 @@ export default function RepoInputSection({
             <span className="inline-block w-2 h-2 bg-[var(--green-medium)] rounded-full animate-pulse  [animation-duration:0.9s]"></span>
 
             <span className="text-[var(--text-primary)] font-semibold">
-              {repoCount !== null
+              300+ Repos Analyzed
+              {/* {repoCount !== null
                 ? `${displayCount} Repos Analyzed`
-                : 'Loading...'}
+                : 'Loading...'} */}
             </span>
           </div>
         </div>
