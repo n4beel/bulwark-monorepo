@@ -321,6 +321,13 @@ export class PaymentService {
       );
     }
 
+    // Diagnostic logging
+    const payloadLength = Buffer.isBuffer(payload) ? payload.length : payload.length;
+    const secretPrefix = this.stripeWebhookSecret.substring(0, 10);
+    const signaturePrefix = signature?.substring(0, 50) || 'MISSING';
+
+    this.logger.debug(`Verifying webhook: payload=${payloadLength} bytes, secret=${secretPrefix}..., signature=${signaturePrefix}...`);
+
     try {
       return this.stripe.webhooks.constructEvent(
         payload,
@@ -329,6 +336,29 @@ export class PaymentService {
       );
     } catch (error) {
       this.logger.error(`Webhook signature verification failed: ${error.message}`);
+      this.logger.error(`Diagnostics:`);
+      this.logger.error(`  - Payload length: ${payloadLength} bytes`);
+      this.logger.error(`  - Payload type: ${Buffer.isBuffer(payload) ? 'Buffer' : typeof payload}`);
+      this.logger.error(`  - Signature format: ${signature?.includes('t=') ? 'Valid' : 'Invalid (missing timestamp)'}`);
+      this.logger.error(`  - Webhook secret configured: ${!!this.stripeWebhookSecret}`);
+      this.logger.error(`  - Webhook secret prefix: ${secretPrefix}...`);
+      this.logger.error(`  - Signature prefix: ${signaturePrefix}...`);
+
+      // Common issues
+      if (!signature?.includes('t=')) {
+        this.logger.error(`⚠️  Signature header format is invalid. Expected format: "t=timestamp,v1=signature"`);
+      }
+
+      if (!this.stripeWebhookSecret.startsWith('whsec_')) {
+        this.logger.error(`⚠️  Webhook secret should start with "whsec_"`);
+      }
+
+      this.logger.error(`💡 Common fixes:`);
+      this.logger.error(`  1. Verify STRIPE_WEBHOOK_SECRET matches the endpoint secret in Stripe Dashboard`);
+      this.logger.error(`  2. Ensure you're using the Dashboard secret, not Stripe CLI secret (they're different)`);
+      this.logger.error(`  3. Check if using test vs production secrets correctly`);
+      this.logger.error(`  4. Verify the webhook endpoint URL matches exactly in Stripe Dashboard`);
+
       throw error;
     }
   }

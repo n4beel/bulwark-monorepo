@@ -368,6 +368,13 @@ export class SubscriptionController {
       }
 
       this.logger.debug(`Raw body ready for verification (${rawBody.length} bytes)`);
+      
+      // Diagnostic logging for signature verification
+      this.logger.debug(`Signature header: ${signature ? signature.substring(0, 50) + '...' : 'MISSING'}`);
+      this.logger.debug(`Signature format: ${signature?.includes('t=') ? 'Valid (contains timestamp)' : 'Invalid format'}`);
+      this.logger.debug(`Webhook secret configured: ${!!process.env.STRIPE_WEBHOOK_SECRET}`);
+      this.logger.debug(`Webhook secret prefix: ${process.env.STRIPE_WEBHOOK_SECRET?.substring(0, 10) || 'NOT SET'}`);
+      this.logger.debug(`Body first 100 chars: ${rawBody.toString('utf8').substring(0, 100)}`);
 
       // Construct and verify webhook event
       const event = this.paymentService.constructWebhookEvent(
