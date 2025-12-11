@@ -50,7 +50,7 @@ export class SubscriptionService {
     private scanUsageModel: Model<ScanUsageDocument>,
     @InjectModel(User.name)
     private userModel: Model<UserDocument>,
-  ) {}
+  ) { }
 
   /**
    * Check if user can perform a scan
@@ -309,12 +309,12 @@ export class SubscriptionService {
     try {
       // Try to find by email field first
       let user = await this.userModel.findOne({ email }).exec();
-      
+
       // If not found, try emails array
       if (!user) {
         user = await this.userModel.findOne({ emails: email }).exec();
       }
-      
+
       return user;
     } catch (error) {
       this.logger.error(`Failed to find user by email: ${error.message}`);
@@ -332,6 +332,7 @@ export class SubscriptionService {
     paymentData: any,
   ): Promise<SubscriptionDocument> {
     try {
+      this.logger.log(`Updating subscription tier for user ${userId} to ${tier} with payment provider ${paymentProvider}`);
       let subscription = await this.getUserSubscription(userId);
 
       if (!subscription) {
@@ -357,17 +358,17 @@ export class SubscriptionService {
       } else if (paymentProvider === 'llamapay') {
         subscription.llamapayStreamId = paymentData.streamId || paymentData.chargeId;
         subscription.llamapayTokenAddress = paymentData.tokenAddress;
-        
+
         // Store deposit amount (original amount user deposited)
-        subscription.llamapayDepositAmount = paymentData.amountPerPeriod 
+        subscription.llamapayDepositAmount = paymentData.amountPerPeriod
           ? paymentData.amountPerPeriod / 100 // Convert cents to dollars
           : undefined;
-        
+
         // Initial balance is the deposit amount (will be updated by webhooks)
         // Note: Actual balance will be less due to yield reduction, but we'll update via webhooks
         subscription.llamapayBalance = subscription.llamapayDepositAmount;
         subscription.llamapayLastBalanceCheck = new Date();
-        
+
         // Calculate next billing date (1 month from now)
         const nextBillingDate = new Date();
         nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
@@ -639,7 +640,7 @@ export class SubscriptionService {
     }
 
     subscription.stripeSubscriptionId = stripeSubscription.id;
-    
+
     // Extract customer ID (handle both string and expanded object)
     if (stripeSubscription.customer) {
       subscription.stripeCustomerId =
