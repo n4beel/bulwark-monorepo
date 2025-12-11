@@ -1,10 +1,11 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Inject, forwardRef, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { GitHubService } from '../github/github.service';
 import { UploadsService } from '../uploads/uploads.service';
 import { RustAnalyzerService } from './rust-analyzer.service';
 import { ArciumStorageService } from '../arcium-storage/arcium-storage.service';
+import { SubscriptionService } from '../subscriptions/subscription.service';
 import {
   RustAnalysisFactors,
   ComplexityScores,
@@ -54,6 +55,8 @@ export class StaticAnalysisService {
     @InjectModel(StaticAnalysisModel.name)
     private readonly staticAnalysisModel: Model<StaticAnalysisModel>,
     private readonly arciumStorageService: ArciumStorageService,
+    @Inject(forwardRef(() => SubscriptionService))
+    private readonly subscriptionService: SubscriptionService,
   ) { }
 
   /**
@@ -399,6 +402,25 @@ export class StaticAnalysisService {
         );
       }
 
+      // Check scan limits before associating (user wants to view full details)
+      try {
+        const scanCheck = await this.subscriptionService.canUserScan(userId);
+        if (!scanCheck.canScan) {
+          // Still associate the report, but user won't be able to view full details
+          this.logger.warn(
+            `User ${userId} has exceeded scan limit but associating report anyway`,
+          );
+        } else {
+          // Increment scan count if user has scans remaining
+          await this.subscriptionService.incrementScanCount(userId);
+        }
+      } catch (error) {
+        // Log but continue with association even if check fails
+        this.logger.warn(
+          `Failed to check/increment scan count during association: ${error.message}`,
+        );
+      }
+
       // Update report with userId
       report.userId = userId;
       await report.save();
@@ -462,6 +484,26 @@ export class StaticAnalysisService {
       `Starting workspace-based analysis for ${owner}/${repo}${accessToken ? ' (authenticated)' : ' (public)'}`,
     );
 
+    // Check scan limits if user is authenticated
+    if (userId) {
+      try {
+        const scanCheck = await this.subscriptionService.canUserScan(userId);
+        if (!scanCheck.canScan) {
+          throw new ForbiddenException(
+            scanCheck.reason || 'Monthly scan limit exceeded. Please upgrade to Forensic tier for unlimited scans.',
+          );
+        }
+      } catch (error) {
+        if (error instanceof ForbiddenException) {
+          throw error;
+        }
+        // If check fails, log but continue (don't block analysis)
+        this.logger.warn(
+          `Failed to check scan limits for user ${userId}: ${error.message}. Continuing with analysis.`,
+        );
+      }
+    }
+
     let repoPath: string | null = null;
 
     try {
@@ -513,6 +555,9 @@ export class StaticAnalysisService {
           commitUrl,
           commitHash,
         );
+
+        // Increment scan count is handled inside analyzeUploadedContract
+        // No need to increment here to avoid double counting
 
         // Update the report with GitHub-specific information
         report.repository = `${owner}/${repo}`;
@@ -871,6 +916,26 @@ export class StaticAnalysisService {
       `Starting static analysis of uploaded contract: ${projectName}`,
     );
 
+    // Check scan limits if user is authenticated
+    if (userId) {
+      try {
+        const scanCheck = await this.subscriptionService.canUserScan(userId);
+        if (!scanCheck.canScan) {
+          throw new ForbiddenException(
+            scanCheck.reason || 'Monthly scan limit exceeded. Please upgrade to Forensic tier for unlimited scans.',
+          );
+        }
+      } catch (error) {
+        if (error instanceof ForbiddenException) {
+          throw error;
+        }
+        // If check fails, log but continue (don't block analysis)
+        this.logger.warn(
+          `Failed to check scan limits for user ${userId}: ${error.message}. Continuing with analysis.`,
+        );
+      }
+    }
+
     try {
       let savedReport: any = null;
       // Step 1: Detect framework
@@ -1045,6 +1110,18 @@ export class StaticAnalysisService {
         this.logger.warn(
           `Failed to cleanup extracted directory and session: ${cleanupError.message}`,
         );
+      }
+
+      // Increment scan count if user is authenticated and analysis succeeded
+      if (userId && savedReport) {
+        try {
+          await this.subscriptionService.incrementScanCount(userId);
+        } catch (error) {
+          // Log but don't fail the analysis if increment fails
+          this.logger.warn(
+            `Failed to increment scan count for user ${userId}: ${error.message}`,
+          );
+        }
       }
 
       return savedReport;

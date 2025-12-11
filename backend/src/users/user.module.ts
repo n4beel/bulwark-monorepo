@@ -4,10 +4,12 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { User, UserSchema } from './schemas/user.schema';
 import { UserService } from './user.service';
+import { UsersController } from './users.controller';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
 import { ApiKeyGuard } from './guards/api-key.guard';
 import { WhitelistModule } from '../whitelist/whitelist.module';
+import { SubscriptionModule } from '../subscriptions/subscription.module';
 import { TokenEncryptionService } from './services/token-encryption.service';
 
 @Module({
@@ -26,7 +28,9 @@ import { TokenEncryptionService } from './services/token-encryption.service';
       inject: [ConfigService],
     }),
     forwardRef(() => WhitelistModule),
+    forwardRef(() => SubscriptionModule),
   ],
+  controllers: [UsersController],
   providers: [
     UserService,
     TokenEncryptionService,

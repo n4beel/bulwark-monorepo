@@ -9,6 +9,7 @@ import { UploadsModule } from './uploads/uploads.module';
 import { TestModule } from './test/test.module';
 import { UserModule } from './users/user.module';
 import { WhitelistModule } from './whitelist/whitelist.module';
+import { SubscriptionModule } from './subscriptions/subscription.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { WhitelistModule } from './whitelist/whitelist.module';
     UploadsModule,
     TestModule,
     WhitelistModule,
+    SubscriptionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

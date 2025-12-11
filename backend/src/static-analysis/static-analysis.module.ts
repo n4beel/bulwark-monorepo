@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { StaticAnalysisController } from './static-analysis.controller';
 import { StaticAnalysisService } from './static-analysis.service';
@@ -8,6 +8,7 @@ import { UploadsModule } from '../uploads/uploads.module';
 import { ArciumStorageModule } from '../arcium-storage/arcium-storage.module';
 import { UserModule } from '../users/user.module';
 import { WhitelistModule } from '../whitelist/whitelist.module';
+import { SubscriptionModule } from '../subscriptions/subscription.module';
 import {
   StaticAnalysisReport,
   StaticAnalysisSchema,
@@ -19,6 +20,7 @@ import {
     ArciumStorageModule,
     UserModule,
     WhitelistModule,
+    forwardRef(() => SubscriptionModule),
     MongooseModule.forFeature([
       { name: StaticAnalysisReport.name, schema: StaticAnalysisSchema },
     ]),

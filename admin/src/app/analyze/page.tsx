@@ -12,13 +12,16 @@ import {
   type AnalysisReport,
   type AnalysisRequest,
 } from '@/lib/auth';
+import ContractFileSelector from '@/components/ContractFileSelector';
 
 type AnalysisMode = 'my-repos' | 'public-url';
+type AnalysisStep = 'select-repo' | 'select-files' | 'analyzing' | 'results';
 
 export default function AnalyzePage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [mode, setMode] = useState<AnalysisMode>('public-url');
+  const [step, setStep] = useState<AnalysisStep>('select-repo');
   
   // My Repos state
   const [repositories, setRepositories] = useState<GitHubRepo[]>([]);
@@ -30,6 +33,11 @@ export default function AnalyzePage() {
   // Public URL state
   const [publicUrl, setPublicUrl] = useState('');
   const [urlError, setUrlError] = useState<string | null>(null);
+  
+  // File selection state
+  const [selectedOwner, setSelectedOwner] = useState<string>('');
+  const [selectedRepoName, setSelectedRepoName] = useState<string>('');
+  const [selectedAccessToken, setSelectedAccessToken] = useState<string>('');
   
   // Analysis state
   const [analyzing, setAnalyzing] = useState(false);
@@ -73,23 +81,19 @@ export default function AnalyzePage() {
     }
   };
 
-  const handleAnalyzeMyRepo = async () => {
+  const handleAnalyzeMyRepo = () => {
     if (!selectedRepo || !user) {
       return;
     }
 
     const [owner, repo] = selectedRepo.full_name.split('/');
-    const request: AnalysisRequest = {
-      owner,
-      repo,
-      // Include access token for private repos
-      accessToken: selectedRepo.private ? user.jwtToken : undefined,
-    };
-
-    await performAnalysis(request);
+    setSelectedOwner(owner);
+    setSelectedRepoName(repo);
+    setSelectedAccessToken(selectedRepo.private ? user.jwtToken || '' : '');
+    setStep('select-files');
   };
 
-  const handleAnalyzePublicUrl = async () => {
+  const handleAnalyzePublicUrl = () => {
     setUrlError(null);
     
     const parsed = parseGitHubUrl(publicUrl);
@@ -98,13 +102,32 @@ export default function AnalyzePage() {
       return;
     }
 
-    const request: AnalysisRequest = {
-      owner: parsed.owner,
-      repo: parsed.repo,
-      // No access token for public repos
-    };
+    setSelectedOwner(parsed.owner);
+    setSelectedRepoName(parsed.repo);
+    setSelectedAccessToken('');
+    setStep('select-files');
+  };
 
-    await performAnalysis(request);
+  const handleFilesSelected = async (selectedFiles: string[]) => {
+    setStep('analyzing');
+    await performAnalysis({
+      owner: selectedOwner,
+      repo: selectedRepoName,
+      accessToken: selectedAccessToken,
+      selectedFiles,
+      analysisOptions: {
+        includeTests: false,
+        includeDependencies: true,
+        depth: 'deep',
+      },
+    });
+  };
+
+  const handleBackFromFileSelector = () => {
+    setStep('select-repo');
+    setSelectedOwner('');
+    setSelectedRepoName('');
+    setSelectedAccessToken('');
   };
 
   const performAnalysis = async (request: AnalysisRequest) => {
@@ -115,10 +138,12 @@ export default function AnalyzePage() {
     try {
       const report = await analyzeRepository(request);
       setAnalysisReport(report);
+      setStep('results');
     } catch (error: any) {
       console.error('Analysis failed:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Analysis failed. Please try again.';
       setAnalysisError(errorMessage);
+      setStep('select-repo');
     } finally {
       setAnalyzing(false);
     }
@@ -128,6 +153,32 @@ export default function AnalyzePage() {
     repo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     repo.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Show file selector if on that step
+  if (step === 'select-files') {
+    return (
+      <ContractFileSelector
+        owner={selectedOwner}
+        repo={selectedRepoName}
+        accessToken={selectedAccessToken}
+        onBack={handleBackFromFileSelector}
+        onProceed={handleFilesSelected}
+      />
+    );
+  }
+
+  // Show analyzing state
+  if (step === 'analyzing' || analyzing) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 font-medium">Analyzing repository...</p>
+          <p className="mt-2 text-sm text-gray-500">This may take a few minutes</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
@@ -383,7 +434,7 @@ export default function AnalyzePage() {
         )}
 
         {/* Analysis Results */}
-        {analysisReport && (
+        {step === 'results' && analysisReport && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Analysis Results</h2>
             
@@ -497,6 +548,7 @@ export default function AnalyzePage() {
                   setAnalysisReport(null);
                   setSelectedRepo(null);
                   setPublicUrl('');
+                  setStep('select-repo');
                 }}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors font-medium"
               >

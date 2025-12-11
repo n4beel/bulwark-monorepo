@@ -171,6 +171,11 @@ export interface AnalysisRequest {
   repo: string;
   accessToken?: string;
   selectedFiles?: string[];
+  analysisOptions?: {
+    includeTests?: boolean;
+    includeDependencies?: boolean;
+    depth?: 'shallow' | 'medium' | 'deep';
+  };
 }
 
 export interface GitHubRepo {
@@ -268,9 +273,22 @@ export async function analyzeRepository(request: AnalysisRequest): Promise<Analy
       headers.Authorization = `Bearer ${user.jwtToken}`;
     }
 
+    // Ensure request includes analysisOptions (matching frontend format)
+    const requestWithOptions = {
+      ...request,
+      accessToken: request.accessToken || '', // Ensure accessToken is always present (empty string for public repos)
+      analysisOptions: request.analysisOptions || {
+        includeTests: false,
+        includeDependencies: true,
+        depth: 'deep',
+      },
+      // selectedFiles is optional - if not provided, backend will auto-detect
+      selectedFiles: request.selectedFiles,
+    };
+
     const response = await axios.post(
       `${API_URL}/static-analysis/analyze-rust-contract`,
-      request,
+      requestWithOptions,
       { headers }
     );
     return response.data;

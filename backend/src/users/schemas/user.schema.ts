@@ -49,6 +49,20 @@ export class User {
   @Prop({ default: false })
   admin?: boolean;
 
+  // Subscription reference
+  @Prop({ type: String, ref: 'Subscription' })
+  subscriptionId?: string;
+
+  // Quick access fields (denormalized for performance)
+  @Prop({ enum: ['basic', 'forensic'], default: 'basic' })
+  tier: string;
+
+  @Prop({ default: 0 })
+  scansUsedThisMonth: number;
+
+  @Prop()
+  scanResetDate?: Date; // Next date when scans reset
+
   @Prop({ default: Date.now })
   createdAt: Date;
 

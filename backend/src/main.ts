@@ -15,7 +15,9 @@ if (process.env.HIGHLIGHT_PROJECT_ID) {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true, // Preserve raw body for Stripe webhook signature verification
+  });
 
   // Swagger setup
   const config = new DocumentBuilder()
