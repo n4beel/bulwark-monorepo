@@ -42,6 +42,7 @@ jobs:
             echo "DEPLOY_PATH=/home/ubuntu/apps/production" >> $GITHUB_ENV
             echo "BACKEND_PORT=3000" >> $GITHUB_ENV
             echo "ANALYZER_PORT=8080" >> $GITHUB_ENV
+            echo "RUST_ANALYZER_URL=http://localhost:8080" >> $GITHUB_ENV
             echo "PM2_APP_NAME=backend-prod" >> $GITHUB_ENV
             echo "PM2_ANALYZER_NAME=analyzer-prod" >> $GITHUB_ENV
             echo "ENV_FILE=.env.production" >> $GITHUB_ENV
@@ -50,6 +51,7 @@ jobs:
             echo "DEPLOY_PATH=/home/ubuntu/apps/staging" >> $GITHUB_ENV
             echo "BACKEND_PORT=3001" >> $GITHUB_ENV
             echo "ANALYZER_PORT=8081" >> $GITHUB_ENV
+            echo "RUST_ANALYZER_URL=http://localhost:8081" >> $GITHUB_ENV
             echo "PM2_APP_NAME=backend-staging" >> $GITHUB_ENV
             echo "PM2_ANALYZER_NAME=analyzer-staging" >> $GITHUB_ENV
             echo "ENV_FILE=.env.staging" >> $GITHUB_ENV
@@ -145,6 +147,13 @@ jobs:
           mkdir -p ${{ env.DEPLOY_PATH }}/analyzer
           cp ./analyzer/target/release/server ${{ env.DEPLOY_PATH }}/analyzer/
           chmod +x ${{ env.DEPLOY_PATH }}/analyzer/server
+          
+          # Copy the appropriate PM2 ecosystem config file
+          if [ "${{ steps.env.outputs.environment }}" == "production" ]; then
+            cp ./analyzer/ecosystem.production.config.js ${{ env.DEPLOY_PATH }}/analyzer/ecosystem.config.js
+          else
+            cp ./analyzer/ecosystem.staging.config.js ${{ env.DEPLOY_PATH }}/analyzer/ecosystem.config.js
+          fi
 
       - name: Copy analyzer environment file
         run: |
@@ -162,6 +171,15 @@ jobs:
         run: |
           if [ -f "${{ env.DEPLOY_PATH }}/${{ env.ENV_FILE }}" ]; then
             cp ${{ env.DEPLOY_PATH }}/${{ env.ENV_FILE }} ${{ env.DEPLOY_PATH }}/backend/.env
+            # Ensure RUST_ANALYZER_URL is set in backend .env
+            if ! grep -q "RUST_ANALYZER_URL" ${{ env.DEPLOY_PATH }}/backend/.env; then
+              echo "RUST_ANALYZER_URL=${{ env.RUST_ANALYZER_URL }}" >> ${{ env.DEPLOY_PATH }}/backend/.env
+              echo "✓ Added RUST_ANALYZER_URL to backend .env"
+            else
+              # Update existing RUST_ANALYZER_URL
+              sed -i "s|^RUST_ANALYZER_URL=.*|RUST_ANALYZER_URL=${{ env.RUST_ANALYZER_URL }}|" ${{ env.DEPLOY_PATH }}/backend/.env
+              echo "✓ Updated RUST_ANALYZER_URL in backend .env"
+            fi
           else
             echo "Warning: Environment file ${{ env.ENV_FILE }} not found!"
             exit 1
@@ -169,14 +187,17 @@ jobs:
 
       - name: Stop existing services
         run: |
+          # Stop backend
           pm2 stop ${{ env.PM2_APP_NAME }} || true
           pm2 delete ${{ env.PM2_APP_NAME }} || true
 
-          # Stop analyzer (server binary)
-          if pgrep -f "server.*${{ env.ANALYZER_PORT }}" > /dev/null; then
-            pkill -f "server.*${{ env.ANALYZER_PORT }}"
-            sleep 2
-          fi
+          # Stop analyzer using PM2
+          pm2 stop ${{ env.PM2_ANALYZER_NAME }} || true
+          pm2 delete ${{ env.PM2_ANALYZER_NAME }} || true
+
+          # Kill any remaining analyzer processes (fallback)
+          pkill -f "${{ env.DEPLOY_PATH }}/analyzer/server" || true
+          sleep 2
 
       - name: Start backend with PM2
         run: |
@@ -205,16 +226,26 @@ jobs:
         run: |
           cd ${{ env.DEPLOY_PATH }}/analyzer
 
+          # Verify files exist
+          echo "Checking analyzer deployment..."
+          ls -la
+          echo "Checking server binary..."
+          ls -la server || echo "Server binary not found!"
+          echo "Checking ecosystem config..."
+          ls -la ecosystem.config.js || echo "Ecosystem config not found!"
+
           # Ensure shared workspace directory exists
           mkdir -p /tmp/shared/workspaces
+          chmod 755 /tmp/shared/workspaces
 
-          # Start analyzer with .env file (dotenv loads it automatically)
-          # PORT is also passed explicitly to override .env if needed
-          PORT=${{ env.ANALYZER_PORT }} nohup ./server \
-            > ${{ env.DEPLOY_PATH }}/logs/analyzer.log 2>&1 &
-          echo $! > ${{ env.DEPLOY_PATH }}/analyzer/server.pid
+          # Start analyzer with PM2 (same as backend)
+          pm2 start ecosystem.config.js
+          pm2 save
 
-          echo "Analyzer started with PID $(cat ${{ env.DEPLOY_PATH }}/analyzer/server.pid)"
+          echo "PM2 analyzer process started. Checking status..."
+          pm2 list
+          sleep 3
+          pm2 logs ${{ env.PM2_ANALYZER_NAME }} --lines 50 --nostream
 
       - name: Health check - Backend
         run: |
@@ -268,12 +299,20 @@ jobs:
           done
 
           echo "✗ Analyzer health check failed!"
+          echo "=== PM2 Status ==="
+          pm2 list
+          echo "=== PM2 Analyzer Logs (last 100 lines) ==="
+          pm2 logs ${{ env.PM2_ANALYZER_NAME }} --lines 100 --nostream || true
+          echo "=== Analyzer Error Log ==="
+          tail -50 ${{ env.DEPLOY_PATH }}/logs/analyzer-error.log || echo "No analyzer error log found"
+          echo "=== Analyzer Out Log ==="
+          tail -50 ${{ env.DEPLOY_PATH }}/logs/analyzer-out.log || echo "No analyzer out log found"
           echo "=== Checking if analyzer process is running ==="
           pgrep -f "server" || echo "No server process found"
-          echo "=== Analyzer Log (last 50 lines) ==="
-          tail -50 ${{ env.DEPLOY_PATH }}/logs/analyzer.log || echo "No analyzer log found"
           echo "=== Checking if port is in use ==="
           netstat -tuln | grep ${{ env.ANALYZER_PORT }} || echo "Port ${{ env.ANALYZER_PORT }} is not listening"
+          echo "=== Checking analyzer .env file ==="
+          ls -la ${{ env.DEPLOY_PATH }}/analyzer/.env || echo "Analyzer .env file not found"
           exit 1
 
       - name: Deployment summary
@@ -303,6 +342,7 @@ jobs:
             
             # Restart services
             pm2 restart ${{ env.PM2_APP_NAME }} || pm2 start ${{ env.DEPLOY_PATH }}/backend/ecosystem.config.js
+            pm2 restart ${{ env.PM2_ANALYZER_NAME }} || pm2 start ${{ env.DEPLOY_PATH }}/analyzer/ecosystem.config.js
             
             echo "Rollback completed"
           else

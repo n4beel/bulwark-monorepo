@@ -1040,6 +1040,12 @@ export class StaticAnalysisService {
           ) {
             rustAnalysisError = `Rust analysis timed out after ${rustTimeout / 1000}s. Consider increasing RUST_ANALYZER_TIMEOUT environment variable for large codebases.`;
             this.logger.warn(rustAnalysisError);
+          } else if (augErr.code === 'ECONNREFUSED') {
+            rustAnalysisError = `Rust analyzer service connection refused at ${rustUrl}. Please ensure the Rust analyzer server is running and accessible. Check that RUST_ANALYZER_URL (currently: ${rustUrl}) matches the port the Rust server is listening on (default: 8080).`;
+            this.logger.error(rustAnalysisError);
+            this.logger.error(
+              `Connection details: Attempted to connect to ${rustUrl}/augment. Verify the Rust server is running with: curl ${rustUrl}/health`,
+            );
           } else {
             rustAnalysisError = `Rust analysis request failed: ${augErr.message}`;
             this.logger.warn(rustAnalysisError);

@@ -1,0 +1,29 @@
+[Unit]
+Description=Bulwark Rust Analyzer HTTP Server
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/apps/staging/analyzer
+Environment="PORT=8080"
+Environment="SHARED_WORKSPACE_PATH=/tmp/shared/workspaces"
+Environment="RUST_LOG=info"
+ExecStart=/home/ubuntu/apps/staging/analyzer/target/release/server
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rust-analyzer
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+MemoryLimit=2G
+
+[Install]
+WantedBy=multi-user.target
+
