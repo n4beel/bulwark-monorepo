@@ -60,6 +60,26 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need at least 2 commits to compare
+
+      - name: Check for analyzer changes
+        id: analyzer-changes
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual trigger - always rebuild
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Manual trigger detected - will rebuild analyzer"
+          else
+            # Check if analyzer files changed
+            if git diff --name-only HEAD~1 HEAD | grep -q "^analyzer/"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+              echo "Analyzer files changed - will rebuild"
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+              echo "No analyzer changes detected - skipping rebuild"
+            fi
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -69,6 +89,7 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Setup Rust
+        if: steps.analyzer-changes.outputs.changed == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
@@ -76,6 +97,7 @@ jobs:
           rustflags: ""
 
       - name: Setup Rust cache
+        if: steps.analyzer-changes.outputs.changed == 'true'
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./analyzer"
@@ -115,9 +137,12 @@ jobs:
           npm prune --production
 
       - name: Build Rust analyzer
+        if: steps.analyzer-changes.outputs.changed == 'true'
         working-directory: ./analyzer
         run: |
+          echo "Building Rust analyzer (this may take ~10 minutes)..."
           cargo build --release
+          echo "✓ Rust analyzer build complete"
 
       - name: Deploy backend
         run: |
@@ -142,6 +167,7 @@ jobs:
           fi
 
       - name: Deploy analyzer
+        if: steps.analyzer-changes.outputs.changed == 'true'
         run: |
           # Copy analyzer binary (the server binary is what we deploy)
           mkdir -p ${{ env.DEPLOY_PATH }}/analyzer
@@ -154,8 +180,10 @@ jobs:
           else
             cp ./analyzer/ecosystem.staging.config.js ${{ env.DEPLOY_PATH }}/analyzer/ecosystem.config.js
           fi
+          echo "✓ Analyzer binary and config deployed"
 
       - name: Copy analyzer environment file
+        if: steps.analyzer-changes.outputs.changed == 'true'
         run: |
           if [ -f "${{ env.DEPLOY_PATH }}/${{ env.ANALYZER_ENV_FILE }}" ]; then
             cp ${{ env.DEPLOY_PATH }}/${{ env.ANALYZER_ENV_FILE }} ${{ env.DEPLOY_PATH }}/analyzer/.env
@@ -191,13 +219,15 @@ jobs:
           pm2 stop ${{ env.PM2_APP_NAME }} || true
           pm2 delete ${{ env.PM2_APP_NAME }} || true
 
-          # Stop analyzer using PM2
-          pm2 stop ${{ env.PM2_ANALYZER_NAME }} || true
-          pm2 delete ${{ env.PM2_ANALYZER_NAME }} || true
-
-          # Kill any remaining analyzer processes (fallback)
-          pkill -f "${{ env.DEPLOY_PATH }}/analyzer/server" || true
-          sleep 2
+          # Stop analyzer using PM2 (only if analyzer was changed)
+          if [ "${{ steps.analyzer-changes.outputs.changed }}" == "true" ]; then
+            pm2 stop ${{ env.PM2_ANALYZER_NAME }} || true
+            pm2 delete ${{ env.PM2_ANALYZER_NAME }} || true
+            
+            # Kill any remaining analyzer processes (fallback)
+            pkill -f "${{ env.DEPLOY_PATH }}/analyzer/server" || true
+            sleep 2
+          fi
 
       - name: Start backend with PM2
         run: |
@@ -223,6 +253,7 @@ jobs:
           pm2 logs ${{ env.PM2_APP_NAME }} --lines 50 --nostream
 
       - name: Start analyzer service
+        if: steps.analyzer-changes.outputs.changed == 'true'
         run: |
           cd ${{ env.DEPLOY_PATH }}/analyzer
 
@@ -280,9 +311,22 @@ jobs:
           ls -la ${{ env.DEPLOY_PATH }}/backend/.env || echo ".env file not found"
           exit 1
 
-      - name: Health check - Analyzer
+      - name: Verify analyzer is running
+        if: steps.analyzer-changes.outputs.changed != 'true'
         run: |
-          echo "Checking analyzer..."
+          echo "Analyzer was not rebuilt - verifying existing instance is running..."
+          if curl -f http://localhost:${{ env.ANALYZER_PORT }}/health > /dev/null 2>&1; then
+            echo "✓ Analyzer is healthy (using existing instance)"
+          else
+            echo "⚠️  Analyzer health check failed - but skipping rebuild as no changes detected"
+            echo "If analyzer is not running, you may need to manually restart it or trigger a full rebuild"
+            pm2 list | grep -E "(analyzer|NAME)" || true
+          fi
+
+      - name: Health check - Analyzer
+        if: steps.analyzer-changes.outputs.changed == 'true'
+        run: |
+          echo "Checking analyzer after rebuild..."
           sleep 5
 
           MAX_RETRIES=10
@@ -325,6 +369,7 @@ jobs:
           echo "Backend Port: ${{ env.BACKEND_PORT }}"
           echo "Analyzer Port: ${{ env.ANALYZER_PORT }}"
           echo "Deployed to: ${{ env.DEPLOY_PATH }}"
+          echo "Analyzer Rebuilt: ${{ steps.analyzer-changes.outputs.changed }}"
           echo "PM2 Apps:"
           pm2 list
           echo "════════════════════════════════════════════════"
@@ -342,7 +387,10 @@ jobs:
             
             # Restart services
             pm2 restart ${{ env.PM2_APP_NAME }} || pm2 start ${{ env.DEPLOY_PATH }}/backend/ecosystem.config.js
-            pm2 restart ${{ env.PM2_ANALYZER_NAME }} || pm2 start ${{ env.DEPLOY_PATH }}/analyzer/ecosystem.config.js
+            # Only restart analyzer if it exists
+            if pm2 list | grep -q "${{ env.PM2_ANALYZER_NAME }}"; then
+              pm2 restart ${{ env.PM2_ANALYZER_NAME }} || pm2 start ${{ env.DEPLOY_PATH }}/analyzer/ecosystem.config.js
+            fi
             
             echo "Rollback completed"
           else
