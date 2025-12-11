@@ -716,6 +716,9 @@ export class StaticAnalysisService {
 
     // Use Rust-calculated scores and report
     if (!rustCalculatedScores || !rustCalculatedReport) {
+      this.logger.error(
+        `Rust service did not return calculated_scores or calculated_report. Response: ${JSON.stringify(rustServiceResponse)}`,
+      );
       throw new Error(
         'Rust service did not return calculated scores and report. This should not happen.',
       );
@@ -1019,6 +1022,13 @@ export class StaticAnalysisService {
             // Extract calculated scores and report from Rust service response
             rustCalculatedScores = augResp.data?.calculated_scores;
             rustCalculatedReport = augResp.data?.calculated_report;
+            
+            // Log full response for debugging if scores/report are missing
+            if (!rustCalculatedScores || !rustCalculatedReport) {
+              this.logger.error(
+                `Rust analyzer did not return calculated_scores or calculated_report. Full response: ${JSON.stringify(augResp.data, null, 2)}`,
+              );
+            }
           } else {
             rustAnalysisError = `Rust service returned success=false: ${JSON.stringify(augResp.data)}`;
             this.logger.warn(rustAnalysisError);

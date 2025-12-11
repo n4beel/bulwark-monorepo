@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'backend-staging',
       script: './dist/main.js',
-      cwd: '/home/azureuser/apps/staging/backend',
+      cwd: '/home/ubuntu/apps/staging/backend',
       instances: 1,
       exec_mode: 'cluster',
       autorestart: true,
@@ -13,8 +13,8 @@ module.exports = {
         NODE_ENV: 'staging',
         PORT: 3001,
       },
-      error_file: '/home/azureuser/apps/staging/logs/backend-error.log',
-      out_file: '/home/azureuser/apps/staging/logs/backend-out.log',
+      error_file: '/home/ubuntu/apps/staging/logs/backend-error.log',
+      out_file: '/home/ubuntu/apps/staging/logs/backend-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
       min_uptime: '10s',
@@ -24,4 +24,3 @@ module.exports = {
     },
   ],
 };
-

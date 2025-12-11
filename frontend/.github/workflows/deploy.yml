@@ -39,14 +39,14 @@ jobs:
       - name: Set environment variables
         run: |
           if [ "${{ steps.env.outputs.environment }}" == "production" ]; then
-            echo "DEPLOY_PATH=/home/azureuser/apps/production" >> $GITHUB_ENV
+            echo "DEPLOY_PATH=/home/ubuntu/apps/production" >> $GITHUB_ENV
             echo "BACKEND_PORT=3000" >> $GITHUB_ENV
             echo "ANALYZER_PORT=8080" >> $GITHUB_ENV
             echo "PM2_APP_NAME=backend-prod" >> $GITHUB_ENV
             echo "PM2_ANALYZER_NAME=analyzer-prod" >> $GITHUB_ENV
             echo "ENV_FILE=.env.production" >> $GITHUB_ENV
           else
-            echo "DEPLOY_PATH=/home/azureuser/apps/staging" >> $GITHUB_ENV
+            echo "DEPLOY_PATH=/home/ubuntu/apps/staging" >> $GITHUB_ENV
             echo "BACKEND_PORT=3001" >> $GITHUB_ENV
             echo "ANALYZER_PORT=8081" >> $GITHUB_ENV
             echo "PM2_APP_NAME=backend-staging" >> $GITHUB_ENV

@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'backend-prod',
       script: './dist/main.js',
-      cwd: '/home/azureuser/apps/production/backend',
+      cwd: '/home/ubuntu/apps/production/backend',
       instances: 1,
       exec_mode: 'cluster',
       autorestart: true,
@@ -13,8 +13,8 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3000,
       },
-      error_file: '/home/azureuser/apps/production/logs/backend-error.log',
-      out_file: '/home/azureuser/apps/production/logs/backend-out.log',
+      error_file: '/home/ubuntu/apps/production/logs/backend-error.log',
+      out_file: '/home/ubuntu/apps/production/logs/backend-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
       min_uptime: '10s',
@@ -24,4 +24,3 @@ module.exports = {
     },
   ],
 };
-
