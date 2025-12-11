@@ -33,7 +33,7 @@ export class SubscriptionController {
   constructor(
     private readonly subscriptionService: SubscriptionService,
     private readonly paymentService: PaymentService,
-  ) {}
+  ) { }
 
   @Get('scan-status')
   @UseGuards(JwtAuthGuard)
@@ -318,7 +318,56 @@ export class SubscriptionController {
       }
 
       // Get raw body for signature verification
-      const rawBody = req.rawBody || req.body;
+      // Stripe requires the EXACT raw body bytes to verify the signature
+      // Priority: 1) req.body (if Buffer from express.raw), 2) req.rawBody, 3) fail
+      let rawBody: Buffer;
+
+      // Check if req.body is a Buffer (from express.raw middleware)
+      if (Buffer.isBuffer(req.body)) {
+        rawBody = req.body;
+        this.logger.debug(`✓ Using req.body Buffer (length: ${rawBody.length})`);
+      } else if (req.rawBody) {
+        // Use req.rawBody (from NestJS rawBody: true verify function)
+        rawBody = Buffer.isBuffer(req.rawBody)
+          ? req.rawBody
+          : typeof req.rawBody === 'string'
+            ? Buffer.from(req.rawBody, 'utf8')
+            : Buffer.from(String(req.rawBody), 'utf8');
+
+        this.logger.debug(`✓ Using req.rawBody (type: ${typeof req.rawBody}, length: ${rawBody.length})`);
+      } else {
+        // Raw body not available - this means body was parsed before reaching handler
+        this.logger.error('❌ Raw body not available - Stripe webhook signature verification will fail');
+        this.logger.error('Diagnostics:');
+        this.logger.error(`  - req.body type: ${typeof req.body}`);
+        this.logger.error(`  - req.body isBuffer: ${Buffer.isBuffer(req.body)}`);
+        this.logger.error(`  - req.rawBody exists: ${!!req.rawBody}`);
+        this.logger.error(`  - Content-Type: ${req.headers['content-type']}`);
+        this.logger.error(`  - Request path: ${req.path}`);
+
+        // Check if body was parsed (it's an object, not a Buffer)
+        if (typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+          this.logger.error('⚠️  Body has been parsed as JSON - this breaks Stripe signature verification');
+          this.logger.error('Possible causes:');
+          this.logger.error('  1. Reverse proxy (Cloudflare/nginx) is parsing JSON');
+          this.logger.error('  2. NestJS body parser ran before express.raw() middleware');
+          this.logger.error('  3. Middleware order issue');
+          this.logger.error('');
+          this.logger.error('Solution: Configure reverse proxy to pass raw body, or ensure express.raw() runs first');
+        }
+
+        // Fail with clear error - don't try to use parsed body
+        return res.status(400).json({
+          error: 'Webhook Error: Raw body not available. The request body must be preserved as raw bytes for signature verification. If using a reverse proxy (Cloudflare/nginx), configure it to pass through the raw body without parsing JSON.'
+        });
+      }
+
+      // Ensure rawBody is a Buffer (should already be, but double-check)
+      if (!Buffer.isBuffer(rawBody)) {
+        rawBody = Buffer.from(String(rawBody), 'utf8');
+      }
+
+      this.logger.debug(`Raw body ready for verification (${rawBody.length} bytes)`);
 
       // Construct and verify webhook event
       const event = this.paymentService.constructWebhookEvent(
@@ -379,21 +428,37 @@ export class SubscriptionController {
   ) {
     try {
       // LlamaPay sends signature in X-CC-WEBHOOK-SIGNATURE header (case-insensitive)
-      const signature = 
+      const signature =
         (req.headers['x-cc-webhook-signature'] as string) ||
         (req.headers['X-CC-WEBHOOK-SIGNATURE'] as string);
 
       // Get raw body for signature verification (must use raw body, not parsed JSON)
-      const rawBody = req.rawBody || req.body;
-
-      if (!rawBody) {
+      // express.raw() middleware sets req.body to a Buffer for webhook routes
+      let rawBody: Buffer | string;
+      
+      if (Buffer.isBuffer(req.body)) {
+        rawBody = req.body;
+        this.logger.debug(`✓ Using req.body Buffer (length: ${rawBody.length})`);
+      } else if (req.rawBody) {
+        rawBody = Buffer.isBuffer(req.rawBody) 
+          ? req.rawBody 
+          : Buffer.from(String(req.rawBody), 'utf8');
+        this.logger.debug(`✓ Using req.rawBody (length: ${rawBody.length})`);
+      } else {
         this.logger.error('No raw body received in LlamaPay webhook');
+        this.logger.error(`  - req.body type: ${typeof req.body}, isBuffer: ${Buffer.isBuffer(req.body)}`);
+        this.logger.error(`  - req.rawBody exists: ${!!req.rawBody}`);
         return res.status(400).json({ error: 'No body received' });
+      }
+      
+      // Ensure rawBody is a Buffer
+      if (!Buffer.isBuffer(rawBody)) {
+        rawBody = Buffer.from(String(rawBody), 'utf8');
       }
 
       // Verify webhook signature if secret is configured
       const webhookSecret = process.env.LLAMAPAY_WEBHOOK_SECRET;
-      
+
       if (webhookSecret) {
         if (!signature) {
           this.logger.warn('LlamaPay webhook secret configured but no X-CC-WEBHOOK-SIGNATURE header found');
@@ -446,13 +511,13 @@ export class SubscriptionController {
       // Log the error for debugging
       this.logger.error(`LlamaPay webhook error: ${error.message}`);
       this.logger.error(`Error stack: ${error.stack}`);
-      
+
       // Return 200 to prevent LlamaPay from retrying
       // The error is logged, but we don't want infinite retries
-      return res.status(200).json({ 
-        received: true, 
+      return res.status(200).json({
+        received: true,
         error: 'Webhook processed but encountered an error',
-        message: error.message 
+        message: error.message
       });
     }
   }
