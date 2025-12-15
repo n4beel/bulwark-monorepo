@@ -3,7 +3,6 @@
 //! Provides REST API endpoints for semantic analysis of Rust smart contracts
 
 use amm_analyzer::ai_analysis::AiAnalysisService;
-use amm_analyzer::score_calculator::{ScoreCalculator, extract_static_analysis_scores, RepoData, CodeMetrics};
 use amm_analyzer::factors::{
     calculate_workspace_access_control,
     calculate_workspace_arithmetic,
@@ -26,6 +25,10 @@ use amm_analyzer::factors::{
     calculate_workspace_upgradeability,
     count_total_functions,
     lines_of_code::{analyze_file_tsc, calculate_workspace_tsc},
+};
+use amm_analyzer::sast;
+use amm_analyzer::score_calculator::{
+    extract_static_analysis_scores, CodeMetrics, RepoData, ScoreCalculator,
 };
 use amm_analyzer::{analyze_repository, AnalyzerConfig};
 use axum::{
@@ -142,6 +145,8 @@ struct AugmentResponse {
     overridden: Vec<String>,
     factors: serde_json::Value,
     ai_factors: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sast_results: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     calculated_scores: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -448,6 +453,7 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
                 ai_factors: None,
+                sast_results: None,
                 calculated_scores: None,
                 calculated_report: None,
                 raw: serde_json::json!({
@@ -495,6 +501,7 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
                 ai_factors: None,
+                sast_results: None,
                 calculated_scores: None,
                 calculated_report: None,
                 raw: serde_json::json!({
@@ -549,6 +556,7 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
                 ai_factors: None,
+                sast_results: None,
                 calculated_scores: None,
                 calculated_report: None,
                 raw: serde_json::json!({
@@ -601,6 +609,7 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
                 ai_factors: None,
+                sast_results: None,
                 calculated_scores: None,
                 calculated_report: None,
                 raw: serde_json::json!({
@@ -653,6 +662,7 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
                 ai_factors: None,
+                sast_results: None,
                 calculated_scores: None,
                 calculated_report: None,
                 raw: serde_json::json!({
@@ -706,6 +716,7 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
                 ai_factors: None,
+                sast_results: None,
                 calculated_scores: None,
                 calculated_report: None,
                 raw: serde_json::json!({
@@ -1253,6 +1264,7 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
                 overridden: Vec::new(),
                 factors: serde_json::Value::Object(serde_json::Map::new()),
                 ai_factors: None,
+                sast_results: None,
                 calculated_scores: None,
                 calculated_report: None,
                 raw: serde_json::json!({
@@ -1267,54 +1279,85 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
         }
     }
 
-    // Step 2: Perform AI Analysis
-    log::info!("🤖 Starting AI analysis for workspace: {}", request.workspace_id);
-    let ai_factors = match AiAnalysisService::new() {
-        Ok(ai_service) => {
-            let rust_factors_json = serde_json::Value::Object(factors_map.clone());
-            match ai_service
-                .analyze_factors(&full_path, &rust_factors_json, Some(selected_files))
-                .await
-            {
-                Ok(results) => {
-                    log::info!("✅ AI analysis completed successfully");
-                    Some(serde_json::to_value(results).unwrap_or(serde_json::Value::Null))
+    // Step 2: Perform AI Analysis and SAST Analysis in parallel
+    log::info!(
+        "🤖 Starting AI and SAST analysis for workspace: {}",
+        request.workspace_id
+    );
+
+    let rust_factors_json = serde_json::Value::Object(factors_map.clone());
+
+    // Run AI and SAST in parallel
+    let (ai_result, sast_result): (
+        Result<Option<serde_json::Value>, anyhow::Error>,
+        Result<Option<serde_json::Value>, anyhow::Error>,
+    ) = tokio::join!(
+        async {
+            match AiAnalysisService::new() {
+                Ok(ai_service) => {
+                    match ai_service
+                        .analyze_factors(&full_path, &rust_factors_json, Some(selected_files))
+                        .await
+                    {
+                        Ok(results) => {
+                            log::info!("✅ AI analysis completed successfully");
+                            Ok(Some(
+                                serde_json::to_value(results).unwrap_or(serde_json::Value::Null),
+                            ))
+                        }
+                        Err(e) => {
+                            log::warn!("⚠️ AI analysis failed: {}", e);
+                            Ok(None)
+                        }
+                    }
                 }
                 Err(e) => {
-                    log::warn!("⚠️ AI analysis failed: {}", e);
-                    None
+                    log::warn!("⚠️ AI service initialization failed: {}", e);
+                    Ok(None)
+                }
+            }
+        },
+        async {
+            match sast::run_sast_analysis(&full_path, Some(selected_files)).await {
+                Ok(result) => {
+                    log::info!("✅ SAST analysis completed successfully");
+                    Ok(Some(result.to_json()))
+                }
+                Err(e) => {
+                    log::warn!("⚠️ SAST analysis failed: {}", e);
+                    Ok(None)
                 }
             }
         }
-        Err(e) => {
-            log::warn!("⚠️ AI service initialization failed: {}", e);
-            None
-        }
-    };
+    );
+
+    let ai_factors = ai_result.unwrap_or(None);
+    let sast_results = sast_result.unwrap_or(None);
 
     // Step 3: Calculate scores and audit effort estimates
     log::info!("📊 Calculating scores and audit effort estimates...");
     let (calculated_scores, calculated_report) = {
         let factors_json = serde_json::Value::Object(factors_map.clone());
         let static_analysis_scores = extract_static_analysis_scores(&factors_json);
-        
+
         // Extract AI analysis code metrics
-        let ai_code_metrics = ai_factors.as_ref()
+        let ai_code_metrics = ai_factors
+            .as_ref()
             .and_then(|af| af.get("codeAnalysis"))
             .map(|ca| CodeMetrics {
-                high_risk_hotspots: ca.get("highRiskHotspots")
+                high_risk_hotspots: ca
+                    .get("highRiskHotspots")
                     .and_then(|v| v.as_array())
                     .map(|arr| arr.clone()),
-                medium_risk_hotspots: ca.get("mediumRiskHotspots")
+                medium_risk_hotspots: ca
+                    .get("mediumRiskHotspots")
                     .and_then(|v| v.as_array())
                     .map(|arr| arr.clone()),
-                findings: ca.get("findings")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                            .collect::<Vec<String>>()
-                    }),
+                findings: ca.get("findings").and_then(|v| v.as_array()).map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect::<Vec<String>>()
+                }),
             })
             .unwrap_or_else(|| CodeMetrics {
                 high_risk_hotspots: None,
@@ -1360,8 +1403,13 @@ async fn augment(Json(request): Json<AugmentRequest>) -> ResponseJson<AugmentRes
         overridden: computed_factors.clone(),
         factors: serde_json::Value::Object(factors_map),
         ai_factors,
-        calculated_scores: Some(serde_json::to_value(&calculated_scores).unwrap_or(serde_json::Value::Null)),
-        calculated_report: Some(serde_json::to_value(&calculated_report).unwrap_or(serde_json::Value::Null)),
+        sast_results,
+        calculated_scores: Some(
+            serde_json::to_value(&calculated_scores).unwrap_or(serde_json::Value::Null),
+        ),
+        calculated_report: Some(
+            serde_json::to_value(&calculated_report).unwrap_or(serde_json::Value::Null),
+        ),
         raw,
         meta: AugmentResponseMeta {
             api_version: request.api_version.unwrap_or_else(|| "v1".to_string()),
@@ -1546,7 +1594,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load environment variables from .env file (if present)
     // This allows developers to use .env files for local development
     let _ = dotenv::dotenv();
-    
+
     // Initialize logging
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 

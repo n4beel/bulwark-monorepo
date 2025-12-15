@@ -331,8 +331,59 @@ The Rust analyzer exposes:
 2. **HTTP Request**: Server sends POST to `/augment` with `workspace_id`
 3. **AST Analysis**: Rust analyzer parses Rust code using `syn` crate
 4. **Factor Calculation**: All 23 factors calculated in parallel
-5. **JSON Response**: Returns factors, metadata, and overridden fields
-6. **Workspace Cleanup**: Server cleans up staged workspace
+5. **AI & SAST Analysis**: AI analysis and sol-azy SAST run in parallel
+6. **JSON Response**: Returns factors, metadata, AI results, SAST results, and overridden fields
+7. **Workspace Cleanup**: Server cleans up staged workspace
+
+### SAST Integration (sol-azy)
+
+The Rust analyzer integrates **sol-azy** CLI tool for Static Application Security Testing (SAST). SAST analysis runs automatically in parallel with AI analysis during the augment workflow.
+
+#### Automatic Installation
+
+sol-azy is automatically installed during the Rust build process via `build.rs` script:
+- No manual installation required
+- Version pinned for consistency (currently `0.1.0`)
+- Works for both server and CLI binaries
+- Build succeeds even if sol-azy installation fails (SAST features disabled)
+
+#### Configuration
+
+Environment variables (all optional):
+- `SOLAZY_ENABLED` - Enable/disable SAST (default: `true`)
+- `SOLAZY_PATH` - Custom path to sol-azy binary (default: `sol-azy` in PATH)
+- `SOLAZY_RULES_DIR` - Path to directory containing custom `.star` rule files (optional)
+  - If not set, sol-azy uses its built-in/default rules
+  - If set, sol-azy will use rules from this directory instead of built-in rules
+  - Alternatively, if a `rules/` directory exists in the workspace, it will be used automatically
+- `SOLAZY_TIMEOUT_SECONDS` - Execution timeout in seconds (default: `60`)
+- `SOLAZY_FULL_SCAN` - Set to `true` to disable `--syn-scan-only` flag (default: `false`, uses faster syn-scan-only mode)
+- `SKIP_SOLAZY_INSTALL` - Skip automatic installation during build (for CI/CD)
+- `SOLAZY_VERSION_OVERRIDE` - Override pinned version for testing
+
+**Note:** sol-azy comes with built-in security rules by default. You can optionally provide custom rules by:
+1. Setting `SOLAZY_RULES_DIR` environment variable to point to your custom rules directory
+2. Creating a `rules/` directory in your workspace with `.star` rule files
+
+#### SAST Results
+
+SAST analysis results are included in:
+- `/augment` endpoint response (`sast_results` field)
+- CLI analysis output (`sast_results` field)
+- MongoDB reports (`sast_analysis` field)
+
+Results include:
+- Security findings (critical, high, medium, low severity)
+- Summary statistics
+- Execution time
+- sol-azy version information
+
+#### Version Management
+
+- Version is pinned in `analyzer/build.rs` (`SOLAZY_VERSION` constant)
+- Update version by modifying the constant and rebuilding
+- Test new versions in staging before production deployment
+- Version mismatches are logged as warnings (build still succeeds)
 
 ---
 

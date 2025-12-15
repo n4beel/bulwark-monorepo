@@ -51,6 +51,7 @@ pub struct RustServiceResponse {
     pub success: bool,
     pub factors: Option<serde_json::Value>,
     pub ai_factors: Option<serde_json::Value>,
+    pub sast_results: Option<serde_json::Value>,
     pub calculated_scores: Option<serde_json::Value>,
     pub calculated_report: Option<serde_json::Value>,
 }
@@ -99,6 +100,7 @@ pub async fn submit_analysis(
     // Extract the components from the analysis result
     let factors = analysis_result.get("factors").cloned();
     let ai_factors = analysis_result.get("ai_factors").cloned();
+    let sast_results = analysis_result.get("sast_results").cloned();
     let calculated_scores = analysis_result.get("calculated_scores").cloned();
     let calculated_report = analysis_result.get("calculated_report").cloned();
 
@@ -115,6 +117,7 @@ pub async fn submit_analysis(
             success: rust_analysis_success,
             factors,
             ai_factors,
+            sast_results,
             calculated_scores,
             calculated_report,
         },

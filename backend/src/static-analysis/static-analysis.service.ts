@@ -609,6 +609,7 @@ export class StaticAnalysisService {
       success: boolean;
       factors?: any;
       ai_factors?: any;
+      sast_results?: any;
       calculated_scores?: any;
       calculated_report?: any;
     },
@@ -638,6 +639,7 @@ export class StaticAnalysisService {
     const {
       factors: rustAnalysisFactors = {},
       ai_factors: aiAnalysisFactors = {},
+      sast_results: sastResults,
       calculated_scores: rustCalculatedScores,
       calculated_report: rustCalculatedReport,
     } = rustServiceResponse;
@@ -851,6 +853,25 @@ export class StaticAnalysisService {
           aiAnalysisFactors.valueAtRisk?.overallValueAtRiskScore || 0,
       },
 
+      // SAST analysis results (sol-azy)
+      sast_analysis: sastResults
+        ? {
+          engine: 'sol-azy',
+          version: sastResults.version || undefined,
+          success: sastResults.success || false,
+          error: sastResults.error || null,
+          findings: sastResults.findings || [],
+          summary: sastResults.summary || {
+            total_findings: 0,
+            critical: 0,
+            high: 0,
+            medium: 0,
+            low: 0,
+          },
+          execution_time_ms: sastResults.execution_time_ms || undefined,
+        }
+        : undefined,
+
       performance: {
         analysisTime: endTime - startTime,
         memoryUsage: Math.max(0, memoryEnd - memoryStart),
@@ -964,6 +985,7 @@ export class StaticAnalysisService {
       // Step 4.5: Rust-calculated scores and report (extracted from Rust response)
       let rustCalculatedScores: any = null;
       let rustCalculatedReport: any = null;
+      let sastResults: any = null; // Store SAST results from augment response
 
       try {
         const staging = stageWorkspace(extractedPath, projectName);
@@ -1022,7 +1044,17 @@ export class StaticAnalysisService {
             // Extract calculated scores and report from Rust service response
             rustCalculatedScores = augResp.data?.calculated_scores;
             rustCalculatedReport = augResp.data?.calculated_report;
-            
+
+            // Extract SAST results from Rust service response
+            sastResults = augResp.data?.sast_results || null;
+            if (sastResults) {
+              this.logger.log(
+                `SAST analysis results extracted from Rust service response`,
+              );
+            } else {
+              this.logger.debug('SAST analysis results not available in Rust service response');
+            }
+
             // Log full response for debugging if scores/report are missing
             if (!rustCalculatedScores || !rustCalculatedReport) {
               this.logger.error(
@@ -1086,6 +1118,7 @@ export class StaticAnalysisService {
         success: rustAnalysisSuccess,
         factors: rustAnalysisFactors,
         ai_factors: aiAnalysisFactors,
+        sast_results: sastResults,
         calculated_scores: rustCalculatedScores,
         calculated_report: rustCalculatedReport,
       };

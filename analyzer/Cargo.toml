@@ -6,6 +6,7 @@ description = "Semantic static analysis for Solana/Anchor smart contracts"
 authors = ["MySecurity Team"]
 # Adjusted default-run and binary target names to align with Railway Railpack expectations.
 default-run = "server"
+build = "build.rs"
 
 [[bin]]
 name = "bulwark"

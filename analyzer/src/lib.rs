@@ -12,6 +12,7 @@ pub mod factors;
 pub mod metrics;
 pub mod output;
 pub mod patterns;
+pub mod sast;
 pub mod score_calculator;
 pub mod visitor;
 

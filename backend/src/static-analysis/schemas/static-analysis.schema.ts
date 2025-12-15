@@ -87,19 +87,37 @@ export class StaticAnalysisReport {
     game_theory_complexity: number;
   };
 
+  // SAST analysis results (sol-azy)
+  @Prop({ type: Object, required: false })
+  sast_analysis?: {
+    engine: string; // "sol-azy"
+    version?: string;
+    success: boolean;
+    error?: string | null;
+    findings?: any[]; // Array of security findings
+    summary?: {
+      total_findings?: number;
+      critical?: number;
+      high?: number;
+      medium?: number;
+      low?: number;
+    };
+    execution_time_ms?: number;
+  };
+
   // Analysis comparison
   @Prop({ type: Object, required: false })
   analysis_comparison?:
     | {
-        lines_of_code_diff: number;
-        functions_diff: number;
-        math_operations_diff: number;
-        accuracy_notes: string[];
-      }
+      lines_of_code_diff: number;
+      functions_diff: number;
+      math_operations_diff: number;
+      accuracy_notes: string[];
+    }
     | {
-        error: string;
-        fallback_used: string;
-      };
+      error: string;
+      fallback_used: string;
+    };
 
   // Augmentation metadata: stores which fields were overridden and raw rust payload
   @Prop({ type: Object, required: false })

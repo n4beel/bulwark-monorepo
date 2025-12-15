@@ -467,6 +467,7 @@ async fn run_local_analysis(
         unsafe_lowlevel::calculate_workspace_unsafe_lowlevel,
         upgradeability::calculate_workspace_upgradeability,
     };
+    use amm_analyzer::sast;
     use amm_analyzer::score_calculator::{
         extract_static_analysis_scores, CodeMetrics, RepoData, ScoreCalculator,
     };
@@ -485,17 +486,20 @@ async fn run_local_analysis(
     }
 
     let mut factors_map = serde_json::Map::new();
-    
+
     // Total number of factor analyses (excluding function count which is inline)
     const TOTAL_FACTORS: usize = 20;
     let mut current_factor = 0;
-    
+
     // Helper to update progress
     macro_rules! update_progress {
         () => {
             current_factor += 1;
             if !verbose {
-                print!("\r  Analyzing factors... {}/{} completed", current_factor, TOTAL_FACTORS);
+                print!(
+                    "\r  Analyzing factors... {}/{} completed",
+                    current_factor, TOTAL_FACTORS
+                );
                 let _ = std::io::stdout().flush();
             }
         };
@@ -657,10 +661,13 @@ async fn run_local_analysis(
     if let Ok(inv_metrics) = calculate_workspace_constraint_density(path, rust_files_slice) {
         factors_map.insert("invariantsAndRiskParams".to_string(), inv_metrics.to_json());
     }
-    
+
     // Clear progress line and add newline
     if !verbose {
-        print!("\r  Analyzing factors... {}/{} completed\n", TOTAL_FACTORS, TOTAL_FACTORS);
+        print!(
+            "\r  Analyzing factors... {}/{} completed\n",
+            TOTAL_FACTORS, TOTAL_FACTORS
+        );
     }
 
     // Get total LOC for result
@@ -673,26 +680,49 @@ async fn run_local_analysis(
     let factors_json = serde_json::Value::Object(factors_map.clone());
     let static_analysis_scores = extract_static_analysis_scores(&factors_json);
 
-    // AI analysis (always performed like /augment endpoint)
-    // Only skip if explicitly disabled via flag or if OPENAI_API_KEY not set
-    let ai_factors = if !include_ai {
-        if verbose {
-            println!("AI analysis skipped (--no-ai flag)");
-        }
-        None
-    } else {
-        println!("🤖 Starting AI analysis...");
-        match run_ai_analysis(path, &rust_files, verbose).await {
-            Ok(ai) => {
-                println!("✅ AI analysis completed successfully");
-                Some(ai)
+    // AI analysis and SAST analysis (run in parallel like /augment endpoint)
+    // Only skip AI if explicitly disabled via flag or if OPENAI_API_KEY not set
+    println!("🤖 Starting AI and SAST analysis...");
+
+    let (ai_result, sast_result): (
+        Result<Option<serde_json::Value>, anyhow::Error>,
+        Result<Option<serde_json::Value>, anyhow::Error>,
+    ) = tokio::join!(
+        async {
+            if !include_ai {
+                if verbose {
+                    println!("AI analysis skipped (--no-ai flag)");
+                }
+                Ok(None)
+            } else {
+                match run_ai_analysis(path, &rust_files, verbose).await {
+                    Ok(ai) => {
+                        println!("✅ AI analysis completed successfully");
+                        Ok(Some(ai))
+                    }
+                    Err(e) => {
+                        println!("⚠️  AI analysis skipped: {}", e);
+                        Ok(None)
+                    }
+                }
             }
-            Err(e) => {
-                println!("⚠️  AI analysis skipped: {}", e);
-                None
+        },
+        async {
+            match sast::run_sast_analysis(path, Some(rust_files_slice)).await {
+                Ok(result) => {
+                    println!("✅ SAST analysis completed successfully");
+                    Ok(Some(result.to_json()))
+                }
+                Err(e) => {
+                    println!("⚠️  SAST analysis skipped: {}", e);
+                    Ok(None)
+                }
             }
         }
-    };
+    );
+
+    let ai_factors = ai_result.unwrap_or(None);
+    let sast_results = sast_result.unwrap_or(None);
 
     // Extract AI code metrics for score calculation
     let ai_code_metrics = ai_factors
@@ -740,6 +770,7 @@ async fn run_local_analysis(
         "success": true,
         "factors": factors_json,
         "ai_factors": ai_factors_json,
+        "sast_results": sast_results,
         "calculated_scores": calculated_scores,
         "calculated_report": calculated_report,
         "repository": {
