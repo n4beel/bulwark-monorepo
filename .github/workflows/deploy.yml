@@ -226,50 +226,83 @@ jobs:
 
           # Determine the user that will run PM2 (usually ubuntu)
           PM2_USER="ubuntu"
-          if [ "${{ steps.env.outputs.environment }}" == "production" ]; then
-            PM2_USER="ubuntu"  # Adjust if production uses different user
-          fi
+          SOLAZY_VERSION="0.1.0"  # Pin to specific version/tag
+          SOLAZY_REPO="https://github.com/FuzzingLabs/sol-azy.git"
+          BUILD_DIR="/tmp/sol-azy-build"
+          INSTALL_DIR="/home/$PM2_USER/.cargo/bin"
 
-          # Check if sol-azy is already installed for the PM2 user
+          # Ensure cargo bin directory exists
+          sudo -u $PM2_USER mkdir -p "$INSTALL_DIR"
+
+          # Check if sol-azy is already installed
           if sudo -u $PM2_USER command -v sol-azy &> /dev/null; then
             INSTALLED_VERSION=$(sudo -u $PM2_USER sol-azy --version 2>&1 | head -n1 || echo "")
-            echo "sol-azy already installed for $PM2_USER: $INSTALLED_VERSION"
-            
-            # Check if version matches required version
-            if echo "$INSTALLED_VERSION" | grep -q "0.1.0"; then
-              echo "✓ sol-azy version 0.1.0 is already installed"
-            else
-              echo "Version mismatch detected. Reinstalling sol-azy v0.1.0 for $PM2_USER..."
-              sudo -u $PM2_USER bash -c "source ~/.cargo/env && cargo install sol-azy --version 0.1.0 --force" || {
-                echo "⚠️ Failed to install sol-azy. SAST features will be disabled."
-                echo "You can manually install it later with: sudo -u $PM2_USER cargo install sol-azy --version 0.1.0"
-              }
-            fi
+            echo "sol-azy already installed: $INSTALLED_VERSION"
+            echo "✓ Using existing sol-azy installation"
+          elif [ -f "$INSTALL_DIR/sol-azy" ]; then
+            echo "✓ sol-azy binary found at $INSTALL_DIR/sol-azy"
+            sudo -u $PM2_USER "$INSTALL_DIR/sol-azy" --version
           else
-            echo "sol-azy not found for $PM2_USER. Installing version 0.1.0..."
-            # Ensure cargo is in PATH for the user
-            sudo -u $PM2_USER bash -c "source ~/.cargo/env 2>/dev/null || true; cargo install sol-azy --version 0.1.0" || {
-              echo "⚠️ Failed to install sol-azy. SAST features will be disabled."
-              echo "Attempting fallback: installing as current user..."
-              cargo install sol-azy --version 0.1.0 || {
-                echo "⚠️ Fallback installation also failed. SAST features will be disabled."
-                echo "You can manually install it later with: sudo -u $PM2_USER cargo install sol-azy --version 0.1.0"
+            echo "sol-azy not found. Building from source..."
+
+            # Clean up any previous build directory
+            rm -rf "$BUILD_DIR"
+
+            # Clone the repository
+            echo "Cloning sol-azy repository..."
+            git clone --depth 1 --branch "v$SOLAZY_VERSION" "$SOLAZY_REPO" "$BUILD_DIR" 2>/dev/null || \
+            git clone --depth 1 "$SOLAZY_REPO" "$BUILD_DIR" || {
+              echo "⚠️ Failed to clone sol-azy repository"
+              echo "Attempting to clone without branch specification..."
+              git clone --depth 1 "$SOLAZY_REPO" "$BUILD_DIR" || {
+                echo "⚠️ Failed to clone sol-azy repository. SAST features will be disabled."
+                exit 0  # Don't fail deployment, just skip SAST
               }
             }
+
+            # Build sol-azy
+            echo "Building sol-azy (this may take a few minutes)..."
+            cd "$BUILD_DIR"
+            
+            # Build as the PM2 user to ensure correct permissions
+            sudo -u $PM2_USER bash -c "
+              source ~/.cargo/env 2>/dev/null || true
+              export PATH=\"\$HOME/.cargo/bin:\$PATH\"
+              cargo build --release
+            " || {
+              echo "⚠️ Failed to build sol-azy. SAST features will be disabled."
+              echo "Build logs:"
+              cat "$BUILD_DIR/target/release/sol-azy" 2>/dev/null || echo "Binary not found"
+              rm -rf "$BUILD_DIR"
+              exit 0  # Don't fail deployment
+            }
+
+            # Copy binary to cargo bin directory
+            if [ -f "$BUILD_DIR/target/release/sol-azy" ]; then
+              echo "Installing sol-azy binary..."
+              sudo -u $PM2_USER cp "$BUILD_DIR/target/release/sol-azy" "$INSTALL_DIR/sol-azy"
+              sudo -u $PM2_USER chmod +x "$INSTALL_DIR/sol-azy"
+              echo "✓ sol-azy installed successfully"
+            else
+              echo "⚠️ sol-azy binary not found after build"
+              rm -rf "$BUILD_DIR"
+              exit 0
+            fi
+
+            # Clean up build directory
+            rm -rf "$BUILD_DIR"
           fi
 
           # Verify installation
           if sudo -u $PM2_USER command -v sol-azy &> /dev/null; then
-            echo "✓ sol-azy installed successfully for $PM2_USER"
+            echo "✓ sol-azy verification successful"
             sudo -u $PM2_USER sol-azy --version
-          elif [ -f "/home/$PM2_USER/.cargo/bin/sol-azy" ]; then
-            echo "✓ sol-azy binary found at /home/$PM2_USER/.cargo/bin/sol-azy"
-            sudo -u $PM2_USER /home/$PM2_USER/.cargo/bin/sol-azy --version
+          elif [ -f "$INSTALL_DIR/sol-azy" ]; then
+            echo "✓ sol-azy binary found at $INSTALL_DIR/sol-azy"
+            sudo -u $PM2_USER "$INSTALL_DIR/sol-azy" --version
           else
             echo "⚠️ Warning: sol-azy installation verification failed"
-            echo "Checking common locations..."
-            ls -la /home/$PM2_USER/.cargo/bin/sol-azy 2>/dev/null || echo "Not found in /home/$PM2_USER/.cargo/bin"
-            ls -la ~/.cargo/bin/sol-azy 2>/dev/null || echo "Not found in ~/.cargo/bin"
+            echo "SAST features will be disabled, but deployment will continue"
           fi
 
       - name: Copy analyzer environment file
