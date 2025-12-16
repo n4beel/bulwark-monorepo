@@ -61,7 +61,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Need at least 2 commits to compare
+          fetch-depth: 2 # Need at least 2 commits to compare
 
       - name: Check for analyzer changes
         id: analyzer-changes
@@ -166,35 +166,6 @@ jobs:
             cp ./backend/ecosystem.staging.config.js ${{ env.DEPLOY_PATH }}/backend/ecosystem.config.js
           fi
 
-      - name: Deploy analyzer
-        if: steps.analyzer-changes.outputs.changed == 'true'
-        run: |
-          # Copy analyzer binary (the server binary is what we deploy)
-          mkdir -p ${{ env.DEPLOY_PATH }}/analyzer
-          cp ./analyzer/target/release/server ${{ env.DEPLOY_PATH }}/analyzer/
-          chmod +x ${{ env.DEPLOY_PATH }}/analyzer/server
-          
-          # Copy the appropriate PM2 ecosystem config file
-          if [ "${{ steps.env.outputs.environment }}" == "production" ]; then
-            cp ./analyzer/ecosystem.production.config.js ${{ env.DEPLOY_PATH }}/analyzer/ecosystem.config.js
-          else
-            cp ./analyzer/ecosystem.staging.config.js ${{ env.DEPLOY_PATH }}/analyzer/ecosystem.config.js
-          fi
-          echo "✓ Analyzer binary and config deployed"
-
-      - name: Copy analyzer environment file
-        if: steps.analyzer-changes.outputs.changed == 'true'
-        run: |
-          if [ -f "${{ env.DEPLOY_PATH }}/${{ env.ANALYZER_ENV_FILE }}" ]; then
-            cp ${{ env.DEPLOY_PATH }}/${{ env.ANALYZER_ENV_FILE }} ${{ env.DEPLOY_PATH }}/analyzer/.env
-            echo "✓ Analyzer environment file copied"
-          else
-            echo "Warning: Analyzer environment file ${{ env.ANALYZER_ENV_FILE }} not found!"
-            echo "Creating minimal .env with PORT only..."
-            echo "PORT=${{ env.ANALYZER_PORT }}" > ${{ env.DEPLOY_PATH }}/analyzer/.env
-            echo "SHARED_WORKSPACE_PATH=/tmp/shared/workspaces" >> ${{ env.DEPLOY_PATH }}/analyzer/.env
-          fi
-
       - name: Copy environment file
         run: |
           if [ -f "${{ env.DEPLOY_PATH }}/${{ env.ENV_FILE }}" ]; then
@@ -227,6 +198,38 @@ jobs:
             # Kill any remaining analyzer processes (fallback)
             pkill -f "${{ env.DEPLOY_PATH }}/analyzer/server" || true
             sleep 2
+            
+            # Ensure the file is not locked by waiting a bit more
+            sleep 1
+          fi
+
+      - name: Deploy analyzer
+        if: steps.analyzer-changes.outputs.changed == 'true'
+        run: |
+          # Copy analyzer binary (the server binary is what we deploy)
+          mkdir -p ${{ env.DEPLOY_PATH }}/analyzer
+          cp ./analyzer/target/release/server ${{ env.DEPLOY_PATH }}/analyzer/
+          chmod +x ${{ env.DEPLOY_PATH }}/analyzer/server
+
+          # Copy the appropriate PM2 ecosystem config file
+          if [ "${{ steps.env.outputs.environment }}" == "production" ]; then
+            cp ./analyzer/ecosystem.production.config.js ${{ env.DEPLOY_PATH }}/analyzer/ecosystem.config.js
+          else
+            cp ./analyzer/ecosystem.staging.config.js ${{ env.DEPLOY_PATH }}/analyzer/ecosystem.config.js
+          fi
+          echo "✓ Analyzer binary and config deployed"
+
+      - name: Copy analyzer environment file
+        if: steps.analyzer-changes.outputs.changed == 'true'
+        run: |
+          if [ -f "${{ env.DEPLOY_PATH }}/${{ env.ANALYZER_ENV_FILE }}" ]; then
+            cp ${{ env.DEPLOY_PATH }}/${{ env.ANALYZER_ENV_FILE }} ${{ env.DEPLOY_PATH }}/analyzer/.env
+            echo "✓ Analyzer environment file copied"
+          else
+            echo "Warning: Analyzer environment file ${{ env.ANALYZER_ENV_FILE }} not found!"
+            echo "Creating minimal .env with PORT only..."
+            echo "PORT=${{ env.ANALYZER_PORT }}" > ${{ env.DEPLOY_PATH }}/analyzer/.env
+            echo "SHARED_WORKSPACE_PATH=/tmp/shared/workspaces" >> ${{ env.DEPLOY_PATH }}/analyzer/.env
           fi
 
       - name: Start backend with PM2
