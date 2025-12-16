@@ -219,6 +219,59 @@ jobs:
           fi
           echo "✓ Analyzer binary and config deployed"
 
+      - name: Install sol-azy on deployment server
+        if: steps.analyzer-changes.outputs.changed == 'true'
+        run: |
+          echo "Installing sol-azy CLI tool for SAST analysis..."
+
+          # Determine the user that will run PM2 (usually ubuntu)
+          PM2_USER="ubuntu"
+          if [ "${{ steps.env.outputs.environment }}" == "production" ]; then
+            PM2_USER="ubuntu"  # Adjust if production uses different user
+          fi
+
+          # Check if sol-azy is already installed for the PM2 user
+          if sudo -u $PM2_USER command -v sol-azy &> /dev/null; then
+            INSTALLED_VERSION=$(sudo -u $PM2_USER sol-azy --version 2>&1 | head -n1 || echo "")
+            echo "sol-azy already installed for $PM2_USER: $INSTALLED_VERSION"
+            
+            # Check if version matches required version
+            if echo "$INSTALLED_VERSION" | grep -q "0.1.0"; then
+              echo "✓ sol-azy version 0.1.0 is already installed"
+            else
+              echo "Version mismatch detected. Reinstalling sol-azy v0.1.0 for $PM2_USER..."
+              sudo -u $PM2_USER bash -c "source ~/.cargo/env && cargo install sol-azy --version 0.1.0 --force" || {
+                echo "⚠️ Failed to install sol-azy. SAST features will be disabled."
+                echo "You can manually install it later with: sudo -u $PM2_USER cargo install sol-azy --version 0.1.0"
+              }
+            fi
+          else
+            echo "sol-azy not found for $PM2_USER. Installing version 0.1.0..."
+            # Ensure cargo is in PATH for the user
+            sudo -u $PM2_USER bash -c "source ~/.cargo/env 2>/dev/null || true; cargo install sol-azy --version 0.1.0" || {
+              echo "⚠️ Failed to install sol-azy. SAST features will be disabled."
+              echo "Attempting fallback: installing as current user..."
+              cargo install sol-azy --version 0.1.0 || {
+                echo "⚠️ Fallback installation also failed. SAST features will be disabled."
+                echo "You can manually install it later with: sudo -u $PM2_USER cargo install sol-azy --version 0.1.0"
+              }
+            }
+          fi
+
+          # Verify installation
+          if sudo -u $PM2_USER command -v sol-azy &> /dev/null; then
+            echo "✓ sol-azy installed successfully for $PM2_USER"
+            sudo -u $PM2_USER sol-azy --version
+          elif [ -f "/home/$PM2_USER/.cargo/bin/sol-azy" ]; then
+            echo "✓ sol-azy binary found at /home/$PM2_USER/.cargo/bin/sol-azy"
+            sudo -u $PM2_USER /home/$PM2_USER/.cargo/bin/sol-azy --version
+          else
+            echo "⚠️ Warning: sol-azy installation verification failed"
+            echo "Checking common locations..."
+            ls -la /home/$PM2_USER/.cargo/bin/sol-azy 2>/dev/null || echo "Not found in /home/$PM2_USER/.cargo/bin"
+            ls -la ~/.cargo/bin/sol-azy 2>/dev/null || echo "Not found in ~/.cargo/bin"
+          fi
+
       - name: Copy analyzer environment file
         if: steps.analyzer-changes.outputs.changed == 'true'
         run: |
@@ -230,6 +283,13 @@ jobs:
             echo "Creating minimal .env with PORT only..."
             echo "PORT=${{ env.ANALYZER_PORT }}" > ${{ env.DEPLOY_PATH }}/analyzer/.env
             echo "SHARED_WORKSPACE_PATH=/tmp/shared/workspaces" >> ${{ env.DEPLOY_PATH }}/analyzer/.env
+          fi
+
+          # Ensure PATH includes cargo bin directory for sol-azy
+          if ! grep -q "CARGO_HOME\|\.cargo/bin" ${{ env.DEPLOY_PATH }}/analyzer/.env; then
+            echo "" >> ${{ env.DEPLOY_PATH }}/analyzer/.env
+            echo "# Ensure sol-azy is in PATH" >> ${{ env.DEPLOY_PATH }}/analyzer/.env
+            echo "PATH=\$HOME/.cargo/bin:\$PATH" >> ${{ env.DEPLOY_PATH }}/analyzer/.env
           fi
 
       - name: Start backend with PM2
